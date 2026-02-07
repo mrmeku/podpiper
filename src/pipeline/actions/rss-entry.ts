@@ -13,6 +13,7 @@ import type {
 } from "@/types";
 
 import type { DownloadResult } from "./download";
+import { NodeKind } from "./node-kind";
 
 export interface EpisodeOutput extends HasUploads {
   episode: Episode;
@@ -47,6 +48,7 @@ export function addRssEntryNode(
   if (deps.summary) depNames.push(deps.summary.name);
   graph.add({
     name,
+    kind: NodeKind.RssEntry,
     deps: depNames,
     config: "rss-v2",
     action: async (inputs) => {

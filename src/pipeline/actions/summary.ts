@@ -5,6 +5,7 @@ import type { FileSystem, Llm, TranscribeResult } from "@/ports/types";
 import type { WhisperJson, YtDlpInfo } from "@/types";
 
 import type { DownloadResult } from "./download";
+import { NodeKind } from "./node-kind";
 
 function formatTranscriptForLlm(whisper: WhisperJson): string {
   return whisper.transcription.map((s) => s.text.trim()).join("\n");
@@ -23,6 +24,7 @@ export function addSummaryNode(
   const promptHash = Bun.hash(summaryPrompt).toString(36);
   graph.add({
     name,
+    kind: NodeKind.Summary,
     deps: [download.name, transcribe.name],
     config: `summary-v2,prompt=${promptHash}`,
     action: async (inputs) => {

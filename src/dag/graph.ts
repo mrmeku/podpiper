@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 
-import type { Cache, ExecResult, Flushable, Node } from "./types";
+import type {
+  Cache,
+  ExecResult,
+  Flushable,
+  Node,
+  NodeCounts,
+  PlanningResult,
+} from "./types";
 
 export let maxParallelism = 4;
 export function setMaxParallelism(n: number): void {
@@ -54,6 +61,43 @@ export class Graph {
 
     for (const name of this.nodes.keys()) visit(name);
     return order;
+  }
+
+  plan(): PlanningResult {
+    return this.nodes.entries().reduce<{
+      hashes: Map<string, string>;
+      totalCounts: NodeCounts;
+      byKind: Map<string, NodeCounts>;
+    }>(
+      (acc, [name, node]) => {
+        const depHashes = new Map(
+          node.deps.map((d) => [d, acc.hashes.get(d) ?? ""]),
+        );
+        const hash = computeHash(node, depHashes);
+        acc.hashes.set(name, hash);
+
+        const hit = this.cache.get(hash)[1];
+        acc.totalCounts.total++;
+        if (hit) acc.totalCounts.cached++;
+        else acc.totalCounts.dirty++;
+
+        let counts = acc.byKind.get(node.kind);
+        if (!counts) {
+          counts = { total: 0, cached: 0, dirty: 0 };
+          acc.byKind.set(node.kind, counts);
+        }
+        counts.total++;
+        if (hit) counts.cached++;
+        else counts.dirty++;
+
+        return acc;
+      },
+      {
+        hashes: new Map(),
+        totalCounts: { total: 0, cached: 0, dirty: 0 },
+        byKind: new Map(),
+      },
+    );
   }
 
   async execute(): Promise<ExecResult[]> {
