@@ -1,10 +1,10 @@
-import { Graph, localRunner } from "@/dag/graph";
-import type { Cache, ExecResult, ExecuteOptions } from "@/dag/types";
-import type { Ports } from "@/ports/types";
-import type { Config, Episode, UploadEntry, VideoInfo } from "@/types";
+import { localRunner } from "@/dag/graph";
+import type { Graph } from "@/dag/graph";
+import type { ExecResult, ExecuteOptions } from "@/dag/types";
+import type { Episode, UploadEntry } from "@/types";
 
 import type { EpisodeOutput } from "./actions/rss-entry";
-import { buildPipelineGraph } from "./graph-builder";
+import type { PipelineRefs } from "./graph-builder";
 
 export interface SyncResult {
   uploads: UploadEntry[];
@@ -13,14 +13,11 @@ export interface SyncResult {
 }
 
 export async function sync(
-  videos: VideoInfo[],
-  config: Config,
-  ports: Ports,
-  cache: Cache,
+  graph: Graph,
+  refs: PipelineRefs,
   opts?: ExecuteOptions,
 ): Promise<SyncResult> {
-  const graph = new Graph(cache);
-  const { publishRefs, entryRefs } = buildPipelineGraph(graph, videos, ports, config);
+  const { publishRefs, entryRefs } = refs;
   const results = await graph.execute(localRunner, opts);
   const resultsByName = new Map(results.map((r) => [r.name, r]));
   const uploads: UploadEntry[] = [];

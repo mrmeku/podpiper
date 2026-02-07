@@ -65,7 +65,7 @@ export class Graph {
 
   plan(): PlanningResult {
     this.validateNoCycles();
-    return this.nodes.entries().reduce<{
+    const { totalCounts, byKind } = this.nodes.entries().reduce<{
       hashes: Map<string, string>;
       totalCounts: NodeCounts;
       byKind: Map<string, NodeCounts>;
@@ -97,6 +97,7 @@ export class Graph {
         byKind: new Map(),
       },
     );
+    return { totalCounts, byKind };
   }
 
   async execute(runner: NodeRunner = localRunner, opts?: ExecuteOptions): Promise<ExecResult[]> {

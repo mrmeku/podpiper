@@ -12,7 +12,7 @@ export interface FileSystem {
 
 export interface YouTubeDownloader {
   fetchVideoList: (channelUrl: string) => Promise<VideoInfo[]>;
-  downloadVideo: (outputDir: string, videoId: string, useCookies?: boolean) => Promise<void>;
+  downloadVideo: (outputDir: string, videoId: string) => Promise<void>;
   downloadChannelArtwork: (outputDir: string, channelUrl: string) => Promise<void>;
 }
 
