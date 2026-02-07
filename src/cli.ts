@@ -116,10 +116,10 @@ function printResults(results: ExecResult[]): void {
   let skip = 0;
   let fail = 0;
   for (const r of results) {
-    if (r.error) {
+    if (r.status === "fail" || r.status === "dep-failed") {
       console.log(`  FAIL ${r.name}: ${r.error.message}`);
       fail++;
-    } else if (r.skipped) {
+    } else if (r.status === "cached") {
       skip++;
     } else {
       console.log(`  EXEC ${r.name}`);

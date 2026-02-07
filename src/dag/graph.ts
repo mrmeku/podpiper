@@ -130,9 +130,8 @@ export class Graph {
           execResults.set(name, {
             name,
             hash: "",
-            result: null,
-            skipped: false,
-            error: new Error(`skipped: dependency ${dep} failed`),
+            status: "dep-failed",
+            error: new Error(`dependency ${dep} failed`),
           });
           return;
         }
@@ -147,7 +146,7 @@ export class Graph {
         hashes.set(name, hash);
         results.set(name, cachedResult);
         emit?.({ node: name, kind, status: "cached" });
-        execResults.set(name, { name, hash, result: cachedResult, skipped: true, error: null });
+        execResults.set(name, { name, hash, status: "cached", result: cachedResult });
         return;
       }
 
@@ -162,7 +161,7 @@ export class Graph {
         results.set(name, result);
         this.cache.put(hash, result);
         emit?.({ node: name, kind, status: "done", elapsed: Date.now() - startTime });
-        execResults.set(name, { name, hash, result, skipped: false, error: null });
+        execResults.set(name, { name, hash, status: "done", result });
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e);
         emit?.({ node: name, kind, status: "fail", elapsed: Date.now() - startTime, error });
@@ -170,8 +169,7 @@ export class Graph {
         execResults.set(name, {
           name,
           hash,
-          result: null,
-          skipped: false,
+          status: "fail",
           error: e instanceof Error ? e : new Error(String(e)),
         });
       }

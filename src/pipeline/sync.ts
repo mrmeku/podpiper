@@ -26,13 +26,13 @@ export async function sync(
   const uploads: UploadEntry[] = [];
   for (const ref of publishRefs) {
     const r = resultsByName.get(ref.name);
-    if (!r || r.error || r.result === null || r.skipped) continue;
+    if (!r || r.status !== "done") continue;
     uploads.push(...ref.parse(r.result).uploads);
   }
   const episodes = entryRefs
     .map((ref) => {
       const r = resultsByName.get(ref.name);
-      if (!r || r.error || r.result === null) return null;
+      if (!r || r.status === "fail" || r.status === "dep-failed") return null;
       return (JSON.parse(r.result) as EpisodeOutput).episode;
     })
     .filter((ep) => ep !== null);
