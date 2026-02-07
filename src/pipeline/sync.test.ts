@@ -160,16 +160,16 @@ describe("sync pipeline", () => {
 
     // S3 uploads + port calls
     expect({
-      downloads: ports.ytdlp.downloadVideo.mock.calls.map((c: any) => c[1]),
+      downloads: ports.ytdlp.downloadVideo.mock.calls.map((c: any) => c[1]).sort(),
       cropThumbnails: ports.ffmpeg.cropThumbnail.mock.calls.map((c: any) => [
         (c[0] as string).split("/").slice(-2).join("/"),
         (c[1] as string).split("/").slice(-2).join("/"),
-      ]),
+      ]).sort((a, b) => a[0]!.localeCompare(b[0]!)),
       processChannelArtwork:
         ports.ffmpeg.processChannelArtwork.mock.calls.length,
       claudePrompts: ports.claude.call.mock.calls.map(
         (c: any) => c[0] as string,
-      ),
+      ).sort(),
       storageGetFile: ports.storage.getFile.mock.calls.length,
       uploads: getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key)),
     }).toEqual({
@@ -180,8 +180,8 @@ describe("sync pipeline", () => {
       ],
       processChannelArtwork: 1,
       claudePrompts: [
-        expect.stringContaining("Mock transcript"),
-        expect.stringContaining("Mock transcript"),
+        expect.stringContaining("Growth Mindset"),
+        expect.stringContaining("Deep Learning"),
       ],
       storageGetFile: 1,
       uploads: [

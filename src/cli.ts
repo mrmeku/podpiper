@@ -6,7 +6,7 @@ import { Command } from "commander";
 
 import { getConfig } from "./config";
 import { LocalCache, MemCache } from "./dag/cache";
-import { Graph, setMaxParallelism } from "./dag/graph";
+import { Graph } from "./dag/graph";
 import type { ExecResult } from "./dag/types";
 import { generateMermaid } from "./graph/mermaid";
 import { checkMissing } from "./pipeline/check";
@@ -47,7 +47,6 @@ program
     ) => {
       const config = getConfig(channel);
       const ports = createRealPorts(opts);
-      if (opts.parallel) setMaxParallelism(opts.parallel);
 
       console.log(`Discovering videos for ${channel}...`);
       let videos = await discoverVideos(config.channelUrl, ports.ytdlp);
@@ -61,7 +60,7 @@ program
       const cache = opts.force
         ? new MemCache()
         : new LocalCache(`${config.outputDir}/cache.json`);
-      const results = await sync(videos, config, ports, cache);
+      const results = await sync(videos, config, ports, cache, opts.parallel);
       printResults(results.results);
 
       console.log("Publishing...");

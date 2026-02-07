@@ -17,6 +17,7 @@ export async function sync(
   config: Config,
   ports: Ports,
   cache: Cache,
+  maxParallelism = 4,
 ): Promise<SyncResult> {
   const graph = new Graph(cache);
   const { publishRefs, entryRefs } = buildPipelineGraph(
@@ -25,7 +26,7 @@ export async function sync(
     ports,
     config,
   );
-  const results = await graph.execute();
+  const results = await graph.execute(maxParallelism);
   const resultsByName = new Map(results.map((r) => [r.name, r]));
   const uploads: UploadEntry[] = [];
   for (const ref of publishRefs) {
