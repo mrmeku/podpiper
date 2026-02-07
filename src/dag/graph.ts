@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { Cache, ExecResult, Flushable, Node, NodeCounts, PlanningResult } from "./types";
+import type { Cache, ExecResult, Flushable, Node, NodeCounts, NodeRunner, PlanningResult } from "./types";
 
 function computeHash(node: Node, depHashes: Map<string, string>): string {
   const h = createHash("sha256");
@@ -13,6 +13,8 @@ function computeHash(node: Node, depHashes: Map<string, string>): string {
   }
   return h.digest("hex");
 }
+
+export const localRunner: NodeRunner = (node, inputs) => node.action(inputs);
 
 export class Graph {
   private nodes = new Map<string, Node>();
@@ -87,7 +89,7 @@ export class Graph {
     );
   }
 
-  async execute(maxParallelism = 4): Promise<ExecResult[]> {
+  async execute(runner: NodeRunner = localRunner, maxParallelism?: number): Promise<ExecResult[]> {
     const hashes = new Map<string, string>();
     const results = new Map<string, string>();
     const execResults = new Map<string, ExecResult>();
@@ -139,7 +141,7 @@ export class Graph {
       for (const dep of node.deps) inputs[dep] = results.get(dep) ?? "";
 
       try {
-        const result = await node.action(inputs);
+        const result = await runner(node, inputs);
         hashes.set(name, hash);
         results.set(name, result);
         this.cache.put(hash, result);
@@ -170,7 +172,7 @@ export class Graph {
     }
 
     while (ready.length > 0 || inflight > 0) {
-      while (ready.length > 0 && inflight < maxParallelism) {
+      while (ready.length > 0 && (maxParallelism == null || inflight < maxParallelism)) {
         const node = ready.shift()!;
         inflight++;
         processNode(node).then(() => {

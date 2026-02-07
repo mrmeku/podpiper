@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 import { LocalCache, MemCache, TieredCache } from "./cache";
-import { Graph } from "./graph";
-import type { ExecResult } from "./types";
+import { Graph, localRunner } from "./graph";
+import type { ExecResult, NodeRunner } from "./types";
 
 function countExec(results: ExecResult[]): { exec: number; skip: number } {
   let exec = 0;
@@ -279,7 +279,7 @@ describe("Graph", () => {
       },
     });
 
-    await g.execute(1);
+    await g.execute(localRunner, 1);
     expect(log).toEqual(["first_root", "child", "second_root"]);
   });
 
@@ -339,5 +339,35 @@ describe("Graph", () => {
     results = await makeGraph().execute();
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(0);
+  });
+
+  test("mock runner: executor calls runner instead of node.action", async () => {
+    const cache = new MemCache();
+    const g = new Graph(cache);
+    const calls: string[] = [];
+
+    g.add({
+      name: "root",
+      kind: "root",
+      deps: [],
+      config: "cfg",
+      action: async () => "should not be called",
+    });
+    g.add({
+      name: "child",
+      kind: "child",
+      deps: ["root"],
+      config: "cfg",
+      action: async () => "should not be called",
+    });
+
+    const mockRunner: NodeRunner = async (node, _inputs) => {
+      calls.push(node.name);
+      return `result:${node.name}`;
+    };
+
+    const results = await g.execute(mockRunner);
+    expect(calls).toEqual(["root", "child"]);
+    expect(results.find((r) => r.name === "child")?.result).toBe("result:child");
   });
 });
