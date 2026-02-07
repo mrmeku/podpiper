@@ -86,10 +86,7 @@ function addFeedNode(g: Graph, vids: string[]): void {
   });
 }
 
-function buildGraph(
-  cache: MemCache | LocalCache | TieredCache,
-  vids: string[],
-): Graph {
+function buildGraph(cache: MemCache | LocalCache | TieredCache, vids: string[]): Graph {
   const g = new Graph(cache);
   for (const vid of vids) addVideoNodes(g, vid);
   addFeedNode(g, vids);
@@ -114,11 +111,7 @@ describe("Graph", () => {
     expect(skip).toBe(15);
 
     // Run 3: new video vid_ccc
-    results = await buildGraph(cache, [
-      "vid_aaa",
-      "vid_bbb",
-      "vid_ccc",
-    ]).execute();
+    results = await buildGraph(cache, ["vid_aaa", "vid_bbb", "vid_ccc"]).execute();
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(8); // 7 for vid_ccc + 1 feed (deps changed)
     expect(skip).toBe(14); // 7 for vid_aaa + 7 for vid_bbb
@@ -204,14 +197,47 @@ describe("Graph", () => {
     const g = new Graph(cache);
     const log: string[] = [];
 
-    g.add({ name: "slow_root", kind: "root", deps: [], config: "a",
-      action: async () => { await Bun.sleep(50); log.push("slow_root"); return "a"; } });
-    g.add({ name: "fast_root", kind: "root", deps: [], config: "b",
-      action: async () => { log.push("fast_root"); return "b"; } });
-    g.add({ name: "slow_child", kind: "child", deps: ["slow_root"], config: "c",
-      action: async () => { log.push("slow_child"); return "c"; } });
-    g.add({ name: "fast_child", kind: "child", deps: ["fast_root"], config: "d",
-      action: async () => { log.push("fast_child"); return "d"; } });
+    g.add({
+      name: "slow_root",
+      kind: "root",
+      deps: [],
+      config: "a",
+      action: async () => {
+        await Bun.sleep(50);
+        log.push("slow_root");
+        return "a";
+      },
+    });
+    g.add({
+      name: "fast_root",
+      kind: "root",
+      deps: [],
+      config: "b",
+      action: async () => {
+        log.push("fast_root");
+        return "b";
+      },
+    });
+    g.add({
+      name: "slow_child",
+      kind: "child",
+      deps: ["slow_root"],
+      config: "c",
+      action: async () => {
+        log.push("slow_child");
+        return "c";
+      },
+    });
+    g.add({
+      name: "fast_child",
+      kind: "child",
+      deps: ["fast_root"],
+      config: "d",
+      action: async () => {
+        log.push("fast_child");
+        return "d";
+      },
+    });
 
     await g.execute();
     expect(log).toEqual(["fast_root", "fast_child", "slow_root", "slow_child"]);
@@ -222,12 +248,36 @@ describe("Graph", () => {
     const g = new Graph(cache);
     const log: string[] = [];
 
-    g.add({ name: "first_root", kind: "root", deps: [], config: "r1",
-      action: async () => { log.push("first_root"); return "r1"; } });
-    g.add({ name: "second_root", kind: "root", deps: [], config: "r2",
-      action: async () => { log.push("second_root"); return "r2"; } });
-    g.add({ name: "child", kind: "child", deps: ["first_root"], config: "c1",
-      action: async () => { log.push("child"); return "c1"; } });
+    g.add({
+      name: "first_root",
+      kind: "root",
+      deps: [],
+      config: "r1",
+      action: async () => {
+        log.push("first_root");
+        return "r1";
+      },
+    });
+    g.add({
+      name: "second_root",
+      kind: "root",
+      deps: [],
+      config: "r2",
+      action: async () => {
+        log.push("second_root");
+        return "r2";
+      },
+    });
+    g.add({
+      name: "child",
+      kind: "child",
+      deps: ["first_root"],
+      config: "c1",
+      action: async () => {
+        log.push("child");
+        return "c1";
+      },
+    });
 
     await g.execute(1);
     expect(log).toEqual(["first_root", "child", "second_root"]);

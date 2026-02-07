@@ -42,9 +42,7 @@ interface RssItem {
 }
 
 function buildItem(config: Config, ep: Episode): RssItem {
-  const thumbUrl = ep.thumbnail
-    ? `${config.r2.publicUrl}/${encodeUrl(ep.thumbnail)}`
-    : null;
+  const thumbUrl = ep.thumbnail ? `${config.r2.publicUrl}/${encodeUrl(ep.thumbnail)}` : null;
   const hasChapters = ep.chapters.length > 0;
   return {
     title: ep.title,
@@ -108,9 +106,7 @@ export function buildFeedXml(config: Config, episodes: Episode[]): string {
         description: podcast.description,
         link: config.channelUrl,
         language: "en",
-        pubDate: newestEpisode
-          ? formatPubDate(newestEpisode.uploadDate)
-          : undefined,
+        pubDate: newestEpisode ? formatPubDate(newestEpisode.uploadDate) : undefined,
         lastBuildDate: new Date().toUTCString(),
         ttl: 60,
         image: {

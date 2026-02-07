@@ -25,11 +25,7 @@ export type ApplePodcastCategory =
     }
   | {
       category: "Education";
-      subcategory?:
-        | "Courses"
-        | "How To"
-        | "Language Learning"
-        | "Self-Improvement";
+      subcategory?: "Courses" | "How To" | "Language Learning" | "Self-Improvement";
     }
   | {
       category: "Fiction";
@@ -49,11 +45,7 @@ export type ApplePodcastCategory =
     }
   | {
       category: "Kids & Family";
-      subcategory?:
-        | "Education for Kids"
-        | "Parenting"
-        | "Pets & Animals"
-        | "Stories for Kids";
+      subcategory?: "Education for Kids" | "Parenting" | "Pets & Animals" | "Stories for Kids";
     }
   | {
       category: "Leisure";

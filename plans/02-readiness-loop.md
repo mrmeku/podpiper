@@ -17,6 +17,7 @@ None — independent engine refactor. Can be done before or after planning phase
 **Only file changed:** `src/dag/graph.ts` — `execute()` (lines 103–221), `plan()` (calls `validateNoCycles()` for cycle detection), signature changes.
 
 Nothing else changes:
+
 - `types.ts` — no type changes (ExecResult, Cache, Node all stay the same)
 - `cache.ts` — no cache changes
 - `computeHash()` — unchanged
@@ -52,6 +53,7 @@ event loop:
 The core idea: replace the depth-grouped `Promise.all` loop and semaphore with a single explicit event loop driven by a work queue.
 
 Four concepts from the old design collapse into the loop condition, queue, and parameter:
+
 - ~~Semaphore (acquire/release)~~ → `inflight < maxParallelism`
 - ~~Completion tracking (remaining/resolveAll)~~ → `ready.length > 0 || inflight > 0`
 - ~~Recursive dispatch~~ → `ready.unshift(child)`
@@ -59,7 +61,7 @@ Four concepts from the old design collapse into the loop condition, queue, and p
 
 **Enqueue guard:** An `enqueued: Set<string>` prevents double-dispatch when multiple parents of a node complete in the same microtask batch. Without this, if node C depends on A and B and both resolve together, both `.then()` callbacks see C as ready and push it — C runs twice. The guard ensures each node enters the queue exactly once.
 
-**Queue ordering:** Newly-ready children enter the *front* of the queue (`unshift`), not the back. This ensures that when a download finishes, its thumbnail/transcribe nodes run before queued downloads that haven't started yet. Work that's further along the pipeline keeps moving forward.
+**Queue ordering:** Newly-ready children enter the _front_ of the queue (`unshift`), not the back. This ensures that when a download finishes, its thumbnail/transcribe nodes run before queued downloads that haven't started yet. Work that's further along the pipeline keeps moving forward.
 
 **No recursion:** When a node completes, its `.then()` callback pushes ready children to the queue and wakes the loop. The loop picks them up on the next iteration. No `dispatch()` calling `dispatch()`, no stack growth regardless of chain depth.
 
@@ -78,7 +80,10 @@ const dependents = new Map<string, Node[]>();
 for (const node of this.nodes.values()) {
   for (const dep of node.deps) {
     let list = dependents.get(dep);
-    if (!list) { list = []; dependents.set(dep, list); }
+    if (!list) {
+      list = [];
+      dependents.set(dep, list);
+    }
     list.push(node);
   }
 }
@@ -104,7 +109,10 @@ const processNode = async (node: Node): Promise<void> => {
     if (failed.has(dep)) {
       failed.add(name);
       execResults.set(name, {
-        name, hash: "", result: null, skipped: false,
+        name,
+        hash: "",
+        result: null,
+        skipped: false,
         error: new Error(`skipped: dependency ${dep} failed`),
       });
       return;
@@ -135,7 +143,10 @@ const processNode = async (node: Node): Promise<void> => {
   } catch (e) {
     failed.add(name);
     execResults.set(name, {
-      name, hash, result: null, skipped: false,
+      name,
+      hash,
+      result: null,
+      skipped: false,
       error: e instanceof Error ? e : new Error(String(e)),
     });
   }
@@ -156,7 +167,10 @@ let wake: () => void = () => {};
 
 // Seed with zero-dep nodes
 for (const node of this.nodes.values()) {
-  if (node.deps.length === 0) { ready.push(node); enqueued.add(node.name); }
+  if (node.deps.length === 0) {
+    ready.push(node);
+    enqueued.add(node.name);
+  }
 }
 
 while (ready.length > 0 || inflight > 0) {
@@ -174,7 +188,9 @@ while (ready.length > 0 || inflight > 0) {
       wake();
     });
   }
-  await new Promise<void>((r) => { wake = r; });
+  await new Promise<void>((r) => {
+    wake = r;
+  });
 }
 ```
 
@@ -213,14 +229,15 @@ Unchanged semantics. When `processNode` runs and any dep is in the `failed` set,
 
 ## What Doesn't Change
 
-| Concern | Why unchanged |
-|---------|---------------|
-| `computeHash()` | Hash computation is per-node, independent of scheduling |
-| Return type | Same `ExecResult[]` (order is now completion order, not topological — no caller depends on ordering) |
-| Cache semantics | Same get/put/flush lifecycle |
-| Error messages | Same `skipped: dependency ${dep} failed` string |
+| Concern         | Why unchanged                                                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| `computeHash()` | Hash computation is per-node, independent of scheduling                                              |
+| Return type     | Same `ExecResult[]` (order is now completion order, not topological — no caller depends on ordering) |
+| Cache semantics | Same get/put/flush lifecycle                                                                         |
+| Error messages  | Same `skipped: dependency ${dep} failed` string                                                      |
 
 **Changed:**
+
 - `plan()` — calls `this.validateNoCycles()` at the top for cycle detection. Throws `Error("cycle detected at ${name}")` on any back edge. Since `plan()` is the analysis step and runs before `execute()`, cycles are caught early.
 - `validateNoCycles()` — caller moves from `execute()` to `plan()`. Method itself is unchanged.
 - `maxParallelism` — moves from module-level global + setter to a parameter on `execute(maxParallelism = 4)`. The exported `maxParallelism` variable and `setMaxParallelism()` function are deleted.
@@ -246,14 +263,47 @@ test("readiness: dependent starts as soon as its deps finish", async () => {
   const g = new Graph(cache);
   const log: string[] = [];
 
-  g.add({ name: "A", kind: "slow", deps: [], config: "a",
-    action: async () => { await Bun.sleep(50); log.push("A"); return "a"; } });
-  g.add({ name: "B", kind: "fast", deps: [], config: "b",
-    action: async () => { log.push("B"); return "b"; } });
-  g.add({ name: "C", kind: "dep", deps: ["A"], config: "c",
-    action: async () => { log.push("C"); return "c"; } });
-  g.add({ name: "D", kind: "dep", deps: ["B"], config: "d",
-    action: async () => { log.push("D"); return "d"; } });
+  g.add({
+    name: "A",
+    kind: "slow",
+    deps: [],
+    config: "a",
+    action: async () => {
+      await Bun.sleep(50);
+      log.push("A");
+      return "a";
+    },
+  });
+  g.add({
+    name: "B",
+    kind: "fast",
+    deps: [],
+    config: "b",
+    action: async () => {
+      log.push("B");
+      return "b";
+    },
+  });
+  g.add({
+    name: "C",
+    kind: "dep",
+    deps: ["A"],
+    config: "c",
+    action: async () => {
+      log.push("C");
+      return "c";
+    },
+  });
+  g.add({
+    name: "D",
+    kind: "dep",
+    deps: ["B"],
+    config: "d",
+    action: async () => {
+      log.push("D");
+      return "d";
+    },
+  });
 
   await g.execute();
   // D should execute before A completes (and thus before C)
@@ -269,12 +319,36 @@ test("children of completed nodes run before queued siblings", async () => {
   const g = new Graph(cache);
   const log: string[] = [];
 
-  g.add({ name: "D1", kind: "download", deps: [], config: "d1",
-    action: async () => { log.push("D1"); return "d1"; } });
-  g.add({ name: "D2", kind: "download", deps: [], config: "d2",
-    action: async () => { log.push("D2"); return "d2"; } });
-  g.add({ name: "T1", kind: "thumb", deps: ["D1"], config: "t1",
-    action: async () => { log.push("T1"); return "t1"; } });
+  g.add({
+    name: "D1",
+    kind: "download",
+    deps: [],
+    config: "d1",
+    action: async () => {
+      log.push("D1");
+      return "d1";
+    },
+  });
+  g.add({
+    name: "D2",
+    kind: "download",
+    deps: [],
+    config: "d2",
+    action: async () => {
+      log.push("D2");
+      return "d2";
+    },
+  });
+  g.add({
+    name: "T1",
+    kind: "thumb",
+    deps: ["D1"],
+    config: "t1",
+    action: async () => {
+      log.push("T1");
+      return "t1";
+    },
+  });
 
   await g.execute(1); // force serial to make ordering deterministic
   // T1 should run before D2 because D1's child gets queue priority

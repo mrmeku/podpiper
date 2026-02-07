@@ -6,8 +6,8 @@ Add a callback mechanism so the executor emits progress events as nodes execute:
 
 ```typescript
 interface ProgressEvent {
-  node: string;      // "transcribe:vid_abc123"
-  nodeType: string;  // "transcribe"
+  node: string; // "transcribe:vid_abc123"
+  nodeType: string; // "transcribe"
   status: "start" | "done" | "fail";
 }
 

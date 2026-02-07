@@ -8,18 +8,16 @@ export function createRealYtdlp(opts?: { force?: boolean }): YouTubeDownloader {
   const force = opts?.force ?? false;
   return {
     fetchVideoList: async (channelUrl) => {
-      const output =
-        await $`yt-dlp --flat-playlist --print ${PRINT_FMT} ${channelUrl}`
-          .quiet()
-          .text();
+      const output = await $`yt-dlp --flat-playlist --print ${PRINT_FMT} ${channelUrl}`
+        .quiet()
+        .text();
       return output
         .trim()
         .split("\n")
         .filter((line) => line.length > 0)
         .map((line) => {
           const parts = line.split("|");
-          if (parts.length < 3)
-            throw new Error(`Malformed yt-dlp output: ${line}`);
+          if (parts.length < 3) throw new Error(`Malformed yt-dlp output: ${line}`);
           return { id: parts[0]!, uploadDate: parts[1]!, title: parts[2]! };
         });
     },

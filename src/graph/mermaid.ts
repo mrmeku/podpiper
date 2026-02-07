@@ -64,13 +64,9 @@ export function generateMermaid(graph: Graph): string {
       lines.push(`      ${toId(n.name)}["${toLabel(n.name)}"]`);
     }
     for (const n of group) {
-      const localDeps = n.deps.filter(
-        (d) => d.includes(":") && d.endsWith(vid),
-      );
+      const localDeps = n.deps.filter((d) => d.includes(":") && d.endsWith(vid));
       if (localDeps.length) {
-        lines.push(
-          `      ${localDeps.map(toId).join(" & ")} --> ${toId(n.name)}`,
-        );
+        lines.push(`      ${localDeps.map(toId).join(" & ")} --> ${toId(n.name)}`);
       }
     }
     lines.push(`    end`);
@@ -90,10 +86,7 @@ export function generateMermaid(graph: Graph): string {
     .flatMap((group) => group.filter((n) => n.name.startsWith("rss_entry:")))
     .map((n) => toId(n.name));
   const artworkId = topLevel.find((n) => n.name === "artwork");
-  const publishDeps = [
-    ...rssEntryIds,
-    ...(artworkId ? [toId(artworkId.name)] : []),
-  ];
+  const publishDeps = [...rssEntryIds, ...(artworkId ? [toId(artworkId.name)] : [])];
   lines.push("");
   lines.push(`  subgraph publish_phase ["Gold: Publish"]`);
   lines.push(`    publish["R2 Uploads + Feed"]`);
@@ -104,9 +97,7 @@ export function generateMermaid(graph: Graph): string {
 
   // phase colors
   lines.push("");
-  lines.push(
-    `  style discovery_phase fill:#f4d3a0,stroke:#c48540,color:#5c3a1a`,
-  );
+  lines.push(`  style discovery_phase fill:#f4d3a0,stroke:#c48540,color:#5c3a1a`);
   lines.push(`  style pipeline_phase fill:#e8e8e8,stroke:#999,color:#333`);
   lines.push(`  style publish_phase fill:#fef3c7,stroke:#d4a017,color:#5c4a00`);
   for (let i = 1; i <= videoGroups.size; i++) {

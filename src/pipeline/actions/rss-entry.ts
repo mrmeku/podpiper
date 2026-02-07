@@ -3,14 +3,7 @@ import { jsonRef } from "@/dag/types";
 import type { NodeRef } from "@/dag/types";
 import { toVideoDir } from "@/paths";
 import type { FileSystem, TranscribeResult } from "@/ports/types";
-import type {
-  Chapter,
-  Episode,
-  HasUploads,
-  UploadEntry,
-  VideoInfo,
-  YtDlpInfo,
-} from "@/types";
+import type { Chapter, Episode, HasUploads, UploadEntry, VideoInfo, YtDlpInfo } from "@/types";
 
 import type { DownloadResult } from "./download";
 import { NodeKind } from "./node-kind";
@@ -94,11 +87,7 @@ export function addRssEntryNode(
         });
       }
       if (chapters.length > 0) {
-        const chaptersJson = JSON.stringify(
-          { version: "1.2.0", chapters },
-          null,
-          2,
-        );
+        const chaptersJson = JSON.stringify({ version: "1.2.0", chapters }, null, 2);
         const chaptersPath = `${toVideoDir(outputDir, video.id)}/chapters.json`;
         await fs.writeText(chaptersPath, chaptersJson);
         uploads.push({

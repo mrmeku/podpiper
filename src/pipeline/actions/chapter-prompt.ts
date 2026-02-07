@@ -25,15 +25,9 @@ export function formatSegmentsForLlm(segments: WhisperSegment[]): string {
   return segments.map((s, i) => `[${i}] ${s.text.trim()}`).join("\n");
 }
 
-export function buildChapterPrompt(
-  segments: WhisperSegment[],
-  channelPrompt: string,
-): string {
+export function buildChapterPrompt(segments: WhisperSegment[], channelPrompt: string): string {
   const formatted = formatSegmentsForLlm(segments);
-  const systemPrompt = CHAPTER_PROMPT_TEMPLATE.replace(
-    "{{channel_prompt}}",
-    channelPrompt,
-  );
+  const systemPrompt = CHAPTER_PROMPT_TEMPLATE.replace("{{channel_prompt}}", channelPrompt);
   return `${systemPrompt}\n\n${formatted}`;
 }
 
@@ -42,10 +36,7 @@ interface ChapterEntry {
   title: string;
 }
 
-export function parseChapterResponse(
-  response: string,
-  segments: WhisperSegment[],
-): Chapter[] {
+export function parseChapterResponse(response: string, segments: WhisperSegment[]): Chapter[] {
   try {
     const cleaned = response
       .replace(/```(?:json)?\s*/g, "")
