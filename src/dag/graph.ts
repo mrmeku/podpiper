@@ -42,7 +42,7 @@ export class Graph {
     return this.nodes.size;
   }
 
-  private topoSort(): string[] {
+  private validateNoCycles(): string[] {
     const visited = new Set<string>();
     const visiting = new Set<string>();
     const order: string[] = [];
@@ -101,7 +101,7 @@ export class Graph {
   }
 
   async execute(): Promise<ExecResult[]> {
-    const order = this.topoSort();
+    const order = this.validateNoCycles();
 
     const hashes = new Map<string, string>();
     const results = new Map<string, string>();
