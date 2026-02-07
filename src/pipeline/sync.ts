@@ -1,4 +1,4 @@
-import { Graph } from "@/dag/graph";
+import { Graph, localRunner } from "@/dag/graph";
 import type { Cache, ExecResult } from "@/dag/types";
 import type { Ports } from "@/ports/types";
 import type { Config, Episode, UploadEntry, VideoInfo } from "@/types";
@@ -21,7 +21,7 @@ export async function sync(
 ): Promise<SyncResult> {
   const graph = new Graph(cache);
   const { publishRefs, entryRefs } = buildPipelineGraph(graph, videos, ports, config);
-  const results = await graph.execute(maxParallelism);
+  const results = await graph.execute(localRunner, maxParallelism);
   const resultsByName = new Map(results.map((r) => [r.name, r]));
   const uploads: UploadEntry[] = [];
   for (const ref of publishRefs) {

@@ -8,6 +8,8 @@ export interface Node {
   action: ActionFunc;
 }
 
+export type NodeRunner = (node: Node, inputs: Record<string, string>) => Promise<string>;
+
 export interface ExecResult {
   name: string;
   hash: string;
