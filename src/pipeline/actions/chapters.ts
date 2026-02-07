@@ -6,6 +6,7 @@ import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
 
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
 import type { DownloadResult } from "./download";
+import { NodeKind } from "./node-kind";
 
 const UNTITLED_PATTERN = /^<Untitled Chapter \d+>$/;
 
@@ -41,6 +42,7 @@ export function addChaptersNode(
     : "none";
   graph.add({
     name,
+    kind: NodeKind.Chapters,
     deps: [download.name, transcribe.name],
     config: `extract-v1,fallback=${promptHash}`,
     action: async (inputs) => {

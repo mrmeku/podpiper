@@ -120,6 +120,8 @@ Never generate tests that fall into these categories:
 2. **Null/empty guard tests** — tests that only verify trivial behavior for null, undefined, or empty inputs (`undefined -> []`, `missing file -> null`, `[] -> []`). These are obvious from the code and not worth maintaining. Example: "returns empty for undefined", "handles both empty lists".
 3. **Redundant assertion tests** — tests whose assertions are already fully covered by other tests in the same suite. If removing the test loses zero coverage of behavior, it shouldn't exist. Example: a "returns correct path" test when path is already asserted in "generates when output missing".
 
+4. **Piecemeal assertions** — never assert individual fields/keys of a structure one at a time. Build the full expected object and compare with a single `toEqual`. This gives cmp.Diff-style output on failure and makes the expected shape obvious at a glance.
+
 Tests should exercise real logic: data transformations, parsing, merge semantics, cache invalidation, integration flows. Test doubles are in `src/ports/` (mock.ts, stub.ts, memory-fs.ts).
 
 ### Coding Patterns

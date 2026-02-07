@@ -4,6 +4,8 @@ import type { NodeRef } from "@/dag/types";
 import type { MediaProcessor, YouTubeDownloader } from "@/ports/types";
 import type { HasUploads } from "@/types";
 
+import { NodeKind } from "./node-kind";
+
 export interface ArtworkOutput extends HasUploads {}
 
 export function addArtworkNodes(
@@ -20,6 +22,7 @@ export function addArtworkNodes(
 
   graph.add({
     name: avatarName,
+    kind: NodeKind.ChannelAvatar,
     deps: [],
     config: `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`,
     action: async () => {
@@ -30,6 +33,7 @@ export function addArtworkNodes(
 
   graph.add({
     name: artworkName,
+    kind: NodeKind.Artwork,
     deps: [avatarName],
     config: "artwork-v1",
     action: async (inputs) => {

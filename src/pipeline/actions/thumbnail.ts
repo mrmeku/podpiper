@@ -5,6 +5,7 @@ import { toVideoDir } from "@/paths";
 import type { MediaProcessor } from "@/ports/types";
 
 import type { DownloadResult } from "./download";
+import { NodeKind } from "./node-kind";
 
 export function addThumbnailNode(
   graph: Graph,
@@ -17,6 +18,7 @@ export function addThumbnailNode(
   const output = `${toVideoDir(outputDir, videoId)}/thumbnail.jpg`;
   graph.add({
     name,
+    kind: NodeKind.Thumbnail,
     deps: [download.name],
     config: "crop-v1",
     action: async (inputs) => {

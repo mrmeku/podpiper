@@ -2,6 +2,7 @@ export type ActionFunc = (inputs: Record<string, string>) => Promise<string>;
 
 export interface Node {
   name: string;
+  kind: string;
   deps: string[];
   config: string;
   action: ActionFunc;
@@ -22,6 +23,17 @@ export interface Cache {
 
 export interface Flushable {
   flush(): void | Promise<void>;
+}
+
+export interface NodeCounts {
+  total: number;
+  cached: number;
+  dirty: number;
+}
+
+export interface PlanningResult {
+  totalCounts: NodeCounts;
+  byKind: Map<string, NodeCounts>;
 }
 
 export interface NodeRef<T> {
