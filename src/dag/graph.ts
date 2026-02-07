@@ -1,6 +1,16 @@
 import { createHash } from "node:crypto";
 
-import type { Cache, ExecResult, Flushable, Node, NodeCounts, NodeRunner, PlanningResult } from "./types";
+import type {
+  Cache,
+  ExecResult,
+  ExecuteOptions,
+  Flushable,
+  Node,
+  NodeCounts,
+  NodeRunner,
+  PlanningResult,
+  ProgressEvent,
+} from "./types";
 
 function computeHash(node: Node, depHashes: Map<string, string>): string {
   const h = createHash("sha256");
@@ -89,7 +99,9 @@ export class Graph {
     );
   }
 
-  async execute(runner: NodeRunner = localRunner, maxParallelism?: number): Promise<ExecResult[]> {
+  async execute(runner: NodeRunner = localRunner, opts?: ExecuteOptions): Promise<ExecResult[]> {
+    const { maxParallelism, onProgress } = opts ?? {};
+    const emit = onProgress ? (e: ProgressEvent) => onProgress(e) : undefined;
     const hashes = new Map<string, string>();
     const results = new Map<string, string>();
     const execResults = new Map<string, ExecResult>();
@@ -109,11 +121,12 @@ export class Graph {
     }
 
     const processNode = async (node: Node): Promise<void> => {
-      const { name } = node;
+      const { name, kind } = node;
 
       for (const dep of node.deps) {
         if (failed.has(dep)) {
           failed.add(name);
+          emit?.({ node: name, kind, status: "dep-failed", error: `dependency ${dep} failed` });
           execResults.set(name, {
             name,
             hash: "",
@@ -133,6 +146,7 @@ export class Graph {
       if (hit) {
         hashes.set(name, hash);
         results.set(name, cachedResult);
+        emit?.({ node: name, kind, status: "cached" });
         execResults.set(name, { name, hash, result: cachedResult, skipped: true, error: null });
         return;
       }
@@ -140,13 +154,18 @@ export class Graph {
       const inputs: Record<string, string> = {};
       for (const dep of node.deps) inputs[dep] = results.get(dep) ?? "";
 
+      emit?.({ node: name, kind, status: "start" });
+      const startTime = Date.now();
       try {
         const result = await runner(node, inputs);
         hashes.set(name, hash);
         results.set(name, result);
         this.cache.put(hash, result);
+        emit?.({ node: name, kind, status: "done", elapsed: Date.now() - startTime });
         execResults.set(name, { name, hash, result, skipped: false, error: null });
       } catch (e) {
+        const error = e instanceof Error ? e.message : String(e);
+        emit?.({ node: name, kind, status: "fail", elapsed: Date.now() - startTime, error });
         failed.add(name);
         execResults.set(name, {
           name,

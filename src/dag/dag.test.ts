@@ -6,7 +6,7 @@ import { describe, expect, test } from "bun:test";
 
 import { LocalCache, MemCache, TieredCache } from "./cache";
 import { Graph, localRunner } from "./graph";
-import type { ExecResult, NodeRunner } from "./types";
+import type { ExecResult, NodeRunner, ProgressEvent } from "./types";
 
 function countExec(results: ExecResult[]): { exec: number; skip: number } {
   let exec = 0;
@@ -279,7 +279,7 @@ describe("Graph", () => {
       },
     });
 
-    await g.execute(localRunner, 1);
+    await g.execute(localRunner, { maxParallelism: 1 });
     expect(log).toEqual(["first_root", "child", "second_root"]);
   });
 
@@ -369,5 +369,94 @@ describe("Graph", () => {
     const results = await g.execute(mockRunner);
     expect(calls).toEqual(["root", "child"]);
     expect(results.find((r) => r.name === "child")?.result).toBe("result:child");
+  });
+
+  describe("progress events", () => {
+    test("emits start+done for dirty nodes", async () => {
+      const cache = new MemCache();
+      const g = new Graph(cache);
+      g.add({ name: "a", kind: "root", deps: [], config: "1", action: async () => "a" });
+      g.add({ name: "b", kind: "child", deps: ["a"], config: "2", action: async () => "b" });
+
+      const events: ProgressEvent[] = [];
+      await g.execute(localRunner, { maxParallelism: 1, onProgress: (e) => events.push(e) });
+
+      expect(events).toEqual([
+        { node: "a", kind: "root", status: "start" },
+        { node: "a", kind: "root", status: "done", elapsed: expect.any(Number) },
+        { node: "b", kind: "child", status: "start" },
+        { node: "b", kind: "child", status: "done", elapsed: expect.any(Number) },
+      ]);
+      for (const e of events) {
+        if (e.status === "done") expect(e.elapsed).toBeGreaterThanOrEqual(0);
+      }
+    });
+
+    test("emits cached for cached nodes", async () => {
+      const cache = new MemCache();
+      const g1 = new Graph(cache);
+      g1.add({ name: "a", kind: "root", deps: [], config: "1", action: async () => "a" });
+      g1.add({ name: "b", kind: "child", deps: ["a"], config: "2", action: async () => "b" });
+      await g1.execute();
+
+      const g2 = new Graph(cache);
+      g2.add({ name: "a", kind: "root", deps: [], config: "1", action: async () => "a" });
+      g2.add({ name: "b", kind: "child", deps: ["a"], config: "2", action: async () => "b" });
+      const events: ProgressEvent[] = [];
+      await g2.execute(localRunner, { onProgress: (e) => events.push(e) });
+
+      expect(events).toEqual([
+        { node: "a", kind: "root", status: "cached" },
+        { node: "b", kind: "child", status: "cached" },
+      ]);
+    });
+
+    test("emits start+fail on error with error message and elapsed", async () => {
+      const cache = new MemCache();
+      const g = new Graph(cache);
+      g.add({
+        name: "bad",
+        kind: "task",
+        deps: [],
+        config: "1",
+        action: async () => {
+          throw new Error("boom");
+        },
+      });
+
+      const events: ProgressEvent[] = [];
+      await g.execute(localRunner, { onProgress: (e) => events.push(e) });
+
+      expect(events).toEqual([
+        { node: "bad", kind: "task", status: "start" },
+        { node: "bad", kind: "task", status: "fail", error: "boom", elapsed: expect.any(Number) },
+      ]);
+      const fail = events[1]!;
+      if (fail.status === "fail") expect(fail.elapsed).toBeGreaterThanOrEqual(0);
+    });
+
+    test("emits dep-failed for dependency-failure skips", async () => {
+      const cache = new MemCache();
+      const g = new Graph(cache);
+      g.add({
+        name: "a",
+        kind: "root",
+        deps: [],
+        config: "1",
+        action: async () => {
+          throw new Error("boom");
+        },
+      });
+      g.add({ name: "b", kind: "child", deps: ["a"], config: "2", action: async () => "b" });
+
+      const events: ProgressEvent[] = [];
+      await g.execute(localRunner, { onProgress: (e) => events.push(e) });
+
+      expect(events).toEqual([
+        { node: "a", kind: "root", status: "start" },
+        { node: "a", kind: "root", status: "fail", error: "boom", elapsed: expect.any(Number) },
+        { node: "b", kind: "child", status: "dep-failed", error: "dependency a failed" },
+      ]);
+    });
   });
 });

@@ -51,7 +51,9 @@ program
       }
 
       const cache = opts.force ? new MemCache() : new LocalCache(`${config.outputDir}/cache.json`);
-      const results = await sync(videos, config, ports, cache, opts.parallel);
+      const results = await sync(videos, config, ports, cache, {
+        maxParallelism: opts.parallel,
+      });
       printResults(results.results);
 
       console.log("Publishing...");
