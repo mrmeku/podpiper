@@ -10,13 +10,14 @@ export interface Node {
 
 export type NodeRunner = (node: Node, inputs: Record<string, string>) => Promise<string>;
 
-export interface ExecResult {
-  name: string;
-  hash: string;
-  result: string | null;
-  skipped: boolean;
-  error: Error | null;
-}
+export type NodeStatus = "done" | "cached" | "fail" | "dep-failed";
+
+export type ExecResult = { name: string; hash: string } & (
+  | { status: "done"; result: string }
+  | { status: "cached"; result: string }
+  | { status: "fail"; error: Error }
+  | { status: "dep-failed"; error: Error }
+);
 
 export interface Cache {
   get(hash: string): [string, boolean];

@@ -92,8 +92,8 @@ function countExec(results: ExecResult[]): {
     skip = 0,
     fail = 0;
   for (const r of results) {
-    if (r.error) fail++;
-    else if (r.skipped) skip++;
+    if (r.status === "fail" || r.status === "dep-failed") fail++;
+    else if (r.status === "cached") skip++;
     else exec++;
   }
   return { exec, skip, fail };
@@ -122,8 +122,9 @@ describe("sync pipeline", () => {
     // Episode data
     const aaaResult = sr.results.find((r) => r.name === "rss_entry:vid_aaa")!;
     const bbbResult = sr.results.find((r) => r.name === "rss_entry:vid_bbb")!;
-    const aaaEp = (JSON.parse(aaaResult.result!) as EpisodeOutput).episode;
-    const bbbEp = (JSON.parse(bbbResult.result!) as EpisodeOutput).episode;
+    if (aaaResult.status !== "done" || bbbResult.status !== "done") throw new Error("expected done");
+    const aaaEp = (JSON.parse(aaaResult.result) as EpisodeOutput).episode;
+    const bbbEp = (JSON.parse(bbbResult.result) as EpisodeOutput).episode;
 
     expect({
       vid_aaa: {
@@ -299,7 +300,8 @@ describe("sync pipeline", () => {
 
     // New episode data
     const cccResult = r2.results.find((r) => r.name === "rss_entry:vid_ccc")!;
-    const cccEp = (JSON.parse(cccResult.result!) as EpisodeOutput).episode;
+    if (cccResult.status !== "done") throw new Error("expected done");
+    const cccEp = (JSON.parse(cccResult.result) as EpisodeOutput).episode;
     expect({
       description: cccEp.description,
       chapters: cccEp.chapters.length,

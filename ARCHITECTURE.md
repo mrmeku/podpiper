@@ -77,7 +77,7 @@ export async function sync(
   const results = await graph.execute();
   const uploads: UploadEntry[] = [];
   for (const r of results) {
-    if (r.error || r.result === null || r.skipped) continue;
+    if (r.status !== "done") continue;
     const output: EpisodeOutput = JSON.parse(r.result);
     uploads.push(...output.uploads);
   }

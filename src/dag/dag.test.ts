@@ -12,8 +12,8 @@ function countExec(results: ExecResult[]): { exec: number; skip: number } {
   let exec = 0;
   let skip = 0;
   for (const r of results) {
-    if (r.error) continue;
-    if (r.skipped) skip++;
+    if (r.status === "fail" || r.status === "dep-failed") continue;
+    if (r.status === "cached") skip++;
     else exec++;
   }
   return { exec, skip };
@@ -368,7 +368,8 @@ describe("Graph", () => {
 
     const results = await g.execute(mockRunner);
     expect(calls).toEqual(["root", "child"]);
-    expect(results.find((r) => r.name === "child")?.result).toBe("result:child");
+    const child = results.find((r) => r.name === "child")!;
+    expect(child.status === "done" && child.result).toBe("result:child");
   });
 
   describe("progress events", () => {
