@@ -1,0 +1,52 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`graph command mermaid output 1`] = `
+"graph TD
+  subgraph discovery_phase ["Copper: Discovery"]
+    discovery["yt-dlp: fetch videos"]
+  end
+  discovery --> download_vid_aaa & download_vid_bbb
+
+  subgraph pipeline_phase ["Silver: Pipeline"]
+    subgraph video_1 ["Video 1"]
+      download_vid_aaa["yt-dlp: download"]
+      transcribe_vid_aaa["whisper: transcribe"]
+      thumbnail_vid_aaa["ffmpeg: thumbnail"]
+      chapters_vid_aaa["claude: chapters"]
+      summary_vid_aaa["claude: summary"]
+      rss_entry_vid_aaa["rss entry"]
+      download_vid_aaa --> transcribe_vid_aaa
+      download_vid_aaa --> thumbnail_vid_aaa
+      download_vid_aaa & transcribe_vid_aaa --> chapters_vid_aaa
+      download_vid_aaa & transcribe_vid_aaa --> summary_vid_aaa
+      download_vid_aaa & transcribe_vid_aaa & thumbnail_vid_aaa & chapters_vid_aaa & summary_vid_aaa --> rss_entry_vid_aaa
+    end
+    subgraph video_2 ["Video 2"]
+      download_vid_bbb["yt-dlp: download"]
+      transcribe_vid_bbb["whisper: transcribe"]
+      thumbnail_vid_bbb["ffmpeg: thumbnail"]
+      chapters_vid_bbb["claude: chapters"]
+      summary_vid_bbb["claude: summary"]
+      rss_entry_vid_bbb["rss entry"]
+      download_vid_bbb --> transcribe_vid_bbb
+      download_vid_bbb --> thumbnail_vid_bbb
+      download_vid_bbb & transcribe_vid_bbb --> chapters_vid_bbb
+      download_vid_bbb & transcribe_vid_bbb --> summary_vid_bbb
+      download_vid_bbb & transcribe_vid_bbb & thumbnail_vid_bbb & chapters_vid_bbb & summary_vid_bbb --> rss_entry_vid_bbb
+    end
+    channel_avatar["yt-dlp: avatar"]
+    artwork["ffmpeg: artwork"]
+    channel_avatar --> artwork
+  end
+
+  subgraph publish_phase ["Gold: Publish"]
+    publish["R2 Uploads + Feed"]
+  end
+  rss_entry_vid_aaa & rss_entry_vid_bbb & artwork --> publish
+
+  style discovery_phase fill:#f4d3a0,stroke:#c48540,color:#5c3a1a
+  style pipeline_phase fill:#e8e8e8,stroke:#999,color:#333
+  style publish_phase fill:#fef3c7,stroke:#d4a017,color:#5c4a00
+  style video_1 fill:#ede4f5,stroke:#9b72cf,color:#3b2456
+  style video_2 fill:#ede4f5,stroke:#9b72cf,color:#3b2456"
+`;

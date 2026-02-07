@@ -1,0 +1,123 @@
+# podpiper
+
+![podpiper](podpiper.jpg)
+
+Download YouTube channels as podcast RSS feeds, hosted on Cloudflare R2.
+
+## Requirements
+
+- [Bun](https://bun.sh)
+- yt-dlp
+- ffmpeg
+- whisper-cli
+- claude (Anthropic CLI)
+
+## Setup
+
+```bash
+bun install
+```
+
+Environment variables (`.env`):
+
+```
+R2_ACCOUNT_ID=your-account-id
+R2_ACCESS_KEY_ID=your-access-key
+R2_SECRET_ACCESS_KEY=your-secret-key
+```
+
+R2 bucket names and public URLs are configured per channel in `src/config.ts`.
+
+## CLI Commands
+
+```bash
+# Check for new videos not yet in feed
+bun run src/cli.ts check <channel>
+
+# Download, process, and publish new episodes
+bun run src/cli.ts sync <channel>
+bun run src/cli.ts sync <channel> -n 5       # limit to 5 videos
+bun run src/cli.ts sync <channel> -p 4       # max parallelism
+bun run src/cli.ts sync <channel> -c         # use browser cookies
+bun run src/cli.ts sync <channel> -f         # skip cache, reprocess everything
+
+# Visualize the DAG
+bun run src/cli.ts graph <channel>
+bun run src/cli.ts graph <channel> -n 3      # 3 dummy videos
+bun run src/cli.ts graph <channel> -o dag.md # write mermaid to file
+```
+
+## Architecture
+
+The project uses a **DAG-based pipeline** with three phases:
+
+1. **Discovery** — `yt-dlp --flat-playlist` fetches the channel's video list
+2. **DAG execution** — per-video subgraphs (download, thumbnail, transcribe, chapters, summary, rss-entry) plus channel artwork run as a cached dependency graph with parallel execution
+3. **Publish** — uploads new files to Cloudflare R2, merges episodes into existing feed
+
+## Output Structure
+
+```
+output/{channel}/
+├── cache.json
+├── feed.xml
+├── artwork.jpg
+├── artwork/channel_avatar.jpg
+└── videos/{videoId}/
+    ├── audio.mp3
+    ├── audio.info.json
+    ├── audio.jpg
+    ├── thumbnail.jpg
+    └── chapters.json
+```
+
+## Pocket Casts
+
+Episode artwork is embedded directly in MP3 ID3 tags (Pocket Casts ignores RSS `<itunes:image>` for episodes).
+
+To see episode artwork: Profile > Settings > Appearance > Use Episode Artwork
+
+## Directory Layout
+
+```
+src/
+├── cli.ts                          # CLI commands
+├── config.ts                       # Channel config
+├── types.ts                        # Domain types
+├── paths.ts                        # Path helper functions
+├── dag/
+│   ├── types.ts                    # Node, Cache, NodeRef<T>
+│   ├── graph.ts                    # DAG engine
+│   └── cache.ts                    # MemCache, LocalCache, TieredCache
+├── pipeline/
+│   ├── sync.ts                     # Main sync orchestration
+│   ├── graph-builder.ts            # Wire up the DAG
+│   ├── discovery.ts                # Fetch video list
+│   ├── check.ts                    # Diff videos against feed
+│   ├── publish.ts                  # Upload to R2 and publish feed
+│   └── actions/                    # DAG node implementations
+│       ├── download.ts
+│       ├── transcribe.ts
+│       ├── thumbnail.ts
+│       ├── chapters.ts
+│       ├── chapter-prompt.ts
+│       ├── summary.ts
+│       ├── rss-entry.ts
+│       └── artwork.ts
+├── ports/
+│   ├── types.ts                    # Port interfaces
+│   ├── real.ts                     # Production implementations
+│   ├── ytdlp.ts                    # yt-dlp wrapper
+│   ├── ffmpeg.ts                   # ffmpeg wrapper
+│   ├── whisper.ts                  # whisper-cli wrapper
+│   ├── claude.ts                   # Claude CLI wrapper
+│   ├── s3.ts                       # R2/S3 client
+│   ├── mock.ts                     # Test doubles
+│   ├── stub.ts                     # No-op ports (for graph viz)
+│   └── memory-fs.ts                # In-memory filesystem (for tests)
+├── rss/
+│   ├── generate.ts                 # RSS XML builder
+│   └── parse.ts                    # Feed parser + episode merging
+└── graph/
+    └── mermaid.ts                  # DAG visualization
+```
