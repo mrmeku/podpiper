@@ -1,14 +1,16 @@
 import { describe, expect, test } from "bun:test";
 
 import { MemCache, TieredCache } from "@/dag/cache";
+import { Graph } from "@/dag/graph";
 import type { Cache, ExecResult } from "@/dag/types";
 import { createMemoryFs } from "@/ports/memory-fs";
 import { createSpyPorts } from "@/ports/mock";
 import type { SpiedPorts } from "@/ports/mock";
-import { extractReferencedUrls } from "@/rss/parse";
+import { extractReferencedUrls, parseExistingFeed } from "@/rss/parse";
 import type { Config, VideoInfo, YtDlpInfo } from "@/types";
 
 import type { EpisodeOutput } from "./actions/rss-entry";
+import { buildPipelineGraph } from "./graph-builder";
 import { publish } from "./publish";
 import { sync } from "./sync";
 
@@ -83,6 +85,18 @@ function createTestPorts() {
   return { fs, ports };
 }
 
+function buildAndSync(
+  videos: VideoInfo[],
+  config: Config,
+  ports: ReturnType<typeof createTestPorts>["ports"],
+  cache: Cache,
+  opts?: { maxParallelism?: number },
+) {
+  const graph = new Graph(cache);
+  const refs = buildPipelineGraph(graph, videos, ports, config);
+  return sync(graph, refs, opts);
+}
+
 function countExec(results: ExecResult[]): {
   exec: number;
   skip: number;
@@ -111,7 +125,7 @@ describe("sync pipeline", () => {
     const { ports } = createTestPorts();
     const cache = new MemCache();
 
-    const sr = await sync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
+    const sr = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     const { exec, skip, fail } = countExec(sr.results);
     expect(fail).toBe(0);
     expect(skip).toBe(0);
@@ -205,7 +219,7 @@ describe("sync pipeline", () => {
     const { ports } = createTestPorts();
     const cache = new MemCache();
 
-    const r1 = await sync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
+    const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     await publish(r1, TEST_CONFIG, ports.fs, ports.storage);
     expect({
       dag: countExec(r1.results),
@@ -220,7 +234,7 @@ describe("sync pipeline", () => {
     ports.ytdlp.downloadVideo.mockClear();
     ports.storage.uploadFile.mockClear();
 
-    const r2 = await sync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
+    const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     await publish(r2, TEST_CONFIG, ports.fs, ports.storage);
     expect({
       dag: countExec(r2.results),
@@ -238,7 +252,7 @@ describe("sync pipeline", () => {
     const { ports } = createTestPorts();
     const remote = new MemCache();
 
-    const r1 = await sync(
+    const r1 = await buildAndSync(
       TEST_VIDEOS,
       TEST_CONFIG,
       ports,
@@ -258,7 +272,7 @@ describe("sync pipeline", () => {
     ports.ytdlp.downloadVideo.mockClear();
     ports.storage.uploadFile.mockClear();
 
-    const r2 = await sync(
+    const r2 = await buildAndSync(
       TEST_VIDEOS,
       TEST_CONFIG,
       ports,
@@ -281,7 +295,7 @@ describe("sync pipeline", () => {
 
     // Run 1: warm cache with vid_aaa + vid_bbb
     const { ports: p1 } = createTestPorts();
-    await sync(TEST_VIDEOS, TEST_CONFIG, p1, cache);
+    await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p1, cache);
 
     // Run 2: add vid_ccc
     const allVideos: VideoInfo[] = [
@@ -289,7 +303,7 @@ describe("sync pipeline", () => {
       { id: "vid_ccc", uploadDate: "20240320", title: "Video CCC" },
     ];
     const { ports: p2 } = createTestPorts();
-    const r2 = await sync(allVideos, TEST_CONFIG, p2, cache);
+    const r2 = await buildAndSync(allVideos, TEST_CONFIG, p2, cache);
     await publish(r2, TEST_CONFIG, p2.fs, p2.storage);
 
     // DAG execution: 6 new nodes for vid_ccc, 14 cached (no feed node)
@@ -341,7 +355,7 @@ describe("sync pipeline", () => {
 
     // Sanity: third run with all 3 videos fully cached
     const { ports: p3 } = createTestPorts();
-    const r3 = await sync(allVideos, TEST_CONFIG, p3, cache);
+    const r3 = await buildAndSync(allVideos, TEST_CONFIG, p3, cache);
     await publish(r3, TEST_CONFIG, p3.fs, p3.storage);
     expect({
       run3: countExec(r3.results),
@@ -356,7 +370,7 @@ describe("sync pipeline", () => {
 
   test("uploaded files match URLs referenced in feed.xml", async () => {
     const { ports } = createTestPorts();
-    const sr = await sync(TEST_VIDEOS, TEST_CONFIG, ports, new MemCache());
+    const sr = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, new MemCache());
     await publish(sr, TEST_CONFIG, ports.fs, ports.storage);
     const feedXml = await ports.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
     const prefix = TEST_CONFIG.r2.publicUrl + "/";
@@ -379,7 +393,7 @@ describe("sync pipeline", () => {
     };
     const { ports } = createTestPorts();
 
-    const r1 = await sync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
+    const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     await publish(r1, TEST_CONFIG, ports.fs, ports.storage);
     expect(countExec(r1.results)).toEqual({ exec: 14, skip: 0, fail: 0 });
 
@@ -390,7 +404,7 @@ describe("sync pipeline", () => {
     }
     ports.storage.uploadFile.mockClear();
 
-    const r2 = await sync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
+    const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     await publish(r2, TEST_CONFIG, ports.fs, ports.storage);
     expect(countExec(r2.results)).toEqual({ exec: 2, skip: 12, fail: 0 });
     expect(getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key))).toEqual([
@@ -403,22 +417,72 @@ describe("sync pipeline", () => {
     ]);
   });
 
+  test("force-reprocess subset preserves existing episodes in feed", async () => {
+    const allVideos: VideoInfo[] = [
+      ...TEST_VIDEOS,
+      { id: "vid_ccc", uploadDate: "20240320", title: "Video CCC" },
+    ];
+
+    // Run 1: process all 3 videos
+    const { fs: fs1, ports: p1 } = createTestPorts();
+    const sr1 = await buildAndSync(allVideos, TEST_CONFIG, p1, new MemCache());
+    await publish(sr1, TEST_CONFIG, p1.fs, p1.storage);
+    const feedAfterRun1 = await fs1.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
+
+    // Run 2: force-reprocess first 2 only (simulates -f -n 2)
+    const { ports: p2 } = createTestPorts();
+    p2.storage.getFile.mockImplementation(async (_bucket: string, key: string) => {
+      if (key === "feed.xml") return new TextEncoder().encode(feedAfterRun1);
+      return null;
+    });
+    const subset = allVideos.slice(0, 2);
+    const sr2 = await buildAndSync(subset, TEST_CONFIG, p2, new MemCache());
+    await publish(sr2, TEST_CONFIG, p2.fs, p2.storage);
+
+    expect({
+      dag: countExec(sr2.results),
+      syncEpisodes: sr2.episodes.length,
+      feedEpisodes: parseExistingFeed(
+        TEST_CONFIG.r2.publicUrl,
+        await p2.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`),
+      )
+        .map((e) => e.id)
+        .sort(),
+      uploads: getUploadCalls(p2).sort((a, b) => a.key.localeCompare(b.key)),
+    }).toEqual({
+      dag: { exec: 14, skip: 0, fail: 0 },
+      syncEpisodes: 2,
+      feedEpisodes: ["vid_aaa", "vid_bbb", "vid_ccc"],
+      uploads: [
+        { key: "artwork.jpg", cacheControl: "max-age=86400" },
+        { key: "feed.xml", cacheControl: "max-age=300" },
+        { key: "vid_aaa/audio.mp3", cacheControl: "max-age=31536000" },
+        { key: "vid_aaa/chapters.json", cacheControl: "max-age=31536000" },
+        { key: "vid_aaa/thumbnail.jpg", cacheControl: "max-age=31536000" },
+        { key: "vid_aaa/transcript.srt", cacheControl: "max-age=31536000" },
+        { key: "vid_bbb/audio.mp3", cacheControl: "max-age=31536000" },
+        { key: "vid_bbb/thumbnail.jpg", cacheControl: "max-age=31536000" },
+        { key: "vid_bbb/transcript.srt", cacheControl: "max-age=31536000" },
+      ],
+    });
+  });
+
   test("tiered cache promotes remote hits to local", async () => {
     const remote = new MemCache();
     const { ports: p1 } = createTestPorts();
-    const r1 = await sync(TEST_VIDEOS, TEST_CONFIG, p1, remote);
+    const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p1, remote);
     expect(countExec(r1.results).exec).toBe(14);
 
     const local = new MemCache();
     const tiered = new TieredCache({ local, remote });
     const { ports: p2 } = createTestPorts();
-    const r2 = await sync(TEST_VIDEOS, TEST_CONFIG, p2, tiered);
+    const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p2, tiered);
     expect(countExec(r2.results).skip).toBe(14);
     expect(countExec(r2.results).exec).toBe(0);
 
     // Local is now warm from remote promotion
     const { ports: p3 } = createTestPorts();
-    const r3 = await sync(TEST_VIDEOS, TEST_CONFIG, p3, local);
+    const r3 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p3, local);
     expect(countExec(r3.results).skip).toBe(14);
     expect(countExec(r3.results).exec).toBe(0);
   });

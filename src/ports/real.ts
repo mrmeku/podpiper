@@ -9,7 +9,7 @@ import type { Ports } from "./types";
 import { createRealWhisper } from "./whisper";
 import { createRealYtdlp } from "./ytdlp";
 
-export function createRealPorts(opts?: { force?: boolean }): Ports {
+export function createRealPorts(opts?: { force?: boolean; cookies?: boolean }): Ports {
   return {
     fs: {
       exists: async (path) => Bun.file(path).exists(),
@@ -35,7 +35,7 @@ export function createRealPorts(opts?: { force?: boolean }): Ports {
         }));
       },
     },
-    ytdlp: createRealYtdlp({ force: Boolean(opts?.force) }),
+    ytdlp: createRealYtdlp({ force: Boolean(opts?.force), cookies: Boolean(opts?.cookies) }),
     ffmpeg: createRealFfmpeg(),
     whisper: createRealWhisper(WHISPER_MODEL_PATH),
     claude: { call: (prompt) => callClaude(prompt, CLAUDE_MODEL) },
