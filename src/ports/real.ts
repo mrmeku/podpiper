@@ -15,8 +15,7 @@ export function createRealPorts(opts?: { force?: boolean }): Ports {
       exists: async (path) => Bun.file(path).exists(),
       readText: async (path) => Bun.file(path).text(),
       readJson: async (path) => Bun.file(path).json(),
-      readBinary: async (path) =>
-        new Uint8Array(await Bun.file(path).arrayBuffer()),
+      readBinary: async (path) => new Uint8Array(await Bun.file(path).arrayBuffer()),
       writeText: async (path, content) => {
         await Bun.write(path, content);
       },

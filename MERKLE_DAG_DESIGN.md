@@ -248,15 +248,15 @@ feed.xml                  <- RSS XML
 
 Since `download` is a single node containing both media and metadata, any change to a video's metadata re-hashes `download`, which cascades to all its dependents. This is coarser than necessary but matches the current yt-dlp invocation model (one call fetches everything).
 
-| What changed               | What re-runs                                                     |
-| -------------------------- | ---------------------------------------------------------------- |
-| New video posted           | New video's full subtree (download through rss_entry) + publish  |
-| Video metadata changed     | download + all dependents (transcribe, thumbnail, chapters, summary, rss_entry) + publish |
-| Summary prompt updated     | All summary nodes + all rss_entry nodes + publish                |
-| Chapter prompt updated     | All chapters nodes + all rss_entry nodes + publish               |
-| Whisper model updated      | All transcribe + chapters + summary + rss_entry + publish        |
-| Nothing                    | Nothing (publish still runs but is idempotent)                   |
-| Config rolled back         | Nothing (content-addressed cache hit)                            |
+| What changed           | What re-runs                                                                              |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| New video posted       | New video's full subtree (download through rss_entry) + publish                           |
+| Video metadata changed | download + all dependents (transcribe, thumbnail, chapters, summary, rss_entry) + publish |
+| Summary prompt updated | All summary nodes + all rss_entry nodes + publish                                         |
+| Chapter prompt updated | All chapters nodes + all rss_entry nodes + publish                                        |
+| Whisper model updated  | All transcribe + chapters + summary + rss_entry + publish                                 |
+| Nothing                | Nothing (publish still runs but is idempotent)                                            |
+| Config rolled back     | Nothing (content-addressed cache hit)                                                     |
 
 ## Scaling with Temporal
 

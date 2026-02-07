@@ -44,10 +44,7 @@ export function createMockPorts(
       transcribe: async (_audioPath, outputDir) => {
         const srt = `${outputDir}/audio.srt`;
         const json = `${outputDir}/audio.json`;
-        await fs.writeText(
-          srt,
-          "1\n00:00:00,000 --> 00:00:05,000\nMock transcript\n",
-        );
+        await fs.writeText(srt, "1\n00:00:00,000 --> 00:00:05,000\nMock transcript\n");
         await fs.writeText(
           json,
           JSON.stringify({
@@ -80,9 +77,6 @@ export function createMockPorts(
   };
 }
 
-export function createSpyPorts(
-  fs: FileSystem,
-  overrides?: Partial<Ports>,
-): SpiedPorts {
+export function createSpyPorts(fs: FileSystem, overrides?: Partial<Ports>): SpiedPorts {
   return spyAllMethods(createMockPorts(fs, overrides));
 }

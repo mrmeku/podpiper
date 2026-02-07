@@ -3,6 +3,7 @@
 ## What
 
 Build the user-facing CLI that shows:
+
 1. A planning summary (pre-execution breakdown of cached vs dirty nodes by type)
 2. Live per-type progress bars during execution
 

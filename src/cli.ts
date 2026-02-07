@@ -24,15 +24,8 @@ program
   .command("sync")
   .description("Discover, process, and publish new episodes")
   .argument("<channel>", "Channel name (e.g. heidi, asianometry)")
-  .option("-n, --limit <n>", "Max videos to process", (v: string) =>
-    parseInt(v),
-  )
-  .option(
-    "-p, --parallel <n>",
-    "Max parallelism",
-    (v: string) => parseInt(v),
-    4,
-  )
+  .option("-n, --limit <n>", "Max videos to process", (v: string) => parseInt(v))
+  .option("-p, --parallel <n>", "Max parallelism", (v: string) => parseInt(v), 4)
   .option("-c, --cookies", "Use browser cookies for yt-dlp")
   .option("-f, --force", "Skip cache and reupload everything")
   .action(
@@ -57,9 +50,7 @@ program
         console.log(`Processing ${videos.length} (limit=${opts.limit})`);
       }
 
-      const cache = opts.force
-        ? new MemCache()
-        : new LocalCache(`${config.outputDir}/cache.json`);
+      const cache = opts.force ? new MemCache() : new LocalCache(`${config.outputDir}/cache.json`);
       const results = await sync(videos, config, ports, cache, opts.parallel);
       printResults(results.results);
 
@@ -89,16 +80,8 @@ program
   .command("graph")
   .description("Visualize the DAG for a channel")
   .argument("<channel>", "Channel name")
-  .option(
-    "-n, --limit <n>",
-    "Number of dummy videos",
-    (v: string) => parseInt(v),
-    2,
-  )
-  .option(
-    "-o, --output <path>",
-    "Write mermaid to file instead of opening browser",
-  )
+  .option("-n, --limit <n>", "Number of dummy videos", (v: string) => parseInt(v), 2)
+  .option("-o, --output <path>", "Write mermaid to file instead of opening browser")
   .action(async (channel: string, opts: { limit: number; output?: string }) => {
     const config = getConfig(channel);
     const videos: VideoInfo[] = Array.from({ length: opts.limit }, (_, i) => ({

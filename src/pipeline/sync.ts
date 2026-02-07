@@ -20,12 +20,7 @@ export async function sync(
   maxParallelism = 4,
 ): Promise<SyncResult> {
   const graph = new Graph(cache);
-  const { publishRefs, entryRefs } = buildPipelineGraph(
-    graph,
-    videos,
-    ports,
-    config,
-  );
+  const { publishRefs, entryRefs } = buildPipelineGraph(graph, videos, ports, config);
   const results = await graph.execute(maxParallelism);
   const resultsByName = new Map(results.map((r) => [r.name, r]));
   const uploads: UploadEntry[] = [];

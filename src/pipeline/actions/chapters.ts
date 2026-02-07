@@ -10,11 +10,7 @@ import { NodeKind } from "./node-kind";
 
 const UNTITLED_PATTERN = /^<Untitled Chapter \d+>$/;
 
-function cleanChapterTitle(
-  title: string,
-  index: number,
-  startTime: number,
-): string {
+function cleanChapterTitle(title: string, index: number, startTime: number): string {
   if (!UNTITLED_PATTERN.test(title)) return title;
   return startTime === 0 ? "Introduction" : `Chapter ${index + 1}`;
 }
@@ -37,9 +33,7 @@ export function addChaptersNode(
   chapterPrompt: string | undefined,
 ): NodeRef<Chapter[]> {
   const name = `chapters:${videoId}`;
-  const promptHash = chapterPrompt
-    ? Bun.hash(chapterPrompt).toString(36)
-    : "none";
+  const promptHash = chapterPrompt ? Bun.hash(chapterPrompt).toString(36) : "none";
   graph.add({
     name,
     kind: NodeKind.Chapters,
@@ -55,14 +49,9 @@ export function addChaptersNode(
         const jsonExists = await fs.exists(tr.json);
         if (jsonExists) {
           const whisper = await fs.readJson<WhisperJson>(tr.json);
-          const prompt = buildChapterPrompt(
-            whisper.transcription,
-            chapterPrompt,
-          );
+          const prompt = buildChapterPrompt(whisper.transcription, chapterPrompt);
           const result = await claude.call(prompt);
-          return JSON.stringify(
-            parseChapterResponse(result, whisper.transcription),
-          );
+          return JSON.stringify(parseChapterResponse(result, whisper.transcription));
         }
       }
       return JSON.stringify([]);

@@ -72,10 +72,7 @@ function createTestPorts() {
         };
         const info = infoMap[videoId] ?? VID_BBB_INFO;
         await fs.writeText(`${outputDir}/audio.mp3`, `fake-mp3-${videoId}`);
-        await fs.writeText(
-          `${outputDir}/audio.info.json`,
-          JSON.stringify(info),
-        );
+        await fs.writeText(`${outputDir}/audio.info.json`, JSON.stringify(info));
         await fs.writeText(`${outputDir}/audio.jpg`, `fake-thumb-${videoId}`);
       },
       downloadChannelArtwork: async (outputDir: string) => {
@@ -102,9 +99,7 @@ function countExec(results: ExecResult[]): {
   return { exec, skip, fail };
 }
 
-function getUploadCalls(
-  ports: SpiedPorts,
-): { key: string; cacheControl: string }[] {
+function getUploadCalls(ports: SpiedPorts): { key: string; cacheControl: string }[] {
   return ports.storage.uploadFile.mock.calls.map((c: any) => ({
     key: c[1] as string,
     cacheControl: c[3] as string,
@@ -161,15 +156,14 @@ describe("sync pipeline", () => {
     // S3 uploads + port calls
     expect({
       downloads: ports.ytdlp.downloadVideo.mock.calls.map((c: any) => c[1]).sort(),
-      cropThumbnails: ports.ffmpeg.cropThumbnail.mock.calls.map((c: any) => [
-        (c[0] as string).split("/").slice(-2).join("/"),
-        (c[1] as string).split("/").slice(-2).join("/"),
-      ]).sort((a, b) => a[0]!.localeCompare(b[0]!)),
-      processChannelArtwork:
-        ports.ffmpeg.processChannelArtwork.mock.calls.length,
-      claudePrompts: ports.claude.call.mock.calls.map(
-        (c: any) => c[0] as string,
-      ).sort(),
+      cropThumbnails: ports.ffmpeg.cropThumbnail.mock.calls
+        .map((c: any) => [
+          (c[0] as string).split("/").slice(-2).join("/"),
+          (c[1] as string).split("/").slice(-2).join("/"),
+        ])
+        .sort((a, b) => a[0]!.localeCompare(b[0]!)),
+      processChannelArtwork: ports.ffmpeg.processChannelArtwork.mock.calls.length,
+      claudePrompts: ports.claude.call.mock.calls.map((c: any) => c[0] as string).sort(),
       storageGetFile: ports.storage.getFile.mock.calls.length,
       uploads: getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key)),
     }).toEqual({
@@ -198,9 +192,7 @@ describe("sync pipeline", () => {
     });
 
     // Feed XML
-    const feedXml = await ports.fs.readText(
-      `${TEST_CONFIG.outputDir}/feed.xml`,
-    );
+    const feedXml = await ports.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
     const stableFeedXml = feedXml.replace(
       /<lastBuildDate>.*<\/lastBuildDate>/,
       "<lastBuildDate>STABLE</lastBuildDate>",
@@ -238,9 +230,7 @@ describe("sync pipeline", () => {
       downloads: 0,
       uploads: 1,
     });
-    expect(getUploadCalls(ports)).toEqual([
-      { key: "feed.xml", cacheControl: "max-age=300" },
-    ]);
+    expect(getUploadCalls(ports)).toEqual([{ key: "feed.xml", cacheControl: "max-age=300" }]);
   });
 
   test("empty local cache pulls from remote and skips all nodes", async () => {
@@ -366,9 +356,7 @@ describe("sync pipeline", () => {
     const { ports } = createTestPorts();
     const sr = await sync(TEST_VIDEOS, TEST_CONFIG, ports, new MemCache());
     await publish(sr, TEST_CONFIG, ports.fs, ports.storage);
-    const feedXml = await ports.fs.readText(
-      `${TEST_CONFIG.outputDir}/feed.xml`,
-    );
+    const feedXml = await ports.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
     const prefix = TEST_CONFIG.r2.publicUrl + "/";
     const referencedKeys = extractReferencedUrls(feedXml)
       .map((u) => decodeURIComponent(u.replace(prefix, "")))
@@ -403,9 +391,7 @@ describe("sync pipeline", () => {
     const r2 = await sync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     await publish(r2, TEST_CONFIG, ports.fs, ports.storage);
     expect(countExec(r2.results)).toEqual({ exec: 2, skip: 12, fail: 0 });
-    expect(
-      getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key)),
-    ).toEqual([
+    expect(getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key))).toEqual([
       { key: "artwork.jpg", cacheControl: "max-age=86400" },
       { key: "feed.xml", cacheControl: "max-age=300" },
       { key: "vid_aaa/audio.mp3", cacheControl: "max-age=31536000" },

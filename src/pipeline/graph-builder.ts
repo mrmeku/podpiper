@@ -18,26 +18,9 @@ function addVideoSubgraph(
   ports: Ports,
   config: Config,
 ): NodeRef<EpisodeOutput> {
-  const download = addDownloadNode(
-    graph,
-    video.id,
-    ports.ytdlp,
-    config.outputDir,
-  );
-  const transcribe = addTranscribeNode(
-    graph,
-    video.id,
-    download,
-    ports.whisper,
-    config.outputDir,
-  );
-  const thumbnail = addThumbnailNode(
-    graph,
-    video.id,
-    download,
-    ports.ffmpeg,
-    config.outputDir,
-  );
+  const download = addDownloadNode(graph, video.id, ports.ytdlp, config.outputDir);
+  const transcribe = addTranscribeNode(graph, video.id, download, ports.whisper, config.outputDir);
+  const thumbnail = addThumbnailNode(graph, video.id, download, ports.ffmpeg, config.outputDir);
   const chapters = addChaptersNode(
     graph,
     video.id,
@@ -58,13 +41,7 @@ function addVideoSubgraph(
       ports.claude,
       config.summaryPrompt,
     );
-    return addRssEntryNode(
-      graph,
-      video,
-      { ...baseDeps, summary },
-      ports.fs,
-      config.outputDir,
-    );
+    return addRssEntryNode(graph, video, { ...baseDeps, summary }, ports.fs, config.outputDir);
   }
   return addRssEntryNode(graph, video, baseDeps, ports.fs, config.outputDir);
 }
@@ -80,9 +57,7 @@ export function buildPipelineGraph(
   ports: Ports,
   config: Config,
 ): PipelineRefs {
-  const entryRefs = videos.map((video) =>
-    addVideoSubgraph(graph, video, ports, config),
-  );
+  const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, config));
   const artworkRef = addArtworkNodes(
     graph,
     config.channelUrl,
