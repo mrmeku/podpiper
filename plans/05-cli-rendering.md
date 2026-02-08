@@ -67,7 +67,7 @@ Done.
 
 ## Design Decisions
 
-**Why move graph creation to the CLI:** The CLI needs to call `plan()` *before* `execute()` to render the planning summary, and dry-run needs to skip `execute()` entirely. The fix is minimal: move `new Graph(cache)` from `sync()` to the CLI, and pass the graph to both `buildPipelineGraph` (signature unchanged) and `sync()`. No need to change `buildPipelineGraph`'s signature — it already takes a `Graph` as its first parameter. `sync()` still owns execution + result collection — it just accepts a pre-built graph instead of creating one.
+**Why move graph creation to the CLI:** The CLI needs to call `plan()` _before_ `execute()` to render the planning summary, and dry-run needs to skip `execute()` entirely. The fix is minimal: move `new Graph(cache)` from `sync()` to the CLI, and pass the graph to both `buildPipelineGraph` (signature unchanged) and `sync()`. No need to change `buildPipelineGraph`'s signature — it already takes a `Graph` as its first parameter. `sync()` still owns execution + result collection — it just accepts a pre-built graph instead of creating one.
 
 **Why `cli-progress` over raw ANSI:** Multiple progress bars updating concurrently from async events is the exact problem `cli-progress`'s `MultiBar` solves — cursor management across interleaved async completions, interleaved log output, terminal resize, cleanup on stop. Rolling our own would reimplement all of that for no benefit.
 
@@ -177,7 +177,12 @@ export function createProgressRenderer(plan: PlanningResult): ProgressRenderer {
 
 function createBarRenderer(dirtyKinds: [string, NodeCounts][]): ProgressRenderer {
   const multibar = new MultiBar(
-    { format: "  {kind} {bar} {value}/{total}", barsize: 30, hideCursor: true, clearOnComplete: false },
+    {
+      format: "  {kind} {bar} {value}/{total}",
+      barsize: 30,
+      hideCursor: true,
+      clearOnComplete: false,
+    },
     Presets.shades_grey,
   );
   const bars = new Map<string, SingleBar>();
@@ -220,7 +225,10 @@ Replaces `printResults()`. Counts only — no re-printing of failure messages. T
 
 ```typescript
 export function renderFinalSummary(results: ExecResult[]): void {
-  let exec = 0, cached = 0, failed = 0, depFailed = 0;
+  let exec = 0,
+    cached = 0,
+    failed = 0,
+    depFailed = 0;
   for (const r of results) {
     if (r.status === "done") exec++;
     else if (r.status === "cached") cached++;

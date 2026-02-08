@@ -1,31 +1,23 @@
-import type { Graph } from "@/dag/graph";
-import { stringRef } from "@/dag/types";
 import type { NodeRef } from "@/dag/types";
 import { toVideoDir } from "@/paths";
-import type { MediaProcessor } from "@/ports/types";
 
+import { defineAction } from "../define-action";
 import type { DownloadResult } from "./download";
 import { NodeKind } from "./node-kind";
 
-export function addThumbnailNode(
-  graph: Graph,
-  videoId: string,
-  download: NodeRef<DownloadResult>,
-  ffmpeg: MediaProcessor,
-  outputDir: string,
-): NodeRef<string> {
-  const name = `thumbnail:${videoId}`;
-  const output = `${toVideoDir(outputDir, videoId)}/thumbnail.jpg`;
-  graph.add({
-    name,
-    kind: NodeKind.Thumbnail,
-    deps: [download.name],
-    config: "crop-v1",
-    action: async (inputs) => {
-      const dl = download.parse(inputs[download.name]!);
-      await ffmpeg.cropThumbnail(dl.thumb, output);
-      return output;
-    },
-  });
-  return stringRef(name);
+export interface ThumbnailParams {
+  kind: typeof NodeKind.Thumbnail;
+  videoId: string;
+  outputDir: string;
+  deps: { download: NodeRef<DownloadResult> };
 }
+
+export const thumbnail = defineAction<ThumbnailParams, string>({
+  name: (p) => `thumbnail:${p.videoId}`,
+  config: "crop-v1",
+  action: (ports) => async (params, inputs) => {
+    const outputPath = `${toVideoDir(params.outputDir, params.videoId)}/thumbnail.jpg`;
+    await ports.ffmpeg.cropThumbnail(inputs.download.thumb, outputPath);
+    return outputPath;
+  },
+});

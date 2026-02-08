@@ -31,11 +31,11 @@ None — independent engine refactor.
 
 **All callers of `execute()`:**
 
-| Call site | Current call | Passes args? |
-|---|---|---|
-| `src/pipeline/sync.ts:24` | `graph.execute(maxParallelism)` | Yes — number |
-| `src/dag/dag.test.ts:282` | `g.execute(1)` | Yes — number |
-| `src/dag/dag.test.ts` (14 other calls) | `.execute()` | No — uses default |
+| Call site                              | Current call                    | Passes args?      |
+| -------------------------------------- | ------------------------------- | ----------------- |
+| `src/pipeline/sync.ts:24`              | `graph.execute(maxParallelism)` | Yes — number      |
+| `src/dag/dag.test.ts:282`              | `g.execute(1)`                  | Yes — number      |
+| `src/dag/dag.test.ts` (14 other calls) | `.execute()`                    | No — uses default |
 
 ## Target State
 
@@ -50,7 +50,7 @@ const localRunner: NodeRunner = (node, inputs) => node.action(inputs);
 graph.execute(localRunner, maxParallelism);
 ```
 
-The `Node` interface keeps its `action` field — the runner is a strategy for *how* to invoke the action (locally, via Temporal, with retries), not a replacement for the action definition.
+The `Node` interface keeps its `action` field — the runner is a strategy for _how_ to invoke the action (locally, via Temporal, with retries), not a replacement for the action definition.
 
 ## Implementation Plan
 
@@ -69,7 +69,15 @@ This depends on the `Node` type defined in the same file, so place it after the 
 Export a `localRunner` constant and change `execute()` to accept the runner as its first parameter:
 
 ```typescript
-import type { Cache, ExecResult, Flushable, Node, NodeCounts, NodeRunner, PlanningResult } from "./types";
+import type {
+  Cache,
+  ExecResult,
+  Flushable,
+  Node,
+  NodeCounts,
+  NodeRunner,
+  PlanningResult,
+} from "./types";
 
 export const localRunner: NodeRunner = (node, inputs) => node.action(inputs);
 ```
@@ -168,6 +176,7 @@ test("mock runner: executor calls runner instead of node.action", async () => {
 ```
 
 This test exercises that:
+
 1. The runner is called instead of `node.action`
 2. Dependency ordering is respected (root before child)
 3. Runner results flow through as `ExecResult.result`
@@ -178,15 +187,15 @@ Run `bun test src/dag/dag.test.ts`. All existing tests should pass unchanged sin
 
 ## What Doesn't Change
 
-| Concern | Why unchanged |
-|---|---|
-| `computeHash()` | Hash computation is per-node, independent of how actions run |
-| `plan()` | Analysis only — no action execution, no runner involvement |
-| Cache semantics | Same get/put/flush lifecycle, runner doesn't affect caching |
-| Error propagation | Runner throws → `processNode` catches → same `failed` set logic |
-| `Node` interface | Keeps `action` field — runner wraps it, doesn't replace it |
-| Return type | Same `ExecResult[]` |
-| `processNode` logic | Identical except the one `node.action` → `runner` swap |
+| Concern             | Why unchanged                                                   |
+| ------------------- | --------------------------------------------------------------- |
+| `computeHash()`     | Hash computation is per-node, independent of how actions run    |
+| `plan()`            | Analysis only — no action execution, no runner involvement      |
+| Cache semantics     | Same get/put/flush lifecycle, runner doesn't affect caching     |
+| Error propagation   | Runner throws → `processNode` catches → same `failed` set logic |
+| `Node` interface    | Keeps `action` field — runner wraps it, doesn't replace it      |
+| Return type         | Same `ExecResult[]`                                             |
+| `processNode` logic | Identical except the one `node.action` → `runner` swap          |
 
 ## Forward Compatibility
 

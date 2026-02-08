@@ -1,55 +1,41 @@
-import type { Graph } from "@/dag/graph";
-import { jsonRef } from "@/dag/types";
 import type { NodeRef } from "@/dag/types";
-import type { MediaProcessor, YouTubeDownloader } from "@/ports/types";
 import type { HasUploads } from "@/types";
 
+import { defineAction } from "../define-action";
 import { NodeKind } from "./node-kind";
 
 export interface ArtworkOutput extends HasUploads {}
 
-export function addArtworkNodes(
-  graph: Graph,
-  channelUrl: string,
-  ytdlp: YouTubeDownloader,
-  ffmpeg: MediaProcessor,
-  outputDir: string,
-): NodeRef<ArtworkOutput> {
-  const avatarName = "channel_avatar";
-  const artworkName = "artwork";
-  const avatarDir = `${outputDir}/artwork`;
-  const artworkPath = `${outputDir}/artwork.jpg`;
-
-  graph.add({
-    name: avatarName,
-    kind: NodeKind.ChannelAvatar,
-    deps: [],
-    config: `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`,
-    action: async () => {
-      await ytdlp.downloadChannelArtwork(avatarDir, channelUrl);
-      return `${avatarDir}/channel_avatar.jpg`;
-    },
-  });
-
-  graph.add({
-    name: artworkName,
-    kind: NodeKind.Artwork,
-    deps: [avatarName],
-    config: "artwork-v1",
-    action: async (inputs) => {
-      const rawPath = inputs[avatarName]!;
-      await ffmpeg.processChannelArtwork(rawPath, artworkPath);
-      return JSON.stringify({
-        uploads: [
-          {
-            localPath: artworkPath,
-            r2Key: "artwork.jpg",
-            cacheControl: "max-age=86400",
-          },
-        ],
-      } satisfies ArtworkOutput);
-    },
-  });
-
-  return jsonRef<ArtworkOutput>(artworkName);
+export interface ChannelAvatarParams {
+  kind: typeof NodeKind.ChannelAvatar;
+  channelUrl: string;
+  avatarDir: string;
 }
+
+export const channelAvatar = defineAction<ChannelAvatarParams, string>({
+  name: () => "channel_avatar",
+  config: () => `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`,
+  action: (ports) => async (params) => {
+    await ports.ytdlp.downloadChannelArtwork(params.avatarDir, params.channelUrl);
+    return `${params.avatarDir}/channel_avatar.jpg`;
+  },
+});
+
+export interface ArtworkParams {
+  kind: typeof NodeKind.Artwork;
+  artworkPath: string;
+  deps: { channel_avatar: NodeRef<string> };
+}
+
+export const artwork = defineAction<ArtworkParams, ArtworkOutput>({
+  name: () => "artwork",
+  config: "artwork-v1",
+  action: (ports) => async (params, inputs) => {
+    await ports.ffmpeg.processChannelArtwork(inputs.channel_avatar, params.artworkPath);
+    return {
+      uploads: [
+        { localPath: params.artworkPath, r2Key: "artwork.jpg", cacheControl: "max-age=86400" },
+      ],
+    };
+  },
+});

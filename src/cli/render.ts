@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { MultiBar, type SingleBar } from "cli-progress";
 import pc from "picocolors";
 
-import type { ExecResult, NodeCounts, PlanningResult, ProgressCallback } from "@/dag/types";
+import type { AnalysisResult, ExecResult, NodeCounts, ProgressCallback } from "@/dag/types";
 
 type ProgressRenderer = { onProgress: ProgressCallback; finish: () => void };
 
-export function renderPlanSummary(plan: PlanningResult): void {
-  const { totalCounts, byKind } = plan;
+export function renderAnalysisSummary(analysis: AnalysisResult): void {
+  const { totalCounts, byKind } = analysis;
   console.log(
     `\nPlanning: ${totalCounts.total} nodes, ${totalCounts.cached} cached, ${totalCounts.dirty} to execute\n`,
   );
@@ -22,10 +22,10 @@ export function renderPlanSummary(plan: PlanningResult): void {
 }
 
 export function createProgressRenderer(
-  plan: PlanningResult,
+  analysis: AnalysisResult,
   maxParallelism?: number,
 ): ProgressRenderer {
-  const dirtyKinds = [...plan.byKind.entries()].filter(([, c]) => c.dirty > 0);
+  const dirtyKinds = [...analysis.byKind.entries()].filter(([, c]) => c.dirty > 0);
   if (dirtyKinds.length === 0) return { onProgress: () => {}, finish: () => {} };
 
   const label = maxParallelism != null ? ` (parallelism: ${maxParallelism})` : "";
@@ -46,7 +46,7 @@ function formatBar(done: number, failed: number, running: number, total: number)
   const activeW = Math.min(Math.round((BAR_SIZE * running) / total), remaining);
   remaining -= activeW;
   return (
-    pc.green("\u2588".repeat(doneW)) +
+    "\u2588".repeat(doneW) +
     pc.red("\u2588".repeat(failW)) +
     pc.cyan("\u2593".repeat(activeW)) +
     pc.dim("\u2591".repeat(remaining))
@@ -69,7 +69,10 @@ function createBarRenderer(dirtyKinds: [string, NodeCounts][]): ProgressRenderer
   const failed = new Map<string, number>();
   const inflight = new Map<string, number>();
   for (const [kind, counts] of dirtyKinds) {
-    bars.set(kind, multibar.create(counts.dirty, 0, { kind: kind.padEnd(16), done: 0, failed: 0, running: 0 }));
+    bars.set(
+      kind,
+      multibar.create(counts.dirty, 0, { kind: kind.padEnd(16), done: 0, failed: 0, running: 0 }),
+    );
     done.set(kind, 0);
     failed.set(kind, 0);
     inflight.set(kind, 0);

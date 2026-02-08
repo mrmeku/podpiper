@@ -53,7 +53,7 @@ bun run . graph <channel> -o dag.md # write mermaid to file
 The project uses a **DAG-based pipeline** with four phases:
 
 1. **Discovery** — `yt-dlp --flat-playlist` fetches the channel's video list
-2. **Planning** — `graph.plan()` walks the DAG, computes Merkle hashes, checks caches, and returns per-kind cached/dirty counts before any work starts
+2. **Analysis** — `graph.analyze()` walks the DAG, computes Merkle hashes, checks caches, and returns per-node details and per-kind cached/dirty counts before any work starts
 3. **DAG execution** — a readiness-loop scheduler dispatches nodes as soon as their dependencies complete, with pluggable `NodeRunner` and live progress events
 4. **Publish** — uploads new files to Cloudflare R2, merges episodes into existing feed
 
@@ -88,12 +88,15 @@ src/
 ├── paths.ts                        # Path helper functions
 ├── cli/
 │   ├── cli.ts                      # CLI commands (check, sync, graph)
-│   └── render.ts                   # Planning summary, progress bars, final summary
+│   └── render.ts                   # Analysis summary, progress bars, final summary
 ├── dag/
-│   ├── types.ts                    # Node, Cache, NodeRef<T>, NodeRunner, ProgressEvent
-│   ├── graph.ts                    # DAG engine (plan + execute)
+│   ├── types.ts                    # BaseParams, InputsFor<P>, ActionFunc<P,R>, NodeRef<T>, Node, Cache
+│   ├── graph.ts                    # DAG engine (addNode, analyze, execute)
+│   ├── exec-state.ts               # Execution state machine (ready queue, dispatch, transitions)
+│   ├── helpers.ts                  # computeHash, validateNoCycles, toCounts
 │   └── cache.ts                    # MemCache, LocalCache, TieredCache
 ├── pipeline/
+│   ├── define-action.ts            # defineAction helper (declarative action definitions)
 │   ├── sync.ts                     # Execute graph, collect results
 │   ├── graph-builder.ts            # Wire up the DAG
 │   ├── discovery.ts                # Fetch video list

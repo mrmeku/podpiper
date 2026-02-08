@@ -2,47 +2,60 @@
 
 ## Overview
 
-podpiper converts YouTube channels into podcast RSS feeds hosted on Cloudflare R2. It uses a DAG to break the conversion into cacheable stages that run in parallel. If you re-run it, only the parts that changed get recomputed.
+podpiper turns YouTube channels into podcast RSS feeds on Cloudflare R2. The whole conversion is modeled as a DAG of cacheable stages.
 
-## The Pipeline Stages
+## Configuration
 
-The pipeline has four layers:
+Channels are defined in `src/config.ts` as a `Record<string, ChannelDef>`. Each entry has:
+
+- `channelUrl` — YouTube channel URL
+- `r2` — bucket name and public URL for Cloudflare R2
+- `podcast` — RSS metadata: title, author, description, Apple category/subcategory
+- `chapterPrompt` (optional) — channel-specific instructions for LLM chapter generation
+- `summaryPrompt` (optional) — prompt for LLM episode summaries
+
+`getConfig(name)` looks up a channel by key and attaches `outputDir: ./output/{name}`. Global constants `CLAUDE_MODEL` and `WHISPER_MODEL_PATH` set the LLM model and whisper binary path.
+
+## Pipeline Stages
 
 ```
- Discovery           Planning              Execution              Publish
+ Discovery           Analysis              Execution              Publish
 ┌──────────────┐   ┌──────────────────┐   ┌──────────────────┐   ┌──────────────┐
-│ yt-dlp:      │──▶│ Merkle hashes +  │──▶│ Readiness-loop   │──▶│ Upload files  │
+│ yt-dlp:      │──▶│ Merkle hashes +  │──▶│ Readiness-loop   │──▶│ Upload files │
 │ fetch videos │   │ cache check      │   │ DAG scheduler    │   │ to R2        │
 └──────────────┘   └──────────────────┘   └──────────────────┘   └──────────────┘
 ```
 
-**Discovery** gets the list of videos from YouTube using `yt-dlp --flat-playlist`. This can't be cached since the channel might have new videos.
+**Discovery** fetches the video list via `yt-dlp --flat-playlist`. Not cacheable — the channel might have new videos.
 
-**Planning** walks the full DAG, computes Merkle hashes, and checks each node against the cache. Returns per-kind cached/dirty counts without running any actions. This powers dry-run mode and the planning summary display.
+**Analysis** walks the DAG, computes Merkle hashes, checks each node against the cache. Returns cached/dirty counts per kind. Powers dry-run mode without running any actions.
 
-**Execution** is where the work happens. For each video, we download audio, generate thumbnails, extract chapters, optionally summarize, and build an RSS entry. The readiness-loop scheduler dispatches nodes as soon as their dependencies complete, with live progress events streamed to the CLI.
+**Execution** does the real work. Per video: download audio, generate thumbnails, extract chapters, optionally summarize, build an RSS entry. The scheduler dispatches nodes as their dependencies complete, streaming progress events to the CLI.
 
-**Publish** takes a list of files to upload and pushes them to R2. It doesn't know or care what created those files.
+**Publish** uploads files to R2.
 
-## The DAG Execution Engine
+## DAG Execution Engine
 
 ### Nodes
-
-A node is just:
 
 ```typescript
 interface Node {
   name: string;
   kind: string;
   deps: string[];
+  params: string;
   config: string;
-  action: (inputs: Record<string, string>) => Promise<string>;
+  action: (rawInputs: Record<string, string>) => Promise<string>;
 }
 ```
 
 Everything operates on strings. A node takes strings in, returns a string out. This makes caching trivial. Type safety is added on top with `NodeRef<T>` wrappers that parse strings into actual types at the graph-building layer.
 
-`kind` is metadata for reporting — it categorizes nodes (e.g. `"download"`, `"thumbnail"`, `"chapters"`) so the planning phase and progress display can group counts by type. It's not part of the cache hash.
+The framework handles serde: it parses inputs, rekeys them from node names to role names (`"download:abc"` → `"download"`), calls your function with typed objects, and stringifies the result.
+
+`params` holds everything serializable — video ID, output paths, prompts, dep refs. Port closures (filesystem, yt-dlp, ffmpeg) get bound at definition time and stay outside `params`. `params` can be shipped to a remote worker. The worker just needs the action registry and its own ports.
+
+`kind` is the kind of action being executed. It groups nodes by type (`"download"`, `"thumbnail"`, `"chapters"`) so analysis and progress displays can show per-category counts. Not part of the cache hash.
 
 ### Caching
 
@@ -52,89 +65,64 @@ Each node's cache key is a hash of:
 - Its config string (version tag + parameters)
 - Its dependencies' names and hashes
 
-This means if you change anything upstream, all downstream hashes automatically change. No manual invalidation needed. Change the download config? Everything that depends on downloads gets re-run. Don't change it? Everything gets cached.
+A Merkle tree. Change anything upstream and all downstream hashes change automatically.
 
-Caches can be layered: `TieredCache(local, remote)` checks local first, then remote, and promotes remote hits to local.
+Caches layer: `TieredCache(local, remote)` checks local first, then remote, promotes remote hits to local.
 
-### Planning
+### Analysis
 
-Before execution, `graph.plan()` walks the full DAG upfront: computes Merkle hashes, checks each against the cache, and returns per-kind cached/dirty counts. This enables dry-run mode and the planning summary display without running any actions.
+`graph.analyze()` walks the full DAG before execution. Computes Merkle hashes, checks each against the cache, returns per-node details and per-kind cached/dirty counts.
 
-### Execution
+### Scheduler
 
-The graph executor uses a **readiness-loop scheduler**:
+The scheduler is a state machine (`src/dag/exec-state.ts`) driven by a readiness loop in the executor.
 
-1. Builds a reverse-dependency map and seeds a work queue with zero-dep nodes
-2. Dispatches ready nodes up to `maxParallelism` concurrency
-3. When a node completes, checks its dependents — any whose deps are all done get pushed to the front of the queue
-4. If a node fails, marks it and skips anything that depends on it
-5. Independent branches keep running
-6. Repeats until the queue is empty and nothing is in-flight
+**State** tracks the work queue (`ready`), in-flight count, a reverse dependency index (`dependents`), per-node hashes/results, and a failed set.
 
-Children of completed nodes enter the front of the queue, so downstream work keeps moving forward rather than waiting behind queued siblings. This means if video A's download finishes first, its thumbnail starts immediately without waiting for all other downloads.
+**Lifecycle:**
 
-### NodeRunner
+1. `createExecState(nodes)` seeds the `ready` queue with zero-dep leaf nodes
+2. The executor loop calls `takeNext` to pop a node and increment `inflight`
+3. After computing the hash and running the node (or hitting cache), the executor calls `send` with one of four actions: `cache-hit`, `success`, `failure`, or `complete`
+4. `complete` decrements `inflight` and promotes newly-ready children to the **front** of the queue (`unshift`). A child is ready when all its deps have results and it hasn't been enqueued yet
+5. The loop continues while `hasWork` (ready > 0 or inflight > 0), dispatching while `canDispatch` (ready > 0 and under `maxParallelism`)
 
-Execution is delegated through a `NodeRunner` interface:
+Front-of-queue insertion keeps related work together. Video A's download finishes, its thumbnail starts immediately instead of waiting behind queued downloads from other videos.
 
-```typescript
-type NodeRunner = (node: Node, inputs: Record<string, string>) => Promise<string>;
-```
+Execution goes through a pluggable `NodeRunner`. The default `localRunner` calls `node.action(inputs)` directly.
 
-The default `localRunner` calls `node.action(inputs)` directly. The abstraction exists so execution strategy (local, distributed via Temporal, with retries) can be swapped without changing the executor.
+## Defining Actions
 
-### Progress Events
-
-The executor emits progress events via an optional `onProgress` callback:
-
-- `start` — node execution begins
-- `done` — node completed (includes elapsed time)
-- `cached` — node skipped (cache hit)
-- `fail` — node threw (includes error message and elapsed time)
-- `dep-failed` — node skipped because a dependency failed
-
-Events are tagged with `node` name and `kind`, so consumers can group and render progress by category.
-
-## How `sync` Works
-
-The CLI creates the graph and calls `plan()` before handing it to `sync()`:
+Each action is a `defineAction` const:
 
 ```typescript
-// cli/cli.ts
-const graph = new Graph(cache);
-const refs = buildPipelineGraph(graph, videos, ports, config);
-const plan = graph.plan();
-renderPlanSummary(plan);
-if (opts.dryRun) return;
-
-const progress = createProgressRenderer(plan);
-const result = await sync(graph, refs, {
-  maxParallelism: opts.parallel,
-  onProgress: progress.onProgress,
+export const thumbnail = defineAction<ThumbnailParams, string>({
+  name: (p) => `thumbnail:${p.videoId}`,
+  config: "crop-v1",
+  action: (ports) => async (params, inputs) => {
+    const outputPath = `${toVideoDir(params.outputDir, params.videoId)}/thumbnail.jpg`;
+    await ports.ffmpeg.cropThumbnail(inputs.download.thumb, outputPath);
+    return outputPath;
+  },
 });
-progress.finish();
 ```
 
-`sync()` receives a pre-built graph, executes it, and collects upload entries from successful nodes. It returns data, doesn't do uploads. That's the publish step's job.
+Params declare what the action needs:
 
 ```typescript
-export async function sync(
-  graph: Graph,
-  refs: PipelineRefs,
-  opts?: ExecuteOptions,
-): Promise<SyncResult>
+interface ThumbnailParams {
+  kind: typeof NodeKind.Thumbnail;
+  videoId: string;
+  outputDir: string;
+  deps: { download: NodeRef<DownloadResult> };
+}
 ```
 
-Key properties:
+`deps` uses `NodeRef<T>`, so wiring a `NodeRef<TranscribeResult>` where a `NodeRef<DownloadResult>` goes is a compile error. `InputsFor<P>` derives the typed inputs — `inputs.download` is a `DownloadResult`, not a string you parse.
 
-- You declare dependencies; execution order is derived
-- Only changed nodes re-run (automatic incremental updates)
-- Data production is separate from data movement (easy to test)
-- The CLI controls the plan → render → execute → publish lifecycle
+Every call site in the graph builder looks the same: `xxx.addNode(graph, ports, params)`.
 
-## Per-Video Processing
-
-Each video creates this subgraph:
+## Per-Video Subgraph
 
 ```
 download ──┬──▶ thumbnail
@@ -145,7 +133,7 @@ download ──┬──▶ thumbnail
 
 `download` runs yt-dlp and produces audio.mp3, metadata JSON, thumbnail image, and subtitles.
 
-`thumbnail`, `chapters`, and `summary` all depend on `download` but not each other, so they run in parallel.
+`thumbnail`, `chapters`, and `summary` all depend on `download` but not each other. They run in parallel.
 
 `rss_entry` waits for all of them, then assembles the episode data and upload manifest.
 
@@ -155,40 +143,34 @@ download ──┬──▶ thumbnail
 channel_avatar ──▶ artwork
 ```
 
-`channel_avatar` downloads the channel profile image daily (config includes current date to force refresh).
+`channel_avatar` downloads the channel profile image. Config includes the current date so it refreshes daily. `artwork` resizes it to 1400x1400.
 
-`artwork` resizes it to 1400×1400.
-
-## The Feed Node
+## Feed Node
 
 ```
 [rss_entry:v1, ..., rss_entry:vN, artwork] ──▶ feed
 ```
 
-`feed` collects all episode entries, fetches the existing feed from R2, merges them (deduplicates, sorts by date), generates RSS XML, and writes it out.
+`feed` collects all episode entries, fetches the existing feed from R2, merges them (deduplicates by ID, sorts by date), generates RSS XML, writes it out. It depends on every episode entry, so it naturally waits for all videos to finish.
 
-Since it depends on every episode entry, it naturally waits for all videos to finish processing.
+## Ports
 
-## Ports (Dependency Injection)
+External dependencies are behind interfaces. Swappable with mocks for testing.
 
-External dependencies are behind interfaces:
+| Port                | What it wraps |
+| ------------------- | ------------- |
+| `FileSystem`        | File I/O      |
+| `YouTubeDownloader` | yt-dlp        |
+| `MediaProcessor`    | ffmpeg        |
+| `Llm`               | LLM API       |
+| `ObjectStore`       | S3/R2 storage |
 
-| Port                | What it abstracts |
-| ------------------- | ----------------- |
-| `FileSystem`        | File I/O          |
-| `YouTubeDownloader` | yt-dlp            |
-| `MediaProcessor`    | ffmpeg            |
-| `Llm`               | LLM API           |
-| `ObjectStore`       | S3/R2 storage     |
-
-These get passed into the pipeline at construction. Swap them with mocks for testing.
+Passed into the pipeline at construction time.
 
 ## CLI Display
 
-The CLI (`src/cli/cli.ts`) orchestrates the full lifecycle and renders progress via `src/cli/render.ts`:
+The CLI (`src/cli/cli.ts`) orchestrates the lifecycle and renders progress via `src/cli/render.ts`:
 
-1. **Planning summary** — after `graph.plan()`, prints total node counts and a per-kind breakdown showing cached vs dirty
-2. **Progress bars** — during execution, `cli-progress` multi-bar shows per-kind completion. Children of completed nodes run before queued siblings, so bars for downstream stages advance even while upstream work continues
+1. **Analysis summary** — prints total node counts with per-kind cached/dirty breakdown
+2. **Progress bars** — `cli-progress` multi-bar shows per-kind completion during execution
 3. **Final summary** — counts of executed, cached, failed, and dep-failed nodes
-
-TTY detection: when stdout is a TTY, uses `cli-progress` with cursor management. When piped, falls back to one log line per completed node.

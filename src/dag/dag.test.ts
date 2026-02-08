@@ -6,7 +6,8 @@ import { describe, expect, test } from "bun:test";
 
 import { LocalCache, MemCache, TieredCache } from "./cache";
 import { Graph, localRunner } from "./graph";
-import type { ExecResult, NodeRunner, ProgressEvent } from "./types";
+import type { BaseParams, ExecResult, NodeRunner, ProgressEvent } from "./types";
+import { jsonRef } from "./types";
 
 function countExec(results: ExecResult[]): { exec: number; skip: number } {
   let exec = 0;
@@ -19,6 +20,11 @@ function countExec(results: ExecResult[]): { exec: number; skip: number } {
   return { exec, skip };
 }
 
+const p = (kind: string, deps?: Record<string, string>): BaseParams =>
+  deps
+    ? { kind, deps: Object.fromEntries(Object.entries(deps).map(([k, v]) => [k, jsonRef(v)])) }
+    : { kind };
+
 function addVideoNodes(g: Graph, vid: string): void {
   const n = (kind: string) => `${kind}:${vid}`;
   g.add({
@@ -26,6 +32,7 @@ function addVideoNodes(g: Graph, vid: string): void {
     kind: "video",
     deps: [],
     config: vid,
+    params: p("video"),
     action: async () => `{"id":"${vid}"}`,
   });
   g.add({
@@ -33,6 +40,7 @@ function addVideoNodes(g: Graph, vid: string): void {
     kind: "audio",
     deps: [n("video")],
     config: "format=mp3,bitrate=192k",
+    params: p("audio", { video: n("video") }),
     action: async () => `/data/audio/${vid}.mp3`,
   });
   g.add({
@@ -40,6 +48,7 @@ function addVideoNodes(g: Graph, vid: string): void {
     kind: "transcript",
     deps: [n("audio")],
     config: "model=whisper-large-v3",
+    params: p("transcript", { audio: n("audio") }),
     action: async () => `Transcript of ${vid}`,
   });
   g.add({
@@ -47,6 +56,7 @@ function addVideoNodes(g: Graph, vid: string): void {
     kind: "summary",
     deps: [n("transcript")],
     config: "prompt=v2,model=claude-sonnet",
+    params: p("summary", { transcript: n("transcript") }),
     action: async () => `Summary of ${vid}`,
   });
   g.add({
@@ -54,6 +64,7 @@ function addVideoNodes(g: Graph, vid: string): void {
     kind: "chapters",
     deps: [n("transcript")],
     config: "prompt=v1,model=claude-sonnet",
+    params: p("chapters", { transcript: n("transcript") }),
     action: async () => "00:00 Intro",
   });
   g.add({
@@ -61,6 +72,7 @@ function addVideoNodes(g: Graph, vid: string): void {
     kind: "thumbnail",
     deps: [n("video")],
     config: "style=podcast-v2",
+    params: p("thumbnail", { video: n("video") }),
     action: async () => `/data/thumb/${vid}.png`,
   });
   g.add({
@@ -68,19 +80,27 @@ function addVideoNodes(g: Graph, vid: string): void {
     kind: "rss_entry",
     deps: [n("summary"), n("chapters"), n("audio"), n("thumbnail")],
     config: "feed=v1",
+    params: p("rss_entry", {
+      summary: n("summary"),
+      chapters: n("chapters"),
+      audio: n("audio"),
+      thumbnail: n("thumbnail"),
+    }),
     action: async () => `<item>${vid}</item>`,
   });
 }
 
 function addFeedNode(g: Graph, vids: string[]): void {
   const deps = vids.map((vid) => `rss_entry:${vid}`);
+  const depsRecord = Object.fromEntries(deps.map((d) => [d, d]));
   g.add({
     name: "feed",
     kind: "feed",
     deps,
     config: "feed_format=rss2.0",
-    action: async (inputs) => {
-      const entries = Object.values(inputs);
+    params: p("feed", depsRecord),
+    action: async (rawInputs) => {
+      const entries = Object.values(rawInputs);
       return `<rss>${entries.join("")}</rss>`;
     },
   });
@@ -138,57 +158,78 @@ describe("Graph", () => {
     expect(exec).toBe(0);
   });
 
-  describe("plan()", () => {
+  describe("analyze()", () => {
     test("all dirty on fresh cache", () => {
       const cache = new MemCache();
-      const plan = buildGraph(cache, ["vid_aaa", "vid_bbb"]).plan();
-      expect(plan.totalCounts).toEqual({ total: 15, cached: 0, dirty: 15 });
+      const { totalCounts } = buildGraph(cache, ["vid_aaa", "vid_bbb"]).analyze();
+      expect(totalCounts).toEqual({ total: 15, cached: 0, dirty: 15 });
     });
 
     test("all cached after execute", async () => {
       const cache = new MemCache();
       await buildGraph(cache, ["vid_aaa", "vid_bbb"]).execute();
-      const plan = buildGraph(cache, ["vid_aaa", "vid_bbb"]).plan();
-      expect(plan.totalCounts).toEqual({ total: 15, cached: 15, dirty: 0 });
+      const { totalCounts } = buildGraph(cache, ["vid_aaa", "vid_bbb"]).analyze();
+      expect(totalCounts).toEqual({ total: 15, cached: 15, dirty: 0 });
     });
 
     test("incremental new video", async () => {
       const cache = new MemCache();
       await buildGraph(cache, ["vid_aaa", "vid_bbb"]).execute();
-      const plan = buildGraph(cache, ["vid_aaa", "vid_bbb", "vid_ccc"]).plan();
-      expect(plan.totalCounts.cached).toBe(14);
-      expect(plan.totalCounts.dirty).toBe(8);
+      const { totalCounts } = buildGraph(cache, ["vid_aaa", "vid_bbb", "vid_ccc"]).analyze();
+      expect(totalCounts.cached).toBe(14);
+      expect(totalCounts.dirty).toBe(8);
     });
 
     test("byKind breakdown", () => {
       const cache = new MemCache();
-      const plan = buildGraph(cache, ["vid_aaa", "vid_bbb"]).plan();
-      const toNodeCounds = (total: number) => ({
+      const { byKind } = buildGraph(cache, ["vid_aaa", "vid_bbb"]).analyze();
+      const toNodeCounts = (total: number) => ({
         total,
         cached: 0,
         dirty: total,
       });
-      expect(Object.fromEntries(plan.byKind)).toEqual({
-        video: toNodeCounds(2),
-        audio: toNodeCounds(2),
-        transcript: toNodeCounds(2),
-        summary: toNodeCounds(2),
-        chapters: toNodeCounds(2),
-        thumbnail: toNodeCounds(2),
-        rss_entry: toNodeCounds(2),
-        feed: toNodeCounds(1),
+      expect(Object.fromEntries(byKind)).toEqual({
+        video: toNodeCounts(2),
+        audio: toNodeCounts(2),
+        transcript: toNodeCounts(2),
+        summary: toNodeCounts(2),
+        chapters: toNodeCounts(2),
+        thumbnail: toNodeCounts(2),
+        rss_entry: toNodeCounts(2),
+        feed: toNodeCounts(1),
       });
     });
 
-    test("plan agrees with execute", async () => {
+    test("analyze agrees with execute", async () => {
       const cache = new MemCache();
       await buildGraph(cache, ["vid_aaa"]).execute();
       const g = buildGraph(cache, ["vid_aaa", "vid_bbb"]);
-      const plan = g.plan();
+      const { totalCounts } = g.analyze();
       const results = await g.execute();
       const { exec, skip } = countExec(results);
-      expect(plan.totalCounts.dirty).toBe(exec);
-      expect(plan.totalCounts.cached).toBe(skip);
+      expect(totalCounts.dirty).toBe(exec);
+      expect(totalCounts.cached).toBe(skip);
+    });
+
+    test("nodes contain per-node details", () => {
+      const cache = new MemCache();
+      const { nodes } = buildGraph(cache, ["vid_aaa"]).analyze();
+      expect(nodes.length).toBe(8);
+      const video = nodes.find((n) => n.name === "video:vid_aaa")!;
+      expect(video.kind).toBe("video");
+      expect(video.deps).toEqual([]);
+      expect(video.dirty).toBe(true);
+      expect(video.hash).toBeTypeOf("string");
+      expect(video.cachedResult).toBeUndefined();
+    });
+
+    test("nodes reflect cache state", async () => {
+      const cache = new MemCache();
+      await buildGraph(cache, ["vid_aaa"]).execute();
+      const { nodes } = buildGraph(cache, ["vid_aaa"]).analyze();
+      const video = nodes.find((n) => n.name === "video:vid_aaa")!;
+      expect(video.dirty).toBe(false);
+      expect(video.cachedResult).toBe('{"id":"vid_aaa"}');
     });
   });
 
@@ -202,6 +243,7 @@ describe("Graph", () => {
       kind: "root",
       deps: [],
       config: "a",
+      params: p("root"),
       action: async () => {
         await Bun.sleep(50);
         log.push("slow_root");
@@ -213,6 +255,7 @@ describe("Graph", () => {
       kind: "root",
       deps: [],
       config: "b",
+      params: p("root"),
       action: async () => {
         log.push("fast_root");
         return "b";
@@ -223,6 +266,7 @@ describe("Graph", () => {
       kind: "child",
       deps: ["slow_root"],
       config: "c",
+      params: p("child", { slow_root: "slow_root" }),
       action: async () => {
         log.push("slow_child");
         return "c";
@@ -233,6 +277,7 @@ describe("Graph", () => {
       kind: "child",
       deps: ["fast_root"],
       config: "d",
+      params: p("child", { fast_root: "fast_root" }),
       action: async () => {
         log.push("fast_child");
         return "d";
@@ -253,6 +298,7 @@ describe("Graph", () => {
       kind: "root",
       deps: [],
       config: "r1",
+      params: p("root"),
       action: async () => {
         log.push("first_root");
         return "r1";
@@ -263,6 +309,7 @@ describe("Graph", () => {
       kind: "root",
       deps: [],
       config: "r2",
+      params: p("root"),
       action: async () => {
         log.push("second_root");
         return "r2";
@@ -273,6 +320,7 @@ describe("Graph", () => {
       kind: "child",
       deps: ["first_root"],
       config: "c1",
+      params: p("child", { first_root: "first_root" }),
       action: async () => {
         log.push("child");
         return "c1";
@@ -296,6 +344,7 @@ describe("Graph", () => {
         kind: "video",
         deps: [],
         config: vid,
+        params: p("video"),
         action: async () => `{"id":"${vid}"}`,
       });
       g.add({
@@ -303,6 +352,7 @@ describe("Graph", () => {
         kind: "audio",
         deps: [n("video")],
         config: "mp3",
+        params: p("audio", { video: n("video") }),
         action: async () => `/audio/${vid}`,
       });
       g.add({
@@ -310,6 +360,7 @@ describe("Graph", () => {
         kind: "transcript",
         deps: [n("audio")],
         config: "whisper-v3",
+        params: p("transcript", { audio: n("audio") }),
         action: async () => "transcript",
       });
       g.add({
@@ -317,6 +368,7 @@ describe("Graph", () => {
         kind: "summary",
         deps: [n("transcript")],
         config: summaryPrompt,
+        params: p("summary", { transcript: n("transcript") }),
         action: async () => "summary",
       });
       return g;
@@ -351,6 +403,7 @@ describe("Graph", () => {
       kind: "root",
       deps: [],
       config: "cfg",
+      params: p("root"),
       action: async () => "should not be called",
     });
     g.add({
@@ -358,6 +411,7 @@ describe("Graph", () => {
       kind: "child",
       deps: ["root"],
       config: "cfg",
+      params: p("child", { root: "root" }),
       action: async () => "should not be called",
     });
 
@@ -376,8 +430,22 @@ describe("Graph", () => {
     test("emits start+done for dirty nodes", async () => {
       const cache = new MemCache();
       const g = new Graph(cache);
-      g.add({ name: "a", kind: "root", deps: [], config: "1", action: async () => "a" });
-      g.add({ name: "b", kind: "child", deps: ["a"], config: "2", action: async () => "b" });
+      g.add({
+        name: "a",
+        kind: "root",
+        deps: [],
+        config: "1",
+        params: p("root"),
+        action: async () => "a",
+      });
+      g.add({
+        name: "b",
+        kind: "child",
+        deps: ["a"],
+        config: "2",
+        params: p("child", { a: "a" }),
+        action: async () => "b",
+      });
 
       const events: ProgressEvent[] = [];
       await g.execute(localRunner, { maxParallelism: 1, onProgress: (e) => events.push(e) });
@@ -396,13 +464,41 @@ describe("Graph", () => {
     test("emits cached for cached nodes", async () => {
       const cache = new MemCache();
       const g1 = new Graph(cache);
-      g1.add({ name: "a", kind: "root", deps: [], config: "1", action: async () => "a" });
-      g1.add({ name: "b", kind: "child", deps: ["a"], config: "2", action: async () => "b" });
+      g1.add({
+        name: "a",
+        kind: "root",
+        deps: [],
+        config: "1",
+        params: p("root"),
+        action: async () => "a",
+      });
+      g1.add({
+        name: "b",
+        kind: "child",
+        deps: ["a"],
+        config: "2",
+        params: p("child", { a: "a" }),
+        action: async () => "b",
+      });
       await g1.execute();
 
       const g2 = new Graph(cache);
-      g2.add({ name: "a", kind: "root", deps: [], config: "1", action: async () => "a" });
-      g2.add({ name: "b", kind: "child", deps: ["a"], config: "2", action: async () => "b" });
+      g2.add({
+        name: "a",
+        kind: "root",
+        deps: [],
+        config: "1",
+        params: p("root"),
+        action: async () => "a",
+      });
+      g2.add({
+        name: "b",
+        kind: "child",
+        deps: ["a"],
+        config: "2",
+        params: p("child", { a: "a" }),
+        action: async () => "b",
+      });
       const events: ProgressEvent[] = [];
       await g2.execute(localRunner, { onProgress: (e) => events.push(e) });
 
@@ -420,6 +516,7 @@ describe("Graph", () => {
         kind: "task",
         deps: [],
         config: "1",
+        params: p("task"),
         action: async () => {
           throw new Error("boom");
         },
@@ -444,11 +541,19 @@ describe("Graph", () => {
         kind: "root",
         deps: [],
         config: "1",
+        params: p("root"),
         action: async () => {
           throw new Error("boom");
         },
       });
-      g.add({ name: "b", kind: "child", deps: ["a"], config: "2", action: async () => "b" });
+      g.add({
+        name: "b",
+        kind: "child",
+        deps: ["a"],
+        config: "2",
+        params: p("child", { a: "a" }),
+        action: async () => "b",
+      });
 
       const events: ProgressEvent[] = [];
       await g.execute(localRunner, { onProgress: (e) => events.push(e) });

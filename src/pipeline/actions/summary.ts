@@ -1,9 +1,8 @@
-import type { Graph } from "@/dag/graph";
-import { stringRef } from "@/dag/types";
 import type { NodeRef } from "@/dag/types";
-import type { FileSystem, Llm, TranscribeResult } from "@/ports/types";
+import type { TranscribeResult } from "@/ports/types";
 import type { WhisperJson, YtDlpInfo } from "@/types";
 
+import { defineAction } from "../define-action";
 import type { DownloadResult } from "./download";
 import { NodeKind } from "./node-kind";
 
@@ -11,34 +10,27 @@ function formatTranscriptForLlm(whisper: WhisperJson): string {
   return whisper.transcription.map((s) => s.text.trim()).join("\n");
 }
 
-export function addSummaryNode(
-  graph: Graph,
-  videoId: string,
-  download: NodeRef<DownloadResult>,
-  transcribe: NodeRef<TranscribeResult>,
-  fs: FileSystem,
-  claude: Llm,
-  summaryPrompt: string,
-): NodeRef<string> {
-  const name = `summary:${videoId}`;
-  const promptHash = Bun.hash(summaryPrompt).toString(36);
-  graph.add({
-    name,
-    kind: NodeKind.Summary,
-    deps: [download.name, transcribe.name],
-    config: `summary-v2,prompt=${promptHash}`,
-    action: async (inputs) => {
-      const dl = download.parse(inputs[download.name]!);
-      const tr = transcribe.parse(inputs[transcribe.name]!);
-      const info = await fs.readJson<YtDlpInfo>(dl.info);
-      const jsonExists = await fs.exists(tr.json);
-      if (!jsonExists) return info.description ?? "";
-      const whisper = await fs.readJson<WhisperJson>(tr.json);
-      if (!whisper.transcription.length) return info.description ?? "";
-      const transcript = formatTranscriptForLlm(whisper);
-      const prompt = `${summaryPrompt}\n\nPlease summarize this episode titled "${info.title}". Here is the transcript:\n\n${transcript}`;
-      return claude.call(prompt);
-    },
-  });
-  return stringRef(name);
+export interface SummaryParams {
+  kind: typeof NodeKind.Summary;
+  videoId: string;
+  summaryPrompt: string;
+  deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
 }
+
+export const summary = defineAction<SummaryParams, string>({
+  name: (p) => `summary:${p.videoId}`,
+  config: (p) => {
+    const promptHash = Bun.hash(p.summaryPrompt).toString(36);
+    return `summary-v2,prompt=${promptHash}`;
+  },
+  action: (ports) => async (params, inputs) => {
+    const info = await ports.fs.readJson<YtDlpInfo>(inputs.download.info);
+    const jsonExists = await ports.fs.exists(inputs.transcribe.json);
+    if (!jsonExists) return info.description ?? "";
+    const whisper = await ports.fs.readJson<WhisperJson>(inputs.transcribe.json);
+    if (!whisper.transcription.length) return info.description ?? "";
+    const transcript = formatTranscriptForLlm(whisper);
+    const prompt = `${params.summaryPrompt}\n\nPlease summarize this episode titled "${info.title}". Here is the transcript:\n\n${transcript}`;
+    return ports.claude.call(prompt);
+  },
+});
