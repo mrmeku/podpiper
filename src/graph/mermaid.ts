@@ -1,7 +1,8 @@
 import type { Graph } from "@/dag/graph";
 import type { Node } from "@/dag/types";
+import type { NodeKind } from "@/pipeline/actions/node-kind";
 
-const NODE_LABELS: Record<string, string> = {
+const NODE_LABELS: Record<NodeKind, string> = {
   download: "yt-dlp: download",
   transcribe: "whisper: transcribe",
   thumbnail: "ffmpeg: thumbnail",
@@ -16,9 +17,8 @@ function toId(name: string): string {
   return name.replace(/:/g, "_");
 }
 
-function toLabel(name: string): string {
-  const key = name.includes(":") ? name.slice(0, name.indexOf(":")) : name;
-  return NODE_LABELS[key] ?? key;
+function toLabel(kind: string): string {
+  return NODE_LABELS[kind as NodeKind];
 }
 
 export function generateMermaid(graph: Graph): string {
@@ -61,7 +61,7 @@ export function generateMermaid(graph: Graph): string {
     videoIdx++;
     lines.push(`    subgraph video_${videoIdx} ["Video ${videoIdx}"]`);
     for (const n of group) {
-      lines.push(`      ${toId(n.name)}["${toLabel(n.name)}"]`);
+      lines.push(`      ${toId(n.name)}["${toLabel(n.kind)}"]`);
     }
     for (const n of group) {
       const localDeps = n.deps.filter((d) => d.includes(":") && d.endsWith(vid));
@@ -72,7 +72,7 @@ export function generateMermaid(graph: Graph): string {
     lines.push(`    end`);
   }
   for (const n of topLevel) {
-    lines.push(`    ${toId(n.name)}["${toLabel(n.name)}"]`);
+    lines.push(`    ${toId(n.name)}["${toLabel(n.kind)}"]`);
   }
   for (const n of topLevel) {
     if (n.deps.length) {
