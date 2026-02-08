@@ -1,7 +1,7 @@
 import type { Graph } from "@/dag/graph";
 import { addNode } from "@/dag/graph";
-import { jsonRef } from "@/dag/types";
-import type { ActionFunc, NodeRef } from "@/dag/types";
+import type { ActionFunc, DepName, NodeRef } from "@/dag/types";
+import { dep } from "@/dag/types";
 import type { MediaProcessor, YouTubeDownloader } from "@/ports/types";
 import type { HasUploads } from "@/types";
 
@@ -15,7 +15,7 @@ export interface ChannelAvatarParams {
   avatarDir: string;
 }
 
-export function channelAvatarAction(ytdlp: YouTubeDownloader): ActionFunc<ChannelAvatarParams> {
+export function channelAvatarAction(ytdlp: YouTubeDownloader): ActionFunc<ChannelAvatarParams, string> {
   return async (params) => {
     await ytdlp.downloadChannelArtwork(params.avatarDir, params.channelUrl);
     return `${params.avatarDir}/channel_avatar.jpg`;
@@ -25,13 +25,13 @@ export function channelAvatarAction(ytdlp: YouTubeDownloader): ActionFunc<Channe
 export interface ArtworkParams {
   kind: typeof NodeKind.Artwork;
   artworkPath: string;
-  deps: { channel_avatar: string };
+  deps: { channel_avatar: DepName<string> };
 }
 
-export function artworkAction(ffmpeg: MediaProcessor): ActionFunc<ArtworkParams> {
+export function artworkAction(ffmpeg: MediaProcessor): ActionFunc<ArtworkParams, ArtworkOutput> {
   return async (params, inputs) => {
     await ffmpeg.processChannelArtwork(inputs.channel_avatar, params.artworkPath);
-    return JSON.stringify({
+    return {
       uploads: [
         {
           localPath: params.artworkPath,
@@ -39,7 +39,7 @@ export function artworkAction(ffmpeg: MediaProcessor): ActionFunc<ArtworkParams>
           cacheControl: "max-age=86400",
         },
       ],
-    } satisfies ArtworkOutput);
+    };
   };
 }
 
@@ -50,19 +50,15 @@ export function addArtworkNodes(
   ffmpeg: MediaProcessor,
   outputDir: string,
 ): NodeRef<ArtworkOutput> {
-  const avatarName = "channel_avatar";
-  const artworkName = "artwork";
   const avatarDir = `${outputDir}/artwork`;
   const artworkPath = `${outputDir}/artwork.jpg`;
 
-  addNode(graph, avatarName, `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`, {
+  const avatarRef = addNode(graph, "channel_avatar", `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`, {
     kind: NodeKind.ChannelAvatar, channelUrl, avatarDir,
   } satisfies ChannelAvatarParams, channelAvatarAction(ytdlp));
 
-  addNode(graph, artworkName, "artwork-v1", {
+  return addNode(graph, "artwork", "artwork-v1", {
     kind: NodeKind.Artwork, artworkPath,
-    deps: { channel_avatar: avatarName },
+    deps: { channel_avatar: dep(avatarRef) },
   } satisfies ArtworkParams, artworkAction(ffmpeg));
-
-  return jsonRef<ArtworkOutput>(artworkName);
 }

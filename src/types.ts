@@ -210,7 +210,7 @@ export interface WhisperJson {
 export interface UploadEntry {
   localPath: string;
   r2Key: string;
-  cacheControl: string;
+  cacheControl?: string;
 }
 
 export interface HasUploads {

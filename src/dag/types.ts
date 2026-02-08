@@ -1,14 +1,25 @@
+export type DepName<T = unknown> = string & { readonly __resultType?: T };
+
+export function dep<T>(ref: NodeRef<T>): DepName<T> {
+  return ref.name as DepName<T>;
+}
+
 export interface BaseParams {
   kind: string;
-  deps?: Record<string, string | undefined>;
+  deps?: Record<string, DepName | undefined>;
 }
 
 export type InputsFor<P> = P extends { deps: infer D }
-  ? { [K in keyof D]: undefined extends D[K] ? string | undefined : string }
+  ? {
+      [K in keyof D]: D[K] extends DepName<infer T> | undefined
+        ? undefined extends D[K]
+          ? T | undefined
+          : T
+        : unknown;
+    }
   : {};
 
-export type ActionFunc<P extends BaseParams = BaseParams> =
-  (params: P, inputs: InputsFor<P>) => Promise<string>;
+export type ActionFunc<P extends BaseParams, R> = (params: P, inputs: InputsFor<P>) => Promise<R>;
 
 export interface Node {
   name: string;
@@ -16,7 +27,7 @@ export interface Node {
   deps: string[];
   config: string;
   params: BaseParams;
-  action: ActionFunc;
+  action: (rawInputs: Record<string, string>) => Promise<string>;
 }
 
 export type NodeRunner = (node: Node, inputs: Record<string, string>) => Promise<string>;
@@ -79,10 +90,6 @@ export interface AnalysisResult {
 export interface NodeRef<T> {
   name: string;
   parse: (raw: string) => T;
-}
-
-export function stringRef(name: string): NodeRef<string> {
-  return { name, parse: (raw) => raw };
 }
 
 export function jsonRef<T>(name: string): NodeRef<T> {

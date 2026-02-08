@@ -6,10 +6,13 @@ import type {
   Cache,
   ExecResult,
   ExecuteOptions,
+  InputsFor,
   Node,
+  NodeRef,
   NodeRunner,
 } from "./types";
 
+import { jsonRef } from "./types";
 import * as execState from "./exec-state";
 import { computeHash, toCounts, validateNoCycles } from "./helpers";
 
@@ -18,7 +21,7 @@ function depsFromParams(params: BaseParams): string[] {
   return Object.values(params.deps).filter((v): v is string => v != null);
 }
 
-function rekeyByRole(
+export function rekeyByRole(
   params: BaseParams,
   rawInputs: Record<string, string>,
 ): Record<string, string> {
@@ -30,18 +33,31 @@ function rekeyByRole(
   );
 }
 
-export function addNode<P extends BaseParams>(
+function parseInputs(
+  params: BaseParams,
+  rawInputs: Record<string, string>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(rekeyByRole(params, rawInputs)).map(([k, v]) => [k, JSON.parse(v)]),
+  );
+}
+
+export function addNode<P extends BaseParams, R>(
   graph: Graph,
   name: string,
   config: string,
   params: P,
-  action: ActionFunc<P>,
-): void {
-  graph.add({ name, kind: params.kind, deps: depsFromParams(params), config, params, action: action as ActionFunc });
+  action: ActionFunc<P, R>,
+): NodeRef<R> {
+  graph.add({
+    name, kind: params.kind, deps: depsFromParams(params), config, params,
+    action: async (rawInputs) =>
+      JSON.stringify(await action(params, parseInputs(params, rawInputs) as InputsFor<P>)),
+  });
+  return jsonRef<R>(name);
 }
 
-export const localRunner: NodeRunner = (node, rawInputs) =>
-  node.action(node.params, rekeyByRole(node.params, rawInputs));
+export const localRunner: NodeRunner = (node, rawInputs) => node.action(rawInputs);
 
 export class Graph {
   private nodes = new Map<string, Node>();

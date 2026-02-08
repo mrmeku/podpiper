@@ -96,8 +96,8 @@ function addFeedNode(g: Graph, vids: string[]): void {
     deps,
     config: "feed_format=rss2.0",
     params: p("feed", depsRecord),
-    action: async (_params, inputs) => {
-      const entries = Object.values(inputs);
+    action: async (rawInputs) => {
+      const entries = Object.values(rawInputs);
       return `<rss>${entries.join("")}</rss>`;
     },
   });

@@ -1,7 +1,7 @@
 import type { Graph } from "@/dag/graph";
 import { addNode } from "@/dag/graph";
-import { stringRef } from "@/dag/types";
-import type { ActionFunc, NodeRef } from "@/dag/types";
+import type { ActionFunc, DepName, NodeRef } from "@/dag/types";
+import { dep } from "@/dag/types";
 import type { FileSystem, Llm, TranscribeResult } from "@/ports/types";
 import type { WhisperJson, YtDlpInfo } from "@/types";
 
@@ -15,17 +15,15 @@ function formatTranscriptForLlm(whisper: WhisperJson): string {
 export interface SummaryParams {
   kind: typeof NodeKind.Summary;
   summaryPrompt: string;
-  deps: { download: string; transcribe: string };
+  deps: { download: DepName<DownloadResult>; transcribe: DepName<TranscribeResult> };
 }
 
-export function summaryAction(fs: FileSystem, claude: Llm): ActionFunc<SummaryParams> {
+export function summaryAction(fs: FileSystem, claude: Llm): ActionFunc<SummaryParams, string> {
   return async (params, inputs) => {
-    const dl: DownloadResult = JSON.parse(inputs.download);
-    const tr: TranscribeResult = JSON.parse(inputs.transcribe);
-    const info = await fs.readJson<YtDlpInfo>(dl.info);
-    const jsonExists = await fs.exists(tr.json);
+    const info = await fs.readJson<YtDlpInfo>(inputs.download.info);
+    const jsonExists = await fs.exists(inputs.transcribe.json);
     if (!jsonExists) return info.description ?? "";
-    const whisper = await fs.readJson<WhisperJson>(tr.json);
+    const whisper = await fs.readJson<WhisperJson>(inputs.transcribe.json);
     if (!whisper.transcription.length) return info.description ?? "";
     const transcript = formatTranscriptForLlm(whisper);
     const prompt = `${params.summaryPrompt}\n\nPlease summarize this episode titled "${info.title}". Here is the transcript:\n\n${transcript}`;
@@ -42,11 +40,9 @@ export function addSummaryNode(
   claude: Llm,
   summaryPrompt: string,
 ): NodeRef<string> {
-  const name = `summary:${videoId}`;
   const promptHash = Bun.hash(summaryPrompt).toString(36);
-  addNode(graph, name, `summary-v2,prompt=${promptHash}`, {
+  return addNode(graph, `summary:${videoId}`, `summary-v2,prompt=${promptHash}`, {
     kind: NodeKind.Summary, summaryPrompt,
-    deps: { download: download.name, transcribe: transcribe.name },
+    deps: { download: dep(download), transcribe: dep(transcribe) },
   } satisfies SummaryParams, summaryAction(fs, claude));
-  return stringRef(name);
 }

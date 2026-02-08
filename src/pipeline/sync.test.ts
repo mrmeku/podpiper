@@ -4,8 +4,8 @@ import { MemCache, TieredCache } from "@/dag/cache";
 import { Graph } from "@/dag/graph";
 import type { Cache, ExecResult } from "@/dag/types";
 import { createMemoryFs } from "@/ports/memory-fs";
-import { createSpyPorts } from "@/ports/mock";
 import type { SpiedPorts } from "@/ports/mock";
+import { createSpyPorts } from "@/ports/mock";
 import { extractReferencedUrls, parseExistingFeed } from "@/rss/parse";
 import type { Config, VideoInfo, YtDlpInfo } from "@/types";
 
@@ -113,10 +113,10 @@ function countExec(results: ExecResult[]): {
   return { exec, skip, fail };
 }
 
-function getUploadCalls(ports: SpiedPorts): { key: string; cacheControl: string }[] {
+function getUploadCalls(ports: SpiedPorts): { key: string; cacheControl?: string }[] {
   return ports.storage.uploadFile.mock.calls.map((c: any) => ({
     key: c[1] as string,
-    cacheControl: c[3] as string,
+    ...(c[3] ? { cacheControl: c[3] as string } : {}),
   }));
 }
 
@@ -136,7 +136,8 @@ describe("sync pipeline", () => {
     // Episode data
     const aaaResult = sr.results.find((r) => r.name === "rss_entry:vid_aaa")!;
     const bbbResult = sr.results.find((r) => r.name === "rss_entry:vid_bbb")!;
-    if (aaaResult.status !== "done" || bbbResult.status !== "done") throw new Error("expected done");
+    if (aaaResult.status !== "done" || bbbResult.status !== "done")
+      throw new Error("expected done");
     const aaaEp = (JSON.parse(aaaResult.result) as EpisodeOutput).episode;
     const bbbEp = (JSON.parse(bbbResult.result) as EpisodeOutput).episode;
 
@@ -196,13 +197,13 @@ describe("sync pipeline", () => {
       uploads: [
         { key: "artwork.jpg", cacheControl: "max-age=86400" },
         { key: "feed.xml", cacheControl: "max-age=300" },
-        { key: "vid_aaa/audio.mp3", cacheControl: "max-age=31536000" },
-        { key: "vid_aaa/chapters.json", cacheControl: "max-age=31536000" },
-        { key: "vid_aaa/thumbnail.jpg", cacheControl: "max-age=31536000" },
-        { key: "vid_aaa/transcript.srt", cacheControl: "max-age=31536000" },
-        { key: "vid_bbb/audio.mp3", cacheControl: "max-age=31536000" },
-        { key: "vid_bbb/thumbnail.jpg", cacheControl: "max-age=31536000" },
-        { key: "vid_bbb/transcript.srt", cacheControl: "max-age=31536000" },
+        { key: "vid_aaa/audio.mp3" },
+        { key: "vid_aaa/chapters.json" },
+        { key: "vid_aaa/thumbnail.jpg" },
+        { key: "vid_aaa/transcript.srt" },
+        { key: "vid_bbb/audio.mp3" },
+        { key: "vid_bbb/thumbnail.jpg" },
+        { key: "vid_bbb/transcript.srt" },
       ],
     });
 
@@ -347,9 +348,9 @@ describe("sync pipeline", () => {
       storageGetFile: 1,
       uploads: [
         { key: "feed.xml", cacheControl: "max-age=300" },
-        { key: "vid_ccc/audio.mp3", cacheControl: "max-age=31536000" },
-        { key: "vid_ccc/thumbnail.jpg", cacheControl: "max-age=31536000" },
-        { key: "vid_ccc/transcript.srt", cacheControl: "max-age=31536000" },
+        { key: "vid_ccc/audio.mp3" },
+        { key: "vid_ccc/thumbnail.jpg" },
+        { key: "vid_ccc/transcript.srt" },
       ],
     });
 
@@ -410,10 +411,10 @@ describe("sync pipeline", () => {
     expect(getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key))).toEqual([
       { key: "artwork.jpg", cacheControl: "max-age=86400" },
       { key: "feed.xml", cacheControl: "max-age=300" },
-      { key: "vid_aaa/audio.mp3", cacheControl: "max-age=31536000" },
-      { key: "vid_aaa/chapters.json", cacheControl: "max-age=31536000" },
-      { key: "vid_aaa/thumbnail.jpg", cacheControl: "max-age=31536000" },
-      { key: "vid_aaa/transcript.srt", cacheControl: "max-age=31536000" },
+      { key: "vid_aaa/audio.mp3" },
+      { key: "vid_aaa/chapters.json" },
+      { key: "vid_aaa/thumbnail.jpg" },
+      { key: "vid_aaa/transcript.srt" },
     ]);
   });
 
@@ -456,13 +457,13 @@ describe("sync pipeline", () => {
       uploads: [
         { key: "artwork.jpg", cacheControl: "max-age=86400" },
         { key: "feed.xml", cacheControl: "max-age=300" },
-        { key: "vid_aaa/audio.mp3", cacheControl: "max-age=31536000" },
-        { key: "vid_aaa/chapters.json", cacheControl: "max-age=31536000" },
-        { key: "vid_aaa/thumbnail.jpg", cacheControl: "max-age=31536000" },
-        { key: "vid_aaa/transcript.srt", cacheControl: "max-age=31536000" },
-        { key: "vid_bbb/audio.mp3", cacheControl: "max-age=31536000" },
-        { key: "vid_bbb/thumbnail.jpg", cacheControl: "max-age=31536000" },
-        { key: "vid_bbb/transcript.srt", cacheControl: "max-age=31536000" },
+        { key: "vid_aaa/audio.mp3" },
+        { key: "vid_aaa/chapters.json" },
+        { key: "vid_aaa/thumbnail.jpg" },
+        { key: "vid_aaa/transcript.srt" },
+        { key: "vid_bbb/audio.mp3" },
+        { key: "vid_bbb/thumbnail.jpg" },
+        { key: "vid_bbb/transcript.srt" },
       ],
     });
   });
