@@ -138,57 +138,78 @@ describe("Graph", () => {
     expect(exec).toBe(0);
   });
 
-  describe("plan()", () => {
+  describe("analyze()", () => {
     test("all dirty on fresh cache", () => {
       const cache = new MemCache();
-      const plan = buildGraph(cache, ["vid_aaa", "vid_bbb"]).plan();
-      expect(plan.totalCounts).toEqual({ total: 15, cached: 0, dirty: 15 });
+      const { totalCounts } = buildGraph(cache, ["vid_aaa", "vid_bbb"]).analyze();
+      expect(totalCounts).toEqual({ total: 15, cached: 0, dirty: 15 });
     });
 
     test("all cached after execute", async () => {
       const cache = new MemCache();
       await buildGraph(cache, ["vid_aaa", "vid_bbb"]).execute();
-      const plan = buildGraph(cache, ["vid_aaa", "vid_bbb"]).plan();
-      expect(plan.totalCounts).toEqual({ total: 15, cached: 15, dirty: 0 });
+      const { totalCounts } = buildGraph(cache, ["vid_aaa", "vid_bbb"]).analyze();
+      expect(totalCounts).toEqual({ total: 15, cached: 15, dirty: 0 });
     });
 
     test("incremental new video", async () => {
       const cache = new MemCache();
       await buildGraph(cache, ["vid_aaa", "vid_bbb"]).execute();
-      const plan = buildGraph(cache, ["vid_aaa", "vid_bbb", "vid_ccc"]).plan();
-      expect(plan.totalCounts.cached).toBe(14);
-      expect(plan.totalCounts.dirty).toBe(8);
+      const { totalCounts } = buildGraph(cache, ["vid_aaa", "vid_bbb", "vid_ccc"]).analyze();
+      expect(totalCounts.cached).toBe(14);
+      expect(totalCounts.dirty).toBe(8);
     });
 
     test("byKind breakdown", () => {
       const cache = new MemCache();
-      const plan = buildGraph(cache, ["vid_aaa", "vid_bbb"]).plan();
-      const toNodeCounds = (total: number) => ({
+      const { byKind } = buildGraph(cache, ["vid_aaa", "vid_bbb"]).analyze();
+      const toNodeCounts = (total: number) => ({
         total,
         cached: 0,
         dirty: total,
       });
-      expect(Object.fromEntries(plan.byKind)).toEqual({
-        video: toNodeCounds(2),
-        audio: toNodeCounds(2),
-        transcript: toNodeCounds(2),
-        summary: toNodeCounds(2),
-        chapters: toNodeCounds(2),
-        thumbnail: toNodeCounds(2),
-        rss_entry: toNodeCounds(2),
-        feed: toNodeCounds(1),
+      expect(Object.fromEntries(byKind)).toEqual({
+        video: toNodeCounts(2),
+        audio: toNodeCounts(2),
+        transcript: toNodeCounts(2),
+        summary: toNodeCounts(2),
+        chapters: toNodeCounts(2),
+        thumbnail: toNodeCounts(2),
+        rss_entry: toNodeCounts(2),
+        feed: toNodeCounts(1),
       });
     });
 
-    test("plan agrees with execute", async () => {
+    test("analyze agrees with execute", async () => {
       const cache = new MemCache();
       await buildGraph(cache, ["vid_aaa"]).execute();
       const g = buildGraph(cache, ["vid_aaa", "vid_bbb"]);
-      const plan = g.plan();
+      const { totalCounts } = g.analyze();
       const results = await g.execute();
       const { exec, skip } = countExec(results);
-      expect(plan.totalCounts.dirty).toBe(exec);
-      expect(plan.totalCounts.cached).toBe(skip);
+      expect(totalCounts.dirty).toBe(exec);
+      expect(totalCounts.cached).toBe(skip);
+    });
+
+    test("nodes contain per-node details", () => {
+      const cache = new MemCache();
+      const { nodes } = buildGraph(cache, ["vid_aaa"]).analyze();
+      expect(nodes.length).toBe(8);
+      const video = nodes.find((n) => n.name === "video:vid_aaa")!;
+      expect(video.kind).toBe("video");
+      expect(video.deps).toEqual([]);
+      expect(video.dirty).toBe(true);
+      expect(video.hash).toBeTypeOf("string");
+      expect(video.cachedResult).toBeUndefined();
+    });
+
+    test("nodes reflect cache state", async () => {
+      const cache = new MemCache();
+      await buildGraph(cache, ["vid_aaa"]).execute();
+      const { nodes } = buildGraph(cache, ["vid_aaa"]).analyze();
+      const video = nodes.find((n) => n.name === "video:vid_aaa")!;
+      expect(video.dirty).toBe(false);
+      expect(video.cachedResult).toBe('{"id":"vid_aaa"}');
     });
   });
 

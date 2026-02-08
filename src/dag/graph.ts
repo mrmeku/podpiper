@@ -1,28 +1,15 @@
-import { createHash } from "node:crypto";
-
 import type {
+  AnalysisResult,
+  AnalyzedNode,
   Cache,
   ExecResult,
   ExecuteOptions,
-  Flushable,
   Node,
-  NodeCounts,
   NodeRunner,
-  PlanningResult,
-  ProgressEvent,
 } from "./types";
 
-function computeHash(node: Node, depHashes: Map<string, string>): string {
-  const h = createHash("sha256");
-  h.update(node.name);
-  h.update(node.config);
-  const sorted = [...node.deps].sort();
-  for (const dep of sorted) {
-    h.update(dep);
-    h.update(depHashes.get(dep) ?? "");
-  }
-  return h.digest("hex");
-}
+import * as execState from "./exec-state";
+import { computeHash, toCounts, validateNoCycles } from "./helpers";
 
 export const localRunner: NodeRunner = (node, inputs) => node.action(inputs);
 
@@ -38,182 +25,85 @@ export class Graph {
     return this.nodes;
   }
 
-  nodeCount(): number {
-    return this.nodes.size;
-  }
+  analyze(): AnalysisResult {
+    validateNoCycles(this.nodes);
+    const hashes = new Map<string, string>();
 
-  private validateNoCycles(): string[] {
-    const visited = new Set<string>();
-    const visiting = new Set<string>();
-    const order: string[] = [];
+    const analyzed = Array.from(this.nodes.entries(), ([name, node]): AnalyzedNode => {
+      const depHashes = new Map(node.deps.map((d) => [d, hashes.get(d) ?? ""]));
+      const hash = computeHash(node, depHashes);
+      hashes.set(name, hash);
+      const [cachedResult, hit] = this.cache.get(hash);
+      return {
+        name,
+        kind: node.kind,
+        deps: node.deps,
+        hash,
+        dirty: !hit,
+        ...(hit ? { cachedResult } : {}),
+      };
+    });
 
-    const visit = (name: string): void => {
-      if (visited.has(name)) return;
-      if (visiting.has(name)) throw new Error(`cycle detected at ${name}`);
-      visiting.add(name);
-      const node = this.nodes.get(name);
-      if (!node) throw new Error(`unknown node: ${name}`);
-      for (const dep of node.deps) visit(dep);
-      visiting.delete(name);
-      visited.add(name);
-      order.push(name);
-    };
-
-    for (const name of this.nodes.keys()) visit(name);
-    return order;
-  }
-
-  plan(): PlanningResult {
-    this.validateNoCycles();
-    const { totalCounts, byKind } = this.nodes.entries().reduce<{
-      hashes: Map<string, string>;
-      totalCounts: NodeCounts;
-      byKind: Map<string, NodeCounts>;
-    }>(
-      (acc, [name, node]) => {
-        const depHashes = new Map(node.deps.map((d) => [d, acc.hashes.get(d) ?? ""]));
-        const hash = computeHash(node, depHashes);
-        acc.hashes.set(name, hash);
-
-        const hit = this.cache.get(hash)[1];
-        acc.totalCounts.total++;
-        if (hit) acc.totalCounts.cached++;
-        else acc.totalCounts.dirty++;
-
-        let counts = acc.byKind.get(node.kind);
-        if (!counts) {
-          counts = { total: 0, cached: 0, dirty: 0 };
-          acc.byKind.set(node.kind, counts);
-        }
-        counts.total++;
-        if (hit) counts.cached++;
-        else counts.dirty++;
-
-        return acc;
-      },
-      {
-        hashes: new Map(),
-        totalCounts: { total: 0, cached: 0, dirty: 0 },
-        byKind: new Map(),
-      },
+    const totalCounts = toCounts(analyzed);
+    const byKindCounts = new Map(
+      Array.from(
+        Map.groupBy(analyzed, (n) => n.kind),
+        ([kind, nodes]) => [kind, toCounts(nodes)],
+      ),
     );
-    return { totalCounts, byKind };
+    return { nodes: analyzed, totalCounts, byKind: byKindCounts };
   }
 
   async execute(runner: NodeRunner = localRunner, opts?: ExecuteOptions): Promise<ExecResult[]> {
-    const { maxParallelism, onProgress } = opts ?? {};
-    const emit = onProgress ? (e: ProgressEvent) => onProgress(e) : undefined;
-    const hashes = new Map<string, string>();
-    const results = new Map<string, string>();
-    const execResults = new Map<string, ExecResult>();
-    const failed = new Set<string>();
-
-    // Build reverse dependency map
-    const dependents = new Map<string, Node[]>();
-    for (const node of this.nodes.values()) {
-      for (const dep of node.deps) {
-        let list = dependents.get(dep);
-        if (!list) {
-          list = [];
-          dependents.set(dep, list);
-        }
-        list.push(node);
-      }
-    }
+    const { maxParallelism, onProgress: emit } = opts ?? {};
+    const state = execState.createExecState(this.nodes.values());
 
     const processNode = async (node: Node): Promise<void> => {
       const { name, kind } = node;
-
-      for (const dep of node.deps) {
-        if (failed.has(dep)) {
-          failed.add(name);
-          emit?.({ node: name, kind, status: "dep-failed", error: `dependency ${dep} failed` });
-          execResults.set(name, {
-            name,
-            hash: "",
-            status: "dep-failed",
-            error: new Error(`dependency ${dep} failed`),
-          });
-          return;
-        }
-      }
-
-      const depHashes = new Map<string, string>();
-      for (const dep of node.deps) depHashes.set(dep, hashes.get(dep) ?? "");
-      const hash = computeHash(node, depHashes);
-
-      const [cachedResult, hit] = this.cache.get(hash);
-      if (hit) {
-        hashes.set(name, hash);
-        results.set(name, cachedResult);
-        emit?.({ node: name, kind, status: "cached" });
-        execResults.set(name, { name, hash, status: "cached", result: cachedResult });
+      const badDep = execState.firstFailedDep(node, state);
+      if (badDep) {
+        execState.send(state, { type: "failure", node, hash: "", error: new Error(`dependency ${badDep} failed`) });
+        emit?.({ node: name, kind, status: "dep-failed", error: `dependency ${badDep} failed` });
         return;
       }
 
-      const inputs: Record<string, string> = {};
-      for (const dep of node.deps) inputs[dep] = results.get(dep) ?? "";
+      const hash = computeHash(node, execState.depHashesFor(node, state));
+      const [cachedResult, hit] = this.cache.get(hash);
+      if (hit) {
+        execState.send(state, { type: "cache-hit", node, hash, cachedResult });
+        emit?.({ node: name, kind, status: "cached" });
+        return;
+      }
 
       emit?.({ node: name, kind, status: "start" });
       const startTime = Date.now();
       try {
-        const result = await runner(node, inputs);
-        hashes.set(name, hash);
-        results.set(name, result);
+        const result = await runner(node, execState.inputsFor(node, state));
         this.cache.put(hash, result);
+        execState.send(state, { type: "success", node, hash, result });
         emit?.({ node: name, kind, status: "done", elapsed: Date.now() - startTime });
-        execResults.set(name, { name, hash, status: "done", result });
       } catch (e) {
-        const error = e instanceof Error ? e.message : String(e);
-        emit?.({ node: name, kind, status: "fail", elapsed: Date.now() - startTime, error });
-        failed.add(name);
-        execResults.set(name, {
-          name,
-          hash,
-          status: "fail",
-          error: e instanceof Error ? e : new Error(String(e)),
-        });
+        execState.send(state, { type: "failure", node, hash, error: e });
+        const msg = e instanceof Error ? e.message : String(e);
+        emit?.({ node: name, kind, status: "fail", elapsed: Date.now() - startTime, error: msg });
       }
     };
 
-    // Seed ready queue with zero-dep nodes
-    const ready: Node[] = [];
-    const enqueued = new Set<string>();
-    let inflight = 0;
-    let wakeEventLoop: () => void = () => {};
-
-    for (const node of this.nodes.values()) {
-      if (node.deps.length === 0) {
-        ready.push(node);
-        enqueued.add(node.name);
-      }
-    }
-
-    while (ready.length > 0 || inflight > 0) {
-      while (ready.length > 0 && (maxParallelism == null || inflight < maxParallelism)) {
-        const node = ready.shift()!;
-        inflight++;
-        processNode(node).then(() => {
-          inflight--;
-          for (const child of dependents.get(node.name) ?? []) {
-            if (!enqueued.has(child.name) && child.deps.every((d) => execResults.has(d))) {
-              ready.unshift(child);
-              enqueued.add(child.name);
-            }
-          }
-          wakeEventLoop();
+    let resumeLoop: () => void = () => {};
+    while (execState.hasWork(state)) {
+      while (execState.canDispatch(state, maxParallelism)) {
+        const node = execState.takeNext(state);
+        processNode(node).finally(() => {
+          execState.send(state,{ type: "complete", node });
+          resumeLoop();
         });
       }
-      // Suspend the event loop until any inflight node completes and calls wakeEventLoop()
-      await new Promise<void>((resolve) => {
-        wakeEventLoop = resolve;
+      await new Promise<void>((r) => {
+        resumeLoop = r;
       });
     }
 
-    const isFlushable = (c: Cache): c is Cache & Flushable =>
-      "flush" in c && typeof (c as Flushable).flush === "function";
-    if (isFlushable(this.cache)) await this.cache.flush();
-
-    return [...execResults.values()];
+    await this.cache.flush?.();
+    return [...state.execResults.values()];
   }
 }

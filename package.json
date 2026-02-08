@@ -11,11 +11,11 @@
     "format": "prettier --write ."
   },
   "devDependencies": {
-    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/bun": "latest",
     "@types/cli-progress": "^3.11.6",
     "@typescript/native-preview": "^7.0.0-dev.20260131.1",
     "prettier": "^3.8.1",
+    "prettier-plugin-organize-imports": "^4.3.0",
     "typescript-eslint": "^8.54.0"
   },
   "dependencies": {

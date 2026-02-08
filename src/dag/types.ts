@@ -22,10 +22,11 @@ export type ExecResult = { name: string; hash: string } & (
 export interface Cache {
   get(hash: string): [string, boolean];
   put(hash: string, result: string): void;
+  flush?: () => void | Promise<void>;
 }
 
 export interface Flushable {
-  flush(): void | Promise<void>;
+  flush: () => void | Promise<void>;
 }
 
 export type ProgressEvent = { node: string; kind: string } & (
@@ -49,7 +50,17 @@ export interface NodeCounts {
   dirty: number;
 }
 
-export interface PlanningResult {
+export interface AnalyzedNode {
+  name: string;
+  kind: string;
+  deps: string[];
+  hash: string;
+  dirty: boolean;
+  cachedResult?: string;
+}
+
+export interface AnalysisResult {
+  nodes: AnalyzedNode[];
   totalCounts: NodeCounts;
   byKind: Map<string, NodeCounts>;
 }

@@ -9,7 +9,7 @@ podpiper converts YouTube channels into podcast RSS feeds hosted on Cloudflare R
 The pipeline has four layers:
 
 ```
- Discovery           Planning              Execution              Publish
+ Discovery           Analysis              Execution              Publish
 ┌──────────────┐   ┌──────────────────┐   ┌──────────────────┐   ┌──────────────┐
 │ yt-dlp:      │──▶│ Merkle hashes +  │──▶│ Readiness-loop   │──▶│ Upload files  │
 │ fetch videos │   │ cache check      │   │ DAG scheduler    │   │ to R2        │
@@ -18,7 +18,7 @@ The pipeline has four layers:
 
 **Discovery** gets the list of videos from YouTube using `yt-dlp --flat-playlist`. This can't be cached since the channel might have new videos.
 
-**Planning** walks the full DAG, computes Merkle hashes, and checks each node against the cache. Returns per-kind cached/dirty counts without running any actions. This powers dry-run mode and the planning summary display.
+**Analysis** walks the full DAG, computes Merkle hashes, and checks each node against the cache. Returns per-node details and per-kind cached/dirty counts without running any actions. This powers dry-run mode and the analysis summary display.
 
 **Execution** is where the work happens. For each video, we download audio, generate thumbnails, extract chapters, optionally summarize, and build an RSS entry. The readiness-loop scheduler dispatches nodes as soon as their dependencies complete, with live progress events streamed to the CLI.
 
@@ -56,9 +56,9 @@ This means if you change anything upstream, all downstream hashes automatically 
 
 Caches can be layered: `TieredCache(local, remote)` checks local first, then remote, and promotes remote hits to local.
 
-### Planning
+### Analysis
 
-Before execution, `graph.plan()` walks the full DAG upfront: computes Merkle hashes, checks each against the cache, and returns per-kind cached/dirty counts. This enables dry-run mode and the planning summary display without running any actions.
+Before execution, `graph.analyze()` walks the full DAG upfront: computes Merkle hashes, checks each against the cache, and returns per-node details plus per-kind cached/dirty counts. This enables dry-run mode and the analysis summary display without running any actions.
 
 ### Execution
 
@@ -97,17 +97,17 @@ Events are tagged with `node` name and `kind`, so consumers can group and render
 
 ## How `sync` Works
 
-The CLI creates the graph and calls `plan()` before handing it to `sync()`:
+The CLI creates the graph and calls `analyze()` before handing it to `sync()`:
 
 ```typescript
 // cli/cli.ts
 const graph = new Graph(cache);
 const refs = buildPipelineGraph(graph, videos, ports, config);
-const plan = graph.plan();
-renderPlanSummary(plan);
+const analysis = graph.analyze();
+renderAnalysisSummary(analysis);
 if (opts.dryRun) return;
 
-const progress = createProgressRenderer(plan);
+const progress = createProgressRenderer(analysis);
 const result = await sync(graph, refs, {
   maxParallelism: opts.parallel,
   onProgress: progress.onProgress,
@@ -187,7 +187,7 @@ These get passed into the pipeline at construction. Swap them with mocks for tes
 
 The CLI (`src/cli/cli.ts`) orchestrates the full lifecycle and renders progress via `src/cli/render.ts`:
 
-1. **Planning summary** — after `graph.plan()`, prints total node counts and a per-kind breakdown showing cached vs dirty
+1. **Analysis summary** — after `graph.analyze()`, prints total node counts and a per-kind breakdown showing cached vs dirty
 2. **Progress bars** — during execution, `cli-progress` multi-bar shows per-kind completion. Children of completed nodes run before queued siblings, so bars for downstream stages advance even while upstream work continues
 3. **Final summary** — counts of executed, cached, failed, and dep-failed nodes
 

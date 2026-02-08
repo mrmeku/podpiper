@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { Command } from "commander";
 
-import { createProgressRenderer, renderFinalSummary, renderPlanSummary } from "./render";
+import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
 import { getConfig } from "@/config";
 import { LocalCache, MemCache } from "@/dag/cache";
 import { Graph } from "@/dag/graph";
@@ -56,11 +56,11 @@ program
       const graph = new Graph(cache);
       const refs = buildPipelineGraph(graph, videos, ports, config);
 
-      const plan = graph.plan();
-      renderPlanSummary(plan);
+      const analysis = graph.analyze();
+      renderAnalysisSummary(analysis);
       if (opts.dryRun) return;
 
-      const progress = createProgressRenderer(plan, opts.parallel);
+      const progress = createProgressRenderer(analysis, opts.parallel);
       const syncResult = await sync(graph, refs, {
         maxParallelism: opts.parallel,
         onProgress: progress.onProgress,
