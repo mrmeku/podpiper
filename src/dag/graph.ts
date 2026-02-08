@@ -1,6 +1,8 @@
 import type {
+  ActionFunc,
   AnalysisResult,
   AnalyzedNode,
+  BaseParams,
   Cache,
   ExecResult,
   ExecuteOptions,
@@ -11,7 +13,35 @@ import type {
 import * as execState from "./exec-state";
 import { computeHash, toCounts, validateNoCycles } from "./helpers";
 
-export const localRunner: NodeRunner = (node, inputs) => node.action(inputs);
+function depsFromParams(params: BaseParams): string[] {
+  if (!params.deps) return [];
+  return Object.values(params.deps).filter((v): v is string => v != null);
+}
+
+function rekeyByRole(
+  params: BaseParams,
+  rawInputs: Record<string, string>,
+): Record<string, string> {
+  if (!params.deps) return {};
+  return Object.fromEntries(
+    Object.entries(params.deps)
+      .filter(([, v]) => v != null)
+      .map(([role, depName]) => [role, rawInputs[depName!]!]),
+  );
+}
+
+export function addNode<P extends BaseParams>(
+  graph: Graph,
+  name: string,
+  config: string,
+  params: P,
+  action: ActionFunc<P>,
+): void {
+  graph.add({ name, kind: params.kind, deps: depsFromParams(params), config, params, action: action as ActionFunc });
+}
+
+export const localRunner: NodeRunner = (node, rawInputs) =>
+  node.action(node.params, rekeyByRole(node.params, rawInputs));
 
 export class Graph {
   private nodes = new Map<string, Node>();

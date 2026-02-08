@@ -1,10 +1,21 @@
-export type ActionFunc = (inputs: Record<string, string>) => Promise<string>;
+export interface BaseParams {
+  kind: string;
+  deps?: Record<string, string | undefined>;
+}
+
+export type InputsFor<P> = P extends { deps: infer D }
+  ? { [K in keyof D]: undefined extends D[K] ? string | undefined : string }
+  : {};
+
+export type ActionFunc<P extends BaseParams = BaseParams> =
+  (params: P, inputs: InputsFor<P>) => Promise<string>;
 
 export interface Node {
   name: string;
   kind: string;
   deps: string[];
   config: string;
+  params: BaseParams;
   action: ActionFunc;
 }
 

@@ -1,6 +1,7 @@
 import type { Graph } from "@/dag/graph";
+import { addNode } from "@/dag/graph";
 import { jsonRef } from "@/dag/types";
-import type { NodeRef } from "@/dag/types";
+import type { ActionFunc, NodeRef } from "@/dag/types";
 import type { FileSystem, Llm, TranscribeResult } from "@/ports/types";
 import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
 
@@ -23,6 +24,32 @@ function convertYtDlpChapters(chapters?: YtDlpChapter[]): Chapter[] {
   }));
 }
 
+export interface ChaptersParams {
+  kind: typeof NodeKind.Chapters;
+  chapterPrompt: string | undefined;
+  deps: { download: string; transcribe: string };
+}
+
+export function chaptersAction(fs: FileSystem, claude: Llm): ActionFunc<ChaptersParams> {
+  return async (params, inputs) => {
+    const dl: DownloadResult = JSON.parse(inputs.download);
+    const info = await fs.readJson<{ chapters?: YtDlpChapter[] }>(dl.info);
+    const chapters = convertYtDlpChapters(info.chapters);
+    if (chapters.length > 0) return JSON.stringify(chapters);
+    if (params.chapterPrompt) {
+      const tr: TranscribeResult = JSON.parse(inputs.transcribe);
+      const jsonExists = await fs.exists(tr.json);
+      if (jsonExists) {
+        const whisper = await fs.readJson<WhisperJson>(tr.json);
+        const prompt = buildChapterPrompt(whisper.transcription, params.chapterPrompt);
+        const result = await claude.call(prompt);
+        return JSON.stringify(parseChapterResponse(result, whisper.transcription));
+      }
+    }
+    return JSON.stringify([]);
+  };
+}
+
 export function addChaptersNode(
   graph: Graph,
   videoId: string,
@@ -34,28 +61,9 @@ export function addChaptersNode(
 ): NodeRef<Chapter[]> {
   const name = `chapters:${videoId}`;
   const promptHash = chapterPrompt ? Bun.hash(chapterPrompt).toString(36) : "none";
-  graph.add({
-    name,
-    kind: NodeKind.Chapters,
-    deps: [download.name, transcribe.name],
-    config: `extract-v1,fallback=${promptHash}`,
-    action: async (inputs) => {
-      const dl = download.parse(inputs[download.name]!);
-      const info = await fs.readJson<{ chapters?: YtDlpChapter[] }>(dl.info);
-      const chapters = convertYtDlpChapters(info.chapters);
-      if (chapters.length > 0) return JSON.stringify(chapters);
-      if (chapterPrompt) {
-        const tr = transcribe.parse(inputs[transcribe.name]!);
-        const jsonExists = await fs.exists(tr.json);
-        if (jsonExists) {
-          const whisper = await fs.readJson<WhisperJson>(tr.json);
-          const prompt = buildChapterPrompt(whisper.transcription, chapterPrompt);
-          const result = await claude.call(prompt);
-          return JSON.stringify(parseChapterResponse(result, whisper.transcription));
-        }
-      }
-      return JSON.stringify([]);
-    },
-  });
+  addNode(graph, name, `extract-v1,fallback=${promptHash}`, {
+    kind: NodeKind.Chapters, chapterPrompt,
+    deps: { download: download.name, transcribe: transcribe.name },
+  } satisfies ChaptersParams, chaptersAction(fs, claude));
   return jsonRef<Chapter[]>(name);
 }
