@@ -1,5 +1,5 @@
-import { localRunner } from "@/dag/graph";
 import type { Graph } from "@/dag/graph";
+import { localRunner } from "@/dag/graph";
 import type { ExecResult, ExecuteOptions } from "@/dag/types";
 import type { Episode, UploadEntry } from "@/types";
 

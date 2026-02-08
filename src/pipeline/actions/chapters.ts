@@ -1,10 +1,8 @@
-import type { Graph } from "@/dag/graph";
-import { addNode } from "@/dag/graph";
-import type { ActionFunc, DepName, NodeRef } from "@/dag/types";
-import { dep } from "@/dag/types";
-import type { FileSystem, Llm, TranscribeResult } from "@/ports/types";
+import type { NodeRef } from "@/dag/types";
+import type { TranscribeResult } from "@/ports/types";
 import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
 
+import { defineAction } from "../define-action";
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
 import type { DownloadResult } from "./download";
 import { NodeKind } from "./node-kind";
@@ -26,40 +24,30 @@ function convertYtDlpChapters(chapters?: YtDlpChapter[]): Chapter[] {
 
 export interface ChaptersParams {
   kind: typeof NodeKind.Chapters;
+  videoId: string;
   chapterPrompt: string | undefined;
-  deps: { download: DepName<DownloadResult>; transcribe: DepName<TranscribeResult> };
+  deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
 }
 
-export function chaptersAction(fs: FileSystem, claude: Llm): ActionFunc<ChaptersParams, Chapter[]> {
-  return async (params, inputs) => {
-    const info = await fs.readJson<{ chapters?: YtDlpChapter[] }>(inputs.download.info);
+export const chapters = defineAction<ChaptersParams, Chapter[]>({
+  name: (p) => `chapters:${p.videoId}`,
+  config: (p) => {
+    const promptHash = p.chapterPrompt ? Bun.hash(p.chapterPrompt).toString(36) : "none";
+    return `extract-v1,fallback=${promptHash}`;
+  },
+  action: (ports) => async (params, inputs) => {
+    const info = await ports.fs.readJson<{ chapters?: YtDlpChapter[] }>(inputs.download.info);
     const chapters = convertYtDlpChapters(info.chapters);
     if (chapters.length > 0) return chapters;
     if (params.chapterPrompt) {
-      const jsonExists = await fs.exists(inputs.transcribe.json);
+      const jsonExists = await ports.fs.exists(inputs.transcribe.json);
       if (jsonExists) {
-        const whisper = await fs.readJson<WhisperJson>(inputs.transcribe.json);
+        const whisper = await ports.fs.readJson<WhisperJson>(inputs.transcribe.json);
         const prompt = buildChapterPrompt(whisper.transcription, params.chapterPrompt);
-        const result = await claude.call(prompt);
+        const result = await ports.claude.call(prompt);
         return parseChapterResponse(result, whisper.transcription);
       }
     }
     return [];
-  };
-}
-
-export function addChaptersNode(
-  graph: Graph,
-  videoId: string,
-  download: NodeRef<DownloadResult>,
-  transcribe: NodeRef<TranscribeResult>,
-  fs: FileSystem,
-  claude: Llm,
-  chapterPrompt: string | undefined,
-): NodeRef<Chapter[]> {
-  const promptHash = chapterPrompt ? Bun.hash(chapterPrompt).toString(36) : "none";
-  return addNode(graph, `chapters:${videoId}`, `extract-v1,fallback=${promptHash}`, {
-    kind: NodeKind.Chapters, chapterPrompt,
-    deps: { download: dep(download), transcribe: dep(transcribe) },
-  } satisfies ChaptersParams, chaptersAction(fs, claude));
-}
+  },
+});

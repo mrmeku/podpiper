@@ -1,17 +1,11 @@
-export type DepName<T = unknown> = string & { readonly __resultType?: T };
-
-export function dep<T>(ref: NodeRef<T>): DepName<T> {
-  return ref.name as DepName<T>;
-}
-
 export interface BaseParams {
   kind: string;
-  deps?: Record<string, DepName | undefined>;
+  deps?: Record<string, NodeRef | undefined>;
 }
 
 export type InputsFor<P> = P extends { deps: infer D }
   ? {
-      [K in keyof D]: D[K] extends DepName<infer T> | undefined
+      [K in keyof D]: D[K] extends NodeRef<infer T> | undefined
         ? undefined extends D[K]
           ? T | undefined
           : T
@@ -87,7 +81,7 @@ export interface AnalysisResult {
   byKind: Map<string, NodeCounts>;
 }
 
-export interface NodeRef<T> {
+export interface NodeRef<T = unknown> {
   name: string;
   parse: (raw: string) => T;
 }

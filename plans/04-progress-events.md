@@ -101,12 +101,12 @@ const { maxParallelism, onProgress } = opts ?? {};
 
 Five emission points covering every code path:
 
-| Scenario | Events emitted | `elapsed` | `error` |
-|---|---|---|---|
-| Cached node (hash hit) | `cached` | — | — |
-| Dirty node executes successfully | `start` → `done` | ms on `done` | — |
-| Dirty node throws | `start` → `fail` | ms on `fail` | message on `fail` |
-| Dependency-failure skip | `dep-failed` | — | which dep failed |
+| Scenario                         | Events emitted   | `elapsed`    | `error`           |
+| -------------------------------- | ---------------- | ------------ | ----------------- |
+| Cached node (hash hit)           | `cached`         | —            | —                 |
+| Dirty node executes successfully | `start` → `done` | ms on `done` | —                 |
+| Dirty node throws                | `start` → `fail` | ms on `fail` | message on `fail` |
+| Dependency-failure skip          | `dep-failed`     | —            | which dep failed  |
 
 ```typescript
 const emit = onProgress

@@ -4,7 +4,6 @@ import { join } from "node:path";
 
 import { Command } from "commander";
 
-import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
 import { getConfig } from "@/config";
 import { LocalCache, MemCache } from "@/dag/cache";
 import { Graph } from "@/dag/graph";
@@ -17,6 +16,7 @@ import { sync } from "@/pipeline/sync";
 import { createRealPorts } from "@/ports/real";
 import { createStubPorts } from "@/ports/stub";
 import type { VideoInfo } from "@/types";
+import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
 
 const program = new Command();
 

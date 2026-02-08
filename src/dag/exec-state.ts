@@ -67,7 +67,12 @@ export function send(state: ExecState, action: ExecAction): void {
       const { node, hash, cachedResult } = action;
       state.hashes.set(node.name, hash);
       state.results.set(node.name, cachedResult);
-      state.execResults.set(node.name, { name: node.name, hash, status: "cached", result: cachedResult });
+      state.execResults.set(node.name, {
+        name: node.name,
+        hash,
+        status: "cached",
+        result: cachedResult,
+      });
       return;
     }
     case "success": {

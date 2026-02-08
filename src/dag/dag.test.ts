@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { LocalCache, MemCache, TieredCache } from "./cache";
 import { Graph, localRunner } from "./graph";
 import type { BaseParams, ExecResult, NodeRunner, ProgressEvent } from "./types";
+import { jsonRef } from "./types";
 
 function countExec(results: ExecResult[]): { exec: number; skip: number } {
   let exec = 0;
@@ -20,7 +21,9 @@ function countExec(results: ExecResult[]): { exec: number; skip: number } {
 }
 
 const p = (kind: string, deps?: Record<string, string>): BaseParams =>
-  deps ? { kind, deps } : { kind };
+  deps
+    ? { kind, deps: Object.fromEntries(Object.entries(deps).map(([k, v]) => [k, jsonRef(v)])) }
+    : { kind };
 
 function addVideoNodes(g: Graph, vid: string): void {
   const n = (kind: string) => `${kind}:${vid}`;
@@ -427,8 +430,22 @@ describe("Graph", () => {
     test("emits start+done for dirty nodes", async () => {
       const cache = new MemCache();
       const g = new Graph(cache);
-      g.add({ name: "a", kind: "root", deps: [], config: "1", params: p("root"), action: async () => "a" });
-      g.add({ name: "b", kind: "child", deps: ["a"], config: "2", params: p("child", { a: "a" }), action: async () => "b" });
+      g.add({
+        name: "a",
+        kind: "root",
+        deps: [],
+        config: "1",
+        params: p("root"),
+        action: async () => "a",
+      });
+      g.add({
+        name: "b",
+        kind: "child",
+        deps: ["a"],
+        config: "2",
+        params: p("child", { a: "a" }),
+        action: async () => "b",
+      });
 
       const events: ProgressEvent[] = [];
       await g.execute(localRunner, { maxParallelism: 1, onProgress: (e) => events.push(e) });
@@ -447,13 +464,41 @@ describe("Graph", () => {
     test("emits cached for cached nodes", async () => {
       const cache = new MemCache();
       const g1 = new Graph(cache);
-      g1.add({ name: "a", kind: "root", deps: [], config: "1", params: p("root"), action: async () => "a" });
-      g1.add({ name: "b", kind: "child", deps: ["a"], config: "2", params: p("child", { a: "a" }), action: async () => "b" });
+      g1.add({
+        name: "a",
+        kind: "root",
+        deps: [],
+        config: "1",
+        params: p("root"),
+        action: async () => "a",
+      });
+      g1.add({
+        name: "b",
+        kind: "child",
+        deps: ["a"],
+        config: "2",
+        params: p("child", { a: "a" }),
+        action: async () => "b",
+      });
       await g1.execute();
 
       const g2 = new Graph(cache);
-      g2.add({ name: "a", kind: "root", deps: [], config: "1", params: p("root"), action: async () => "a" });
-      g2.add({ name: "b", kind: "child", deps: ["a"], config: "2", params: p("child", { a: "a" }), action: async () => "b" });
+      g2.add({
+        name: "a",
+        kind: "root",
+        deps: [],
+        config: "1",
+        params: p("root"),
+        action: async () => "a",
+      });
+      g2.add({
+        name: "b",
+        kind: "child",
+        deps: ["a"],
+        config: "2",
+        params: p("child", { a: "a" }),
+        action: async () => "b",
+      });
       const events: ProgressEvent[] = [];
       await g2.execute(localRunner, { onProgress: (e) => events.push(e) });
 
@@ -501,7 +546,14 @@ describe("Graph", () => {
           throw new Error("boom");
         },
       });
-      g.add({ name: "b", kind: "child", deps: ["a"], config: "2", params: p("child", { a: "a" }), action: async () => "b" });
+      g.add({
+        name: "b",
+        kind: "child",
+        deps: ["a"],
+        config: "2",
+        params: p("child", { a: "a" }),
+        action: async () => "b",
+      });
 
       const events: ProgressEvent[] = [];
       await g.execute(localRunner, { onProgress: (e) => events.push(e) });

@@ -503,11 +503,11 @@ export function getAllChannelNames(): string[] {
 
 ### Modified Files
 
-| File           | Change                   |
-| -------------- | ------------------------ |
-| `src/cli/cli.ts` | Add `serve` command    |
+| File             | Change                     |
+| ---------------- | -------------------------- |
+| `src/cli/cli.ts` | Add `serve` command        |
 | `src/config.ts`  | Add `getAllChannelNames()` |
-| `package.json`   | Add `@temporalio/*` deps |
+| `package.json`   | Add `@temporalio/*` deps   |
 
 ## Notes
 

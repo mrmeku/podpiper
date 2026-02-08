@@ -12,13 +12,13 @@ import type {
   NodeRunner,
 } from "./types";
 
-import { jsonRef } from "./types";
 import * as execState from "./exec-state";
 import { computeHash, toCounts, validateNoCycles } from "./helpers";
+import { jsonRef } from "./types";
 
 function depsFromParams(params: BaseParams): string[] {
   if (!params.deps) return [];
-  return Object.values(params.deps).filter((v): v is string => v != null);
+  return Object.values(params.deps).filter((v) => v != null).map((v) => v.name);
 }
 
 export function rekeyByRole(
@@ -29,7 +29,7 @@ export function rekeyByRole(
   return Object.fromEntries(
     Object.entries(params.deps)
       .filter(([, v]) => v != null)
-      .map(([role, depName]) => [role, rawInputs[depName!]!]),
+      .map(([role, ref]) => [role, rawInputs[ref!.name]!]),
   );
 }
 
@@ -50,7 +50,11 @@ export function addNode<P extends BaseParams, R>(
   action: ActionFunc<P, R>,
 ): NodeRef<R> {
   graph.add({
-    name, kind: params.kind, deps: depsFromParams(params), config, params,
+    name,
+    kind: params.kind,
+    deps: depsFromParams(params),
+    config,
+    params,
     action: async (rawInputs) =>
       JSON.stringify(await action(params, parseInputs(params, rawInputs) as InputsFor<P>)),
   });
@@ -108,7 +112,12 @@ export class Graph {
       const { name, kind } = node;
       const badDep = execState.firstFailedDep(node, state);
       if (badDep) {
-        execState.send(state, { type: "failure", node, hash: "", error: new Error(`dependency ${badDep} failed`) });
+        execState.send(state, {
+          type: "failure",
+          node,
+          hash: "",
+          error: new Error(`dependency ${badDep} failed`),
+        });
         emit?.({ node: name, kind, status: "dep-failed", error: `dependency ${badDep} failed` });
         return;
       }
@@ -140,7 +149,7 @@ export class Graph {
       while (execState.canDispatch(state, maxParallelism)) {
         const node = execState.takeNext(state);
         processNode(node).finally(() => {
-          execState.send(state,{ type: "complete", node });
+          execState.send(state, { type: "complete", node });
           resumeLoop();
         });
       }

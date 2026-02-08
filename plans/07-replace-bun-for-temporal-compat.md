@@ -45,15 +45,15 @@ export async function exec(cmd: string, args: string[]): Promise<ExecResult> {
 
 ### Port migrations
 
-Each port file replaces `$\`cmd ${args}\`` with `exec()`:
+Each port file replaces `$\`cmd ${args}\``with`exec()`:
 
-**`src/ports/ytdlp.ts`** — `$\`yt-dlp ${args}\`.quiet().text()` → `exec("yt-dlp", args)` then use `.stdout`; `.nothrow()` pattern → check `.exitCode`
+**`src/ports/ytdlp.ts`** — `$\`yt-dlp ${args}\`.quiet().text()`→`exec("yt-dlp", args)`then use`.stdout`; `.nothrow()`pattern → check`.exitCode`
 
-**`src/ports/ffmpeg.ts`** — `$\`ffmpeg ${args}\`.quiet()` → `exec("ffmpeg", args)`
+**`src/ports/ffmpeg.ts`** — `$\`ffmpeg ${args}\`.quiet()`→`exec("ffmpeg", args)`
 
-**`src/ports/whisper.ts`** — `$\`whisper-cli ${args}\`.quiet()` → `exec("whisper-cli", args)`
+**`src/ports/whisper.ts`** — `$\`whisper-cli ${args}\`.quiet()`→`exec("whisper-cli", args)`
 
-**`src/ports/claude.ts`** — `$\`claude ${args}\`.quiet().text()` → `exec("claude", args)` then use `.stdout`
+**`src/ports/claude.ts`** — `$\`claude ${args}\`.quiet().text()`→`exec("claude", args)`then use`.stdout`
 
 ### File I/O replacements
 
@@ -103,23 +103,23 @@ fs: {
 
 ### New Files
 
-| File           | Purpose                                 |
-| -------------- | --------------------------------------- |
+| File           | Purpose                                               |
+| -------------- | ----------------------------------------------------- |
 | `src/shell.ts` | `exec(cmd, args)` wrapper around `node:child_process` |
 
 ### Modified Files
 
-| File                                 | Change                                                     |
-| ------------------------------------ | ---------------------------------------------------------- |
-| `src/ports/ytdlp.ts`                | `exec()` instead of `$`                                    |
-| `src/ports/ffmpeg.ts`               | `exec()` instead of `$`                                    |
-| `src/ports/whisper.ts`              | `exec()` instead of `$`                                    |
-| `src/ports/claude.ts`               | `exec()` instead of `$`                                    |
-| `src/ports/real.ts`                 | `node:fs/promises` instead of `Bun.file`/`Bun.write`       |
-| `src/ports/s3.ts`                   | `readFile` instead of `Bun.file`                           |
-| `src/cli/cli.ts`                    | Replace `Bun.write`/`Bun.spawn`                            |
-| `src/cli/render.ts`                 | `writeFileSync` instead of `Bun.write`                     |
-| `src/pipeline/actions/chapters.ts`  | `createHash` instead of `Bun.hash`                         |
-| `src/pipeline/actions/summary.ts`   | `createHash` instead of `Bun.hash`                         |
-| `package.json`                      | Add `tsx` + `vitest` deps, remove `@types/bun`             |
-| `*.test.ts`                         | `vitest` imports instead of `bun:test`                     |
+| File                               | Change                                               |
+| ---------------------------------- | ---------------------------------------------------- |
+| `src/ports/ytdlp.ts`               | `exec()` instead of `$`                              |
+| `src/ports/ffmpeg.ts`              | `exec()` instead of `$`                              |
+| `src/ports/whisper.ts`             | `exec()` instead of `$`                              |
+| `src/ports/claude.ts`              | `exec()` instead of `$`                              |
+| `src/ports/real.ts`                | `node:fs/promises` instead of `Bun.file`/`Bun.write` |
+| `src/ports/s3.ts`                  | `readFile` instead of `Bun.file`                     |
+| `src/cli/cli.ts`                   | Replace `Bun.write`/`Bun.spawn`                      |
+| `src/cli/render.ts`                | `writeFileSync` instead of `Bun.write`               |
+| `src/pipeline/actions/chapters.ts` | `createHash` instead of `Bun.hash`                   |
+| `src/pipeline/actions/summary.ts`  | `createHash` instead of `Bun.hash`                   |
+| `package.json`                     | Add `tsx` + `vitest` deps, remove `@types/bun`       |
+| `*.test.ts`                        | `vitest` imports instead of `bun:test`               |

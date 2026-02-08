@@ -1,10 +1,8 @@
-import type { Graph } from "@/dag/graph";
-import { addNode } from "@/dag/graph";
-import type { ActionFunc, DepName, NodeRef } from "@/dag/types";
-import { dep } from "@/dag/types";
+import type { NodeRef } from "@/dag/types";
 import { toVideoDir } from "@/paths";
-import type { TranscribeResult, Transcriber } from "@/ports/types";
+import type { TranscribeResult } from "@/ports/types";
 
+import { defineAction } from "../define-action";
 import type { DownloadResult } from "./download";
 import { NodeKind } from "./node-kind";
 
@@ -12,25 +10,14 @@ export interface TranscribeParams {
   kind: typeof NodeKind.Transcribe;
   videoId: string;
   outputDir: string;
-  deps: { download: DepName<DownloadResult> };
+  deps: { download: NodeRef<DownloadResult> };
 }
 
-export function transcribeAction(whisper: Transcriber): ActionFunc<TranscribeParams, TranscribeResult> {
-  return async (params, inputs) => {
+export const transcribe = defineAction<TranscribeParams, TranscribeResult>({
+  name: (p) => `transcribe:${p.videoId}`,
+  config: "whisper-v1,model=medium",
+  action: (ports) => async (params, inputs) => {
     const dir = toVideoDir(params.outputDir, params.videoId);
-    return whisper.transcribe(inputs.download.audio, dir);
-  };
-}
-
-export function addTranscribeNode(
-  graph: Graph,
-  videoId: string,
-  download: NodeRef<DownloadResult>,
-  whisper: Transcriber,
-  outputDir: string,
-): NodeRef<TranscribeResult> {
-  return addNode(graph, `transcribe:${videoId}`, "whisper-v1,model=medium", {
-    kind: NodeKind.Transcribe, videoId, outputDir,
-    deps: { download: dep(download) },
-  } satisfies TranscribeParams, transcribeAction(whisper));
-}
+    return ports.whisper.transcribe(inputs.download.audio, dir);
+  },
+});

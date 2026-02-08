@@ -122,7 +122,7 @@ export async function sync(
   graph: Graph,
   refs: PipelineRefs,
   opts?: ExecuteOptions,
-): Promise<SyncResult>
+): Promise<SyncResult>;
 ```
 
 Key properties:

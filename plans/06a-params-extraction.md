@@ -17,8 +17,10 @@ type InputsFor<P> = P extends { deps: infer D }
   ? { [K in keyof D]: undefined extends D[K] ? string | undefined : string }
   : {};
 
-type ActionFunc<P extends BaseParams = BaseParams> =
-  (params: P, inputs: InputsFor<P>) => Promise<string>;
+type ActionFunc<P extends BaseParams = BaseParams> = (
+  params: P,
+  inputs: InputsFor<P>,
+) => Promise<string>;
 
 interface BaseParams {
   kind: string;
@@ -113,13 +115,18 @@ export function addXxxNode(graph: Graph, ..., port: Port): NodeRef<T> {
 
 ```typescript
 export function addTranscribeNode(
-  graph: Graph, videoId: string, download: NodeRef<DownloadResult>,
-  whisper: Transcriber, outputDir: string,
+  graph: Graph,
+  videoId: string,
+  download: NodeRef<DownloadResult>,
+  whisper: Transcriber,
+  outputDir: string,
 ): NodeRef<TranscribeResult> {
   const name = `transcribe:${videoId}`;
   const dir = toVideoDir(outputDir, videoId);
   graph.add({
-    name, kind: NodeKind.Transcribe, deps: [download.name],
+    name,
+    kind: NodeKind.Transcribe,
+    deps: [download.name],
     config: "whisper-v1,model=medium",
     action: async (inputs) => {
       const dl = download.parse(inputs[download.name]!);
@@ -149,30 +156,41 @@ export function transcribeAction(whisper: Transcriber): ActionFunc<TranscribePar
 }
 
 export function addTranscribeNode(
-  graph: Graph, videoId: string, download: NodeRef<DownloadResult>,
-  whisper: Transcriber, outputDir: string,
+  graph: Graph,
+  videoId: string,
+  download: NodeRef<DownloadResult>,
+  whisper: Transcriber,
+  outputDir: string,
 ): NodeRef<TranscribeResult> {
   const name = `transcribe:${videoId}`;
-  addNode(graph, name, "whisper-v1,model=medium", {
-    kind: NodeKind.Transcribe, videoId, outputDir,
-    deps: { download: download.name },
-  } satisfies TranscribeParams, transcribeAction(whisper));
+  addNode(
+    graph,
+    name,
+    "whisper-v1,model=medium",
+    {
+      kind: NodeKind.Transcribe,
+      videoId,
+      outputDir,
+      deps: { download: download.name },
+    } satisfies TranscribeParams,
+    transcribeAction(whisper),
+  );
   return jsonRef<TranscribeResult>(name);
 }
 ```
 
 ## All Actions
 
-| Module        | Factory                      | Params `deps`                                            |
-| ------------- | ---------------------------- | -------------------------------------------------------- |
-| download      | `downloadAction(ytdlp)`      | (none)                                                   |
-| transcribe    | `transcribeAction(whisper)`   | `{ download }`                                           |
-| thumbnail     | `thumbnailAction(ffmpeg)`     | `{ download }`                                           |
-| chapters      | `chaptersAction(fs, claude)`  | `{ download, transcribe }`                               |
-| summary       | `summaryAction(fs, claude)`   | `{ download, transcribe }`                               |
-| rss-entry     | `rssEntryAction(fs)`          | `{ download, transcribe, thumbnail, chapters, summary? }` |
-| artwork       | `channelAvatarAction(ytdlp)`  | (none)                                                   |
-| artwork       | `artworkAction(ffmpeg)`       | `{ channel_avatar }`                                     |
+| Module     | Factory                      | Params `deps`                                             |
+| ---------- | ---------------------------- | --------------------------------------------------------- |
+| download   | `downloadAction(ytdlp)`      | (none)                                                    |
+| transcribe | `transcribeAction(whisper)`  | `{ download }`                                            |
+| thumbnail  | `thumbnailAction(ffmpeg)`    | `{ download }`                                            |
+| chapters   | `chaptersAction(fs, claude)` | `{ download, transcribe }`                                |
+| summary    | `summaryAction(fs, claude)`  | `{ download, transcribe }`                                |
+| rss-entry  | `rssEntryAction(fs)`         | `{ download, transcribe, thumbnail, chapters, summary? }` |
+| artwork    | `channelAvatarAction(ytdlp)` | (none)                                                    |
+| artwork    | `artworkAction(ffmpeg)`      | `{ channel_avatar }`                                      |
 
 ## Unchanged
 
@@ -182,8 +200,8 @@ export function addTranscribeNode(
 
 ## File Summary
 
-| File                        | Change                                                                            |
-| --------------------------- | --------------------------------------------------------------------------------- |
-| `src/dag/types.ts`          | Add `InputsFor`, `BaseParams`, generic `ActionFunc<P>`. Add `params` to `Node`.   |
-| `src/dag/graph.ts`          | Add `addNode`, `depsFromParams`, `rekeyByRole`. Update `localRunner`.             |
+| File                        | Change                                                                                 |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| `src/dag/types.ts`          | Add `InputsFor`, `BaseParams`, generic `ActionFunc<P>`. Add `params` to `Node`.        |
+| `src/dag/graph.ts`          | Add `addNode`, `depsFromParams`, `rekeyByRole`. Update `localRunner`.                  |
 | `src/pipeline/actions/*.ts` | Add `*Params` interfaces and `*Action` factories. Simplify `addXxxNode` via `addNode`. |

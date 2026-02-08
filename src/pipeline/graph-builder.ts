@@ -3,14 +3,15 @@ import type { NodeRef } from "@/dag/types";
 import type { Ports } from "@/ports/types";
 import type { Config, HasUploads, VideoInfo } from "@/types";
 
-import { addArtworkNodes } from "./actions/artwork";
-import { addChaptersNode } from "./actions/chapters";
-import { addDownloadNode } from "./actions/download";
+import { artwork, channelAvatar } from "./actions/artwork";
+import { chapters } from "./actions/chapters";
+import { download } from "./actions/download";
+import { NodeKind } from "./actions/node-kind";
 import type { EpisodeOutput } from "./actions/rss-entry";
-import { addRssEntryNode } from "./actions/rss-entry";
-import { addSummaryNode } from "./actions/summary";
-import { addThumbnailNode } from "./actions/thumbnail";
-import { addTranscribeNode } from "./actions/transcribe";
+import { rssEntry } from "./actions/rss-entry";
+import { summary } from "./actions/summary";
+import { thumbnail } from "./actions/thumbnail";
+import { transcribe } from "./actions/transcribe";
 
 function addVideoSubgraph(
   graph: Graph,
@@ -18,32 +19,50 @@ function addVideoSubgraph(
   ports: Ports,
   config: Config,
 ): NodeRef<EpisodeOutput> {
-  const download = addDownloadNode(graph, video.id, ports.ytdlp, config.outputDir);
-  const transcribe = addTranscribeNode(graph, video.id, download, ports.whisper, config.outputDir);
-  const thumbnail = addThumbnailNode(graph, video.id, download, ports.ffmpeg, config.outputDir);
-  const chapters = addChaptersNode(
-    graph,
-    video.id,
-    download,
-    transcribe,
-    ports.fs,
-    ports.claude,
-    config.chapterPrompt,
-  );
-  const baseDeps = { download, transcribe, thumbnail, chapters };
+  const dl = download.addNode(graph, ports, {
+    kind: NodeKind.Download,
+    videoId: video.id,
+    outputDir: config.outputDir,
+  });
+  const tr = transcribe.addNode(graph, ports, {
+    kind: NodeKind.Transcribe,
+    videoId: video.id,
+    outputDir: config.outputDir,
+    deps: { download: dl },
+  });
+  const th = thumbnail.addNode(graph, ports, {
+    kind: NodeKind.Thumbnail,
+    videoId: video.id,
+    outputDir: config.outputDir,
+    deps: { download: dl },
+  });
+  const ch = chapters.addNode(graph, ports, {
+    kind: NodeKind.Chapters,
+    videoId: video.id,
+    chapterPrompt: config.chapterPrompt,
+    deps: { download: dl, transcribe: tr },
+  });
+  const baseDeps = { download: dl, transcribe: tr, thumbnail: th, chapters: ch };
   if (config.summaryPrompt) {
-    const summary = addSummaryNode(
-      graph,
-      video.id,
-      download,
-      transcribe,
-      ports.fs,
-      ports.claude,
-      config.summaryPrompt,
-    );
-    return addRssEntryNode(graph, video, { ...baseDeps, summary }, ports.fs, config.outputDir);
+    const sm = summary.addNode(graph, ports, {
+      kind: NodeKind.Summary,
+      videoId: video.id,
+      summaryPrompt: config.summaryPrompt,
+      deps: { download: dl, transcribe: tr },
+    });
+    return rssEntry.addNode(graph, ports, {
+      kind: NodeKind.RssEntry,
+      video,
+      outputDir: config.outputDir,
+      deps: { ...baseDeps, summary: sm },
+    });
   }
-  return addRssEntryNode(graph, video, baseDeps, ports.fs, config.outputDir);
+  return rssEntry.addNode(graph, ports, {
+    kind: NodeKind.RssEntry,
+    video,
+    outputDir: config.outputDir,
+    deps: baseDeps,
+  });
 }
 
 export interface PipelineRefs {
@@ -58,13 +77,18 @@ export function buildPipelineGraph(
   config: Config,
 ): PipelineRefs {
   const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, config));
-  const artworkRef = addArtworkNodes(
-    graph,
-    config.channelUrl,
-    ports.ytdlp,
-    ports.ffmpeg,
-    config.outputDir,
-  );
+  const avatarDir = `${config.outputDir}/artwork`;
+  const artworkPath = `${config.outputDir}/artwork.jpg`;
+  const avatarRef = channelAvatar.addNode(graph, ports, {
+    kind: NodeKind.ChannelAvatar,
+    channelUrl: config.channelUrl,
+    avatarDir,
+  });
+  const artworkRef = artwork.addNode(graph, ports, {
+    kind: NodeKind.Artwork,
+    artworkPath,
+    deps: { channel_avatar: avatarRef },
+  });
   return {
     publishRefs: [...entryRefs, artworkRef],
     entryRefs,

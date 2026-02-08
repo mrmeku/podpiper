@@ -27,9 +27,13 @@ function dep<T>(ref: NodeRef<T>): DepName<T> {
 }
 
 type InputsFor<P> = P extends { deps: infer D }
-  ? { [K in keyof D]: D[K] extends DepName<infer T> | undefined
-      ? (undefined extends D[K] ? T | undefined : T)
-      : unknown }
+  ? {
+      [K in keyof D]: D[K] extends DepName<infer T> | undefined
+        ? undefined extends D[K]
+          ? T | undefined
+          : T
+        : unknown;
+    }
   : {};
 
 type ActionFunc<P extends BaseParams, R> = (params: P, inputs: InputsFor<P>) => Promise<R>;
@@ -84,7 +88,11 @@ export function addNode<P extends BaseParams, R>(
   action: ActionFunc<P, R>,
 ): NodeRef<R> {
   graph.add({
-    name, kind: params.kind, deps: depsFromParams(params), config, params,
+    name,
+    kind: params.kind,
+    deps: depsFromParams(params),
+    config,
+    params,
     action: async (rawInputs) =>
       JSON.stringify(await action(params, parseInputs(params, rawInputs) as InputsFor<P>)),
   });
@@ -144,7 +152,9 @@ export interface TranscribeParams {
   deps: { download: DepName<DownloadResult> };
 }
 
-export function transcribeAction(whisper: Transcriber): ActionFunc<TranscribeParams, TranscribeResult> {
+export function transcribeAction(
+  whisper: Transcriber,
+): ActionFunc<TranscribeParams, TranscribeResult> {
   return async (params, inputs) => {
     const dir = toVideoDir(params.outputDir, params.videoId);
     return whisper.transcribe(inputs.download.audio, dir);
@@ -152,13 +162,24 @@ export function transcribeAction(whisper: Transcriber): ActionFunc<TranscribePar
 }
 
 export function addTranscribeNode(
-  graph: Graph, videoId: string, download: NodeRef<DownloadResult>,
-  whisper: Transcriber, outputDir: string,
+  graph: Graph,
+  videoId: string,
+  download: NodeRef<DownloadResult>,
+  whisper: Transcriber,
+  outputDir: string,
 ): NodeRef<TranscribeResult> {
-  return addNode(graph, `transcribe:${videoId}`, "whisper-v1,model=medium", {
-    kind: NodeKind.Transcribe, videoId, outputDir,
-    deps: { download: dep(download) },
-  } satisfies TranscribeParams, transcribeAction(whisper));
+  return addNode(
+    graph,
+    `transcribe:${videoId}`,
+    "whisper-v1,model=medium",
+    {
+      kind: NodeKind.Transcribe,
+      videoId,
+      outputDir,
+      deps: { download: dep(download) },
+    } satisfies TranscribeParams,
+    transcribeAction(whisper),
+  );
 }
 ```
 
@@ -184,9 +205,8 @@ export function rssEntryAction(fs: FileSystem): ActionFunc<RssEntryParams, Episo
     // inputs.thumbnail: string (path)
     // inputs.chapters: Chapter[]
     // inputs.summary: string | undefined
-    const description = inputs.summary
-      ?? (await fs.readJson<YtDlpInfo>(inputs.download.info)).description
-      ?? "";
+    const description =
+      inputs.summary ?? (await fs.readJson<YtDlpInfo>(inputs.download.info)).description ?? "";
     // ... episode assembly, returns EpisodeOutput ...
   };
 }
@@ -194,16 +214,16 @@ export function rssEntryAction(fs: FileSystem): ActionFunc<RssEntryParams, Episo
 
 ### All actions
 
-| Module        | Factory                      | Result type        | Params `deps`                                            |
-| ------------- | ---------------------------- | ------------------ | -------------------------------------------------------- |
-| download      | `downloadAction(ytdlp)`      | `DownloadResult`   | (none)                                                   |
-| transcribe    | `transcribeAction(whisper)`   | `TranscribeResult` | `{ download: DepName<DownloadResult> }`                  |
-| thumbnail     | `thumbnailAction(ffmpeg)`     | `string`           | `{ download: DepName<DownloadResult> }`                  |
-| chapters      | `chaptersAction(fs, claude)`  | `Chapter[]`        | `{ download: DepName<DownloadResult>, transcribe: DepName<TranscribeResult> }` |
-| summary       | `summaryAction(fs, claude)`   | `string`           | `{ download: DepName<DownloadResult>, transcribe: DepName<TranscribeResult> }` |
-| rss-entry     | `rssEntryAction(fs)`          | `EpisodeOutput`    | `{ download: DepName<DownloadResult>, transcribe: DepName<TranscribeResult>, thumbnail: DepName<string>, chapters: DepName<Chapter[]>, summary?: DepName<string> }` |
-| artwork       | `channelAvatarAction(ytdlp)`  | `string`           | (none)                                                   |
-| artwork       | `artworkAction(ffmpeg)`       | `ArtworkOutput`    | `{ channel_avatar: DepName<string> }`                    |
+| Module     | Factory                      | Result type        | Params `deps`                                                                                                                                                       |
+| ---------- | ---------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| download   | `downloadAction(ytdlp)`      | `DownloadResult`   | (none)                                                                                                                                                              |
+| transcribe | `transcribeAction(whisper)`  | `TranscribeResult` | `{ download: DepName<DownloadResult> }`                                                                                                                             |
+| thumbnail  | `thumbnailAction(ffmpeg)`    | `string`           | `{ download: DepName<DownloadResult> }`                                                                                                                             |
+| chapters   | `chaptersAction(fs, claude)` | `Chapter[]`        | `{ download: DepName<DownloadResult>, transcribe: DepName<TranscribeResult> }`                                                                                      |
+| summary    | `summaryAction(fs, claude)`  | `string`           | `{ download: DepName<DownloadResult>, transcribe: DepName<TranscribeResult> }`                                                                                      |
+| rss-entry  | `rssEntryAction(fs)`         | `EpisodeOutput`    | `{ download: DepName<DownloadResult>, transcribe: DepName<TranscribeResult>, thumbnail: DepName<string>, chapters: DepName<Chapter[]>, summary?: DepName<string> }` |
+| artwork    | `channelAvatarAction(ytdlp)` | `string`           | (none)                                                                                                                                                              |
+| artwork    | `artworkAction(ffmpeg)`      | `ArtworkOutput`    | `{ channel_avatar: DepName<string> }`                                                                                                                               |
 
 ## Type Safety Summary
 
@@ -234,14 +254,22 @@ export type ActionParams =
 
 function resolveFactory(params: ActionParams, ports: Ports): ActionFunc<BaseParams, unknown> {
   switch (params.kind) {
-    case NodeKind.Download:      return downloadAction(ports.ytdlp);
-    case NodeKind.Transcribe:    return transcribeAction(ports.whisper);
-    case NodeKind.Thumbnail:     return thumbnailAction(ports.ffmpeg);
-    case NodeKind.Chapters:      return chaptersAction(ports.fs, ports.claude);
-    case NodeKind.Summary:       return summaryAction(ports.fs, ports.claude);
-    case NodeKind.RssEntry:      return rssEntryAction(ports.fs);
-    case NodeKind.ChannelAvatar: return channelAvatarAction(ports.ytdlp);
-    case NodeKind.Artwork:       return artworkAction(ports.ffmpeg);
+    case NodeKind.Download:
+      return downloadAction(ports.ytdlp);
+    case NodeKind.Transcribe:
+      return transcribeAction(ports.whisper);
+    case NodeKind.Thumbnail:
+      return thumbnailAction(ports.ffmpeg);
+    case NodeKind.Chapters:
+      return chaptersAction(ports.fs, ports.claude);
+    case NodeKind.Summary:
+      return summaryAction(ports.fs, ports.claude);
+    case NodeKind.RssEntry:
+      return rssEntryAction(ports.fs);
+    case NodeKind.ChannelAvatar:
+      return channelAvatarAction(ports.ytdlp);
+    case NodeKind.Artwork:
+      return artworkAction(ports.ffmpeg);
   }
 }
 ```
@@ -250,8 +278,8 @@ TypeScript enforces all cases are handled. Adding a new action kind without upda
 
 ## File Summary
 
-| File                        | Change                                                                              |
-| --------------------------- | ----------------------------------------------------------------------------------- |
+| File                        | Change                                                                                                                                                     |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/dag/types.ts`          | Add `DepName<T>`, `dep()`. `InputsFor` extracts branded types. `ActionFunc<P, R>` gains result type. `BaseParams.deps` uses `DepName`. Remove `stringRef`. |
-| `src/dag/graph.ts`          | `addNode` wraps action with serde, returns `NodeRef<R>`. Add `parseInputs`. Simplify `localRunner`. |
-| `src/pipeline/actions/*.ts` | Deps use `DepName<T>`, wiring uses `dep()`. Actions return typed `R`. `addXxxNode` returns `addNode(...)` directly. |
+| `src/dag/graph.ts`          | `addNode` wraps action with serde, returns `NodeRef<R>`. Add `parseInputs`. Simplify `localRunner`.                                                        |
+| `src/pipeline/actions/*.ts` | Deps use `DepName<T>`, wiring uses `dep()`. Actions return typed `R`. `addXxxNode` returns `addNode(...)` directly.                                        |
