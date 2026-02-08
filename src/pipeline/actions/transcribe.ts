@@ -5,6 +5,7 @@ import { toVideoDir } from "@/paths";
 import type { TranscribeResult, Transcriber } from "@/ports/types";
 
 import type { DownloadResult } from "./download";
+import { NodeKind } from "./node-kind";
 
 export function addTranscribeNode(
   graph: Graph,
@@ -17,6 +18,7 @@ export function addTranscribeNode(
   const dir = toVideoDir(outputDir, videoId);
   graph.add({
     name,
+    kind: NodeKind.Transcribe,
     deps: [download.name],
     config: "whisper-v1,model=medium",
     action: async (inputs) => {

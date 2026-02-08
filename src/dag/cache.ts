@@ -18,10 +18,7 @@ export class LocalCache implements Cache, Flushable {
   private results: Record<string, string>;
   constructor(private path: string) {
     try {
-      this.results = JSON.parse(readFileSync(path, "utf-8")) as Record<
-        string,
-        string
-      >;
+      this.results = JSON.parse(readFileSync(path, "utf-8")) as Record<string, string>;
     } catch {
       this.results = {};
     }

@@ -14,8 +14,7 @@ function parseUploadDate(pubDateStr: string): string {
 
 function parseDuration(durationStr: string): number {
   const parts = durationStr.split(":");
-  if (parts.length === 2)
-    return parseInt(parts[0]!, 10) * 60 + parseInt(parts[1]!, 10);
+  if (parts.length === 2) return parseInt(parts[0]!, 10) * 60 + parseInt(parts[1]!, 10);
   return 0;
 }
 
@@ -24,11 +23,7 @@ export function parseExistingFeed(baseUrl: string, xml: string): Episode[] {
   const parsed = parser.parse(xml);
   const channel = parsed?.rss?.channel;
   if (!channel) return [];
-  const items = Array.isArray(channel.item)
-    ? channel.item
-    : channel.item
-      ? [channel.item]
-      : [];
+  const items = Array.isArray(channel.item) ? channel.item : channel.item ? [channel.item] : [];
   const episodes: Episode[] = [];
   for (const item of items) {
     const guid = typeof item.guid === "object" ? item.guid["#text"] : item.guid;
@@ -38,14 +33,11 @@ export function parseExistingFeed(baseUrl: string, xml: string): Episode[] {
     const fileSize = parseInt(enclosure["@_length"] || "0", 10);
     const filename = decodeURIComponent(encUrl.replace(baseUrl + "/", ""));
     const uploadDate = item.pubDate ? parseUploadDate(item.pubDate) : "";
-    const duration = item["itunes:duration"]
-      ? parseDuration(item["itunes:duration"])
-      : 0;
+    const duration = item["itunes:duration"] ? parseDuration(item["itunes:duration"]) : 0;
     let thumbnail: string = "";
     const itunesImage = item["itunes:image"];
     if (itunesImage) {
-      const href =
-        typeof itunesImage === "object" ? itunesImage["@_href"] : itunesImage;
+      const href = typeof itunesImage === "object" ? itunesImage["@_href"] : itunesImage;
       if (href) thumbnail = decodeURIComponent(href.replace(baseUrl + "/", ""));
     }
     let transcript: string | null = null;
@@ -79,10 +71,7 @@ export function extractReferencedUrls(xml: string): string[] {
     : channel.item
       ? [channel.item]
       : [];
-  const urls: string[] = [
-    channel.image?.url,
-    channel["itunes:image"]?.["@_href"],
-  ];
+  const urls: string[] = [channel.image?.url, channel["itunes:image"]?.["@_href"]];
   for (const item of items) {
     urls.push(item.enclosure?.["@_url"]);
     urls.push(item["itunes:image"]?.["@_href"]);
@@ -93,14 +82,9 @@ export function extractReferencedUrls(xml: string): string[] {
   return [...new Set(urls.filter(Boolean))];
 }
 
-export function mergeEpisodes(
-  existing: Episode[],
-  newEps: Episode[],
-): Episode[] {
+export function mergeEpisodes(existing: Episode[], newEps: Episode[]): Episode[] {
   const byId = new Map<string, Episode>();
   for (const ep of existing) byId.set(ep.id, ep);
   for (const ep of newEps) byId.set(ep.id, ep);
-  return Array.from(byId.values()).sort((a, b) =>
-    b.uploadDate.localeCompare(a.uploadDate),
-  );
+  return Array.from(byId.values()).sort((a, b) => b.uploadDate.localeCompare(a.uploadDate));
 }

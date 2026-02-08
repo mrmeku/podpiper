@@ -32,28 +32,30 @@ R2 bucket names and public URLs are configured per channel in `src/config.ts`.
 
 ```bash
 # Check for new videos not yet in feed
-bun run src/cli.ts check <channel>
+bun run . check <channel>
 
 # Download, process, and publish new episodes
-bun run src/cli.ts sync <channel>
-bun run src/cli.ts sync <channel> -n 5       # limit to 5 videos
-bun run src/cli.ts sync <channel> -p 4       # max parallelism
-bun run src/cli.ts sync <channel> -c         # use browser cookies
-bun run src/cli.ts sync <channel> -f         # skip cache, reprocess everything
+bun run . sync <channel>
+bun run . sync <channel> -n 5       # limit to 5 videos
+bun run . sync <channel> -p 4       # max parallelism
+bun run . sync <channel> -c         # use browser cookies
+bun run . sync <channel> -f         # skip cache, reprocess everything
+bun run . sync <channel> -d         # dry-run: show plan and exit
 
 # Visualize the DAG
-bun run src/cli.ts graph <channel>
-bun run src/cli.ts graph <channel> -n 3      # 3 dummy videos
-bun run src/cli.ts graph <channel> -o dag.md # write mermaid to file
+bun run . graph <channel>
+bun run . graph <channel> -n 3      # 3 dummy videos
+bun run . graph <channel> -o dag.md # write mermaid to file
 ```
 
 ## Architecture
 
-The project uses a **DAG-based pipeline** with three phases:
+The project uses a **DAG-based pipeline** with four phases:
 
 1. **Discovery** — `yt-dlp --flat-playlist` fetches the channel's video list
-2. **DAG execution** — per-video subgraphs (download, thumbnail, transcribe, chapters, summary, rss-entry) plus channel artwork run as a cached dependency graph with parallel execution
-3. **Publish** — uploads new files to Cloudflare R2, merges episodes into existing feed
+2. **Planning** — `graph.plan()` walks the DAG, computes Merkle hashes, checks caches, and returns per-kind cached/dirty counts before any work starts
+3. **DAG execution** — a readiness-loop scheduler dispatches nodes as soon as their dependencies complete, with pluggable `NodeRunner` and live progress events
+4. **Publish** — uploads new files to Cloudflare R2, merges episodes into existing feed
 
 ## Output Structure
 
@@ -81,21 +83,24 @@ To see episode artwork: Profile > Settings > Appearance > Use Episode Artwork
 
 ```
 src/
-├── cli.ts                          # CLI commands
 ├── config.ts                       # Channel config
 ├── types.ts                        # Domain types
 ├── paths.ts                        # Path helper functions
+├── cli/
+│   ├── cli.ts                      # CLI commands (check, sync, graph)
+│   └── render.ts                   # Planning summary, progress bars, final summary
 ├── dag/
-│   ├── types.ts                    # Node, Cache, NodeRef<T>
-│   ├── graph.ts                    # DAG engine
+│   ├── types.ts                    # Node, Cache, NodeRef<T>, NodeRunner, ProgressEvent
+│   ├── graph.ts                    # DAG engine (plan + execute)
 │   └── cache.ts                    # MemCache, LocalCache, TieredCache
 ├── pipeline/
-│   ├── sync.ts                     # Main sync orchestration
+│   ├── sync.ts                     # Execute graph, collect results
 │   ├── graph-builder.ts            # Wire up the DAG
 │   ├── discovery.ts                # Fetch video list
 │   ├── check.ts                    # Diff videos against feed
 │   ├── publish.ts                  # Upload to R2 and publish feed
 │   └── actions/                    # DAG node implementations
+│       ├── node-kind.ts            # NodeKind enum
 │       ├── download.ts
 │       ├── transcribe.ts
 │       ├── thumbnail.ts

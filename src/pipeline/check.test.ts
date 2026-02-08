@@ -55,15 +55,8 @@ describe("checkMissing", () => {
   });
 
   test("returns interleaved missing when 1st and 3rd are in feed", async () => {
-    const feedXml = buildFeedXml(TEST_CONFIG, [
-      makeEpisode("vid_aaa"),
-      makeEpisode("vid_ccc"),
-    ]);
-    const missing = await checkMissing(
-      VIDEOS,
-      TEST_CONFIG,
-      mockStorage(feedXml),
-    );
+    const feedXml = buildFeedXml(TEST_CONFIG, [makeEpisode("vid_aaa"), makeEpisode("vid_ccc")]);
+    const missing = await checkMissing(VIDEOS, TEST_CONFIG, mockStorage(feedXml));
     expect(missing).toEqual([VIDEOS[1]!, VIDEOS[3]!]);
   });
 
@@ -72,11 +65,7 @@ describe("checkMissing", () => {
       TEST_CONFIG,
       VIDEOS.map((v) => makeEpisode(v.id)),
     );
-    const missing = await checkMissing(
-      VIDEOS,
-      TEST_CONFIG,
-      mockStorage(feedXml),
-    );
+    const missing = await checkMissing(VIDEOS, TEST_CONFIG, mockStorage(feedXml));
     expect(missing).toEqual([]);
   });
 });

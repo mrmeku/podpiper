@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  formatSegmentsForLlm,
-  parseChapterResponse,
-} from "@/pipeline/actions/chapter-prompt";
+import { formatSegmentsForLlm, parseChapterResponse } from "@/pipeline/actions/chapter-prompt";
 import type { WhisperSegment } from "@/types";
 
 const segments: WhisperSegment[] = [
@@ -55,9 +52,7 @@ describe("parseChapterResponse", () => {
 
   test("filters out-of-bounds segment indices", () => {
     const response = `[{"segment": 0, "title": "OK"}, {"segment": 99, "title": "Bad"}, {"segment": -1, "title": "Negative"}]`;
-    expect(parseChapterResponse(response, segments)).toEqual([
-      { startTime: 0, title: "OK" },
-    ]);
+    expect(parseChapterResponse(response, segments)).toEqual([{ startTime: 0, title: "OK" }]);
   });
 
   test("returns empty array for invalid JSON", () => {

@@ -17,22 +17,16 @@ const s3Client = new S3Client({
 function getContentType(filename: string): string {
   if (filename.endsWith(".mp3")) return "audio/mpeg";
   if (filename.endsWith(".xml")) return "application/rss+xml";
-  if (filename.endsWith(".jpg") || filename.endsWith(".jpeg"))
-    return "image/jpeg";
+  if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
   if (filename.endsWith(".json")) return "application/json";
   if (filename.endsWith(".txt")) return "text/plain";
   if (filename.endsWith(".srt")) return "application/srt";
   return "application/octet-stream";
 }
 
-export async function downloadFromR2(
-  bucket: string,
-  key: string,
-): Promise<Uint8Array | null> {
+export async function downloadFromR2(bucket: string, key: string): Promise<Uint8Array | null> {
   try {
-    const result = await s3Client.send(
-      new GetObjectCommand({ Bucket: bucket, Key: key }),
-    );
+    const result = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     if (!result.Body) return null;
     return new Uint8Array(await result.Body.transformToByteArray());
   } catch {
@@ -72,9 +66,7 @@ export async function listRemoteFiles(bucket: string): Promise<Set<string>> {
     for (const obj of result.Contents || []) {
       if (obj.Key) keys.add(obj.Key);
     }
-    continuationToken = result.IsTruncated
-      ? result.NextContinuationToken
-      : undefined;
+    continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
   } while (continuationToken);
   return keys;
 }

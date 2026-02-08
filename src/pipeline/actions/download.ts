@@ -4,6 +4,8 @@ import type { NodeRef } from "@/dag/types";
 import { toVideoDir } from "@/paths";
 import type { YouTubeDownloader } from "@/ports/types";
 
+import { NodeKind } from "./node-kind";
+
 export interface DownloadResult {
   audio: string;
   info: string;
@@ -20,6 +22,7 @@ export function addDownloadNode(
   const dir = toVideoDir(outputDir, videoId);
   graph.add({
     name,
+    kind: NodeKind.Download,
     deps: [],
     config: "ytdlp-v1,quality=0,embed-thumb,embed-chapters",
     action: async () => {

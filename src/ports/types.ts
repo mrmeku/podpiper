@@ -7,22 +7,13 @@ export interface FileSystem {
   readBinary: (path: string) => Promise<Uint8Array>;
   writeText: (path: string, content: string) => Promise<void>;
   stat: (path: string) => Promise<{ size: number } | null>;
-  readdir: (
-    path: string,
-  ) => Promise<{ name: string; isDirectory(): boolean }[]>;
+  readdir: (path: string) => Promise<{ name: string; isDirectory(): boolean }[]>;
 }
 
 export interface YouTubeDownloader {
   fetchVideoList: (channelUrl: string) => Promise<VideoInfo[]>;
-  downloadVideo: (
-    outputDir: string,
-    videoId: string,
-    useCookies?: boolean,
-  ) => Promise<void>;
-  downloadChannelArtwork: (
-    outputDir: string,
-    channelUrl: string,
-  ) => Promise<void>;
+  downloadVideo: (outputDir: string, videoId: string) => Promise<void>;
+  downloadChannelArtwork: (outputDir: string, channelUrl: string) => Promise<void>;
 }
 
 export interface MediaProcessor {
@@ -36,10 +27,7 @@ export interface TranscribeResult {
 }
 
 export interface Transcriber {
-  transcribe: (
-    audioPath: string,
-    outputDir: string,
-  ) => Promise<TranscribeResult>;
+  transcribe: (audioPath: string, outputDir: string) => Promise<TranscribeResult>;
 }
 
 export interface Llm {

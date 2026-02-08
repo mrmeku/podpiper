@@ -2,18 +2,22 @@ export type ActionFunc = (inputs: Record<string, string>) => Promise<string>;
 
 export interface Node {
   name: string;
+  kind: string;
   deps: string[];
   config: string;
   action: ActionFunc;
 }
 
-export interface ExecResult {
-  name: string;
-  hash: string;
-  result: string | null;
-  skipped: boolean;
-  error: Error | null;
-}
+export type NodeRunner = (node: Node, inputs: Record<string, string>) => Promise<string>;
+
+export type NodeStatus = "done" | "cached" | "fail" | "dep-failed";
+
+export type ExecResult = { name: string; hash: string } & (
+  | { status: "done"; result: string }
+  | { status: "cached"; result: string }
+  | { status: "fail"; error: Error }
+  | { status: "dep-failed"; error: Error }
+);
 
 export interface Cache {
   get(hash: string): [string, boolean];
@@ -22,6 +26,32 @@ export interface Cache {
 
 export interface Flushable {
   flush(): void | Promise<void>;
+}
+
+export type ProgressEvent = { node: string; kind: string } & (
+  | { status: "start" }
+  | { status: "done"; elapsed: number }
+  | { status: "cached" }
+  | { status: "fail"; error: string; elapsed: number }
+  | { status: "dep-failed"; error: string }
+);
+
+export type ProgressCallback = (event: ProgressEvent) => void;
+
+export interface ExecuteOptions {
+  maxParallelism?: number;
+  onProgress?: ProgressCallback;
+}
+
+export interface NodeCounts {
+  total: number;
+  cached: number;
+  dirty: number;
+}
+
+export interface PlanningResult {
+  totalCounts: NodeCounts;
+  byKind: Map<string, NodeCounts>;
 }
 
 export interface NodeRef<T> {

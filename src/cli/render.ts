@@ -1,0 +1,154 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { MultiBar, type SingleBar } from "cli-progress";
+import pc from "picocolors";
+
+import type { ExecResult, NodeCounts, PlanningResult, ProgressCallback } from "@/dag/types";
+
+type ProgressRenderer = { onProgress: ProgressCallback; finish: () => void };
+
+export function renderPlanSummary(plan: PlanningResult): void {
+  const { totalCounts, byKind } = plan;
+  console.log(
+    `\nPlanning: ${totalCounts.total} nodes, ${totalCounts.cached} cached, ${totalCounts.dirty} to execute\n`,
+  );
+  for (const [kind, counts] of byKind) {
+    const label = kind.length > 20 ? kind.slice(0, 19) + "\u2026" : kind;
+    const status = counts.dirty === 0 ? "cached" : `-- ${counts.dirty} to run`;
+    console.log(`  ${label.padEnd(20)} ${counts.cached}/${counts.total} ${status}`);
+  }
+  console.log();
+}
+
+export function createProgressRenderer(
+  plan: PlanningResult,
+  maxParallelism?: number,
+): ProgressRenderer {
+  const dirtyKinds = [...plan.byKind.entries()].filter(([, c]) => c.dirty > 0);
+  if (dirtyKinds.length === 0) return { onProgress: () => {}, finish: () => {} };
+
+  const label = maxParallelism != null ? ` (parallelism: ${maxParallelism})` : "";
+  console.log(`Executing${label}...`);
+  if (!process.stdout.isTTY) return createTextRenderer();
+  return createBarRenderer(dirtyKinds);
+}
+
+const BAR_SIZE = 30;
+
+function formatBar(done: number, failed: number, running: number, total: number): string {
+  if (total === 0) return pc.dim("\u2591".repeat(BAR_SIZE));
+  let remaining = BAR_SIZE;
+  const doneW = Math.min(Math.round((BAR_SIZE * done) / total), remaining);
+  remaining -= doneW;
+  const failW = Math.min(Math.round((BAR_SIZE * failed) / total), remaining);
+  remaining -= failW;
+  const activeW = Math.min(Math.round((BAR_SIZE * running) / total), remaining);
+  remaining -= activeW;
+  return (
+    pc.green("\u2588".repeat(doneW)) +
+    pc.red("\u2588".repeat(failW)) +
+    pc.cyan("\u2593".repeat(activeW)) +
+    pc.dim("\u2591".repeat(remaining))
+  );
+}
+
+function createBarRenderer(dirtyKinds: [string, NodeCounts][]): ProgressRenderer {
+  const multibar = new MultiBar({
+    format: (_, params, payload) => {
+      const bar = formatBar(payload.done, payload.failed, payload.running, params.total);
+      const label = payload.running > 0 ? pc.cyan(` [${payload.running} running]`) : "";
+      return `  ${payload.kind} ${bar} ${params.value}/${params.total}${label}`;
+    },
+    barsize: BAR_SIZE,
+    hideCursor: true,
+    clearOnComplete: false,
+  });
+  const bars = new Map<string, SingleBar>();
+  const done = new Map<string, number>();
+  const failed = new Map<string, number>();
+  const inflight = new Map<string, number>();
+  for (const [kind, counts] of dirtyKinds) {
+    bars.set(kind, multibar.create(counts.dirty, 0, { kind: kind.padEnd(16), done: 0, failed: 0, running: 0 }));
+    done.set(kind, 0);
+    failed.set(kind, 0);
+    inflight.set(kind, 0);
+  }
+
+  function update(kind: string) {
+    const d = done.get(kind) ?? 0;
+    const f = failed.get(kind) ?? 0;
+    const r = inflight.get(kind) ?? 0;
+    bars.get(kind)?.update(d + f, { done: d, failed: f, running: r });
+  }
+
+  return {
+    onProgress(event) {
+      if (!bars.has(event.kind)) return;
+      const k = event.kind;
+
+      switch (event.status) {
+        case "start":
+          inflight.set(k, (inflight.get(k) ?? 0) + 1);
+          break;
+        case "done":
+          inflight.set(k, Math.max(0, (inflight.get(k) ?? 0) - 1));
+          done.set(k, (done.get(k) ?? 0) + 1);
+          break;
+        case "fail":
+          inflight.set(k, Math.max(0, (inflight.get(k) ?? 0) - 1));
+          failed.set(k, (failed.get(k) ?? 0) + 1);
+          multibar.log(`  ${pc.red(`FAIL ${event.node}: ${event.error}`)}\n`);
+          break;
+        case "dep-failed":
+          failed.set(k, (failed.get(k) ?? 0) + 1);
+          break;
+        case "cached":
+          return;
+      }
+      update(k);
+    },
+    finish() {
+      multibar.stop();
+    },
+  };
+}
+
+function createTextRenderer(): ProgressRenderer {
+  return {
+    onProgress(event) {
+      if (event.status === "done") console.log(`  done ${event.node} (${event.elapsed}ms)`);
+      else if (event.status === "fail") console.log(pc.red(`  FAIL ${event.node}: ${event.error}`));
+    },
+    finish() {},
+  };
+}
+
+export function renderFinalSummary(results: ExecResult[]): void {
+  let exec = 0,
+    cached = 0,
+    failed = 0,
+    depFailed = 0;
+  for (const r of results) {
+    if (r.status === "done") exec++;
+    else if (r.status === "cached") cached++;
+    else if (r.status === "fail") failed++;
+    else depFailed++;
+  }
+  const parts = [`${exec} executed`, `${cached} cached`, `${failed} failed`];
+  if (depFailed > 0) parts.push(`${depFailed} dep-failed`);
+  console.log(`\nDone: ${parts.join(", ")}`);
+  const failures = results.filter((r) => r.status === "fail");
+  const MAX_INLINE = 10;
+  for (const r of failures.slice(0, MAX_INLINE)) {
+    if (r.status === "fail") console.log(pc.red(`  FAIL ${r.name}: ${r.error.message}`));
+  }
+  if (failures.length > MAX_INLINE) {
+    const path = join(tmpdir(), `podpiper-errors-${Date.now()}.log`);
+    const lines = failures.map((r) =>
+      r.status === "fail" ? `FAIL ${r.name}: ${r.error.message}` : "",
+    );
+    Bun.write(path, lines.join("\n") + "\n");
+    console.log(`  ... ${failures.length - MAX_INLINE} more errors written to ${path}`);
+  }
+}
