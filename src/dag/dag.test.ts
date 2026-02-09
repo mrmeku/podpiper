@@ -219,6 +219,15 @@ describe("Graph", () => {
       expect(totalCounts.cached).toBe(skip);
     });
 
+    test("analyze hashes match execute hashes per node", async () => {
+      const cache = new MemCache();
+      const g = buildGraph(cache, ["vid_aaa", "vid_bbb"]);
+      const analyzeHashes = new Map(g.analyze().nodes.map((n) => [n.name, n.hash]));
+      const results = await g.execute();
+      const executeHashes = new Map(results.map((r) => [r.name, r.hash]));
+      expect(Object.fromEntries(analyzeHashes)).toEqual(Object.fromEntries(executeHashes));
+    });
+
     test("nodes contain per-node details", () => {
       const cache = new MemCache();
       const { nodes } = buildGraph(cache, ["vid_aaa"]).analyze();

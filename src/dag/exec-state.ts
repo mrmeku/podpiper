@@ -2,7 +2,6 @@ import type { ExecResult, Node } from "./types";
 
 export interface ExecState {
   dependents: Map<string, Node[]>;
-  hashes: Map<string, string>;
   results: Map<string, string>;
   execResults: Map<string, ExecResult>;
   failed: Set<string>;
@@ -27,7 +26,6 @@ export function createExecState(nodes: Iterable<Node>): ExecState {
   const leafs = allNodes.filter((n) => n.deps.length === 0);
   return {
     dependents: buildDependents(allNodes),
-    hashes: new Map(),
     results: new Map(),
     execResults: new Map(),
     failed: new Set(),
@@ -48,9 +46,9 @@ export function takeNext(state: ExecState): Node {
 export type ExecAction =
   | { type: "start"; node: Node }
   | { type: "complete"; node: Node }
-  | { type: "cache-hit"; node: Node; hash: string; cachedResult: string }
-  | { type: "success"; node: Node; hash: string; result: string; elapsed: number }
-  | { type: "failure"; node: Node; hash: string; error: unknown; elapsed: number }
+  | { type: "cache-hit"; node: Node; cachedResult: string }
+  | { type: "success"; node: Node; result: string; elapsed: number }
+  | { type: "failure"; node: Node; error: unknown; elapsed: number }
   | { type: "dep-failure"; node: Node; error: unknown };
 
 export function send(state: ExecState, action: ExecAction): void {
@@ -68,29 +66,27 @@ export function send(state: ExecState, action: ExecAction): void {
       return;
     }
     case "cache-hit": {
-      const { node, hash, cachedResult } = action;
-      state.hashes.set(node.name, hash);
+      const { node, cachedResult } = action;
       state.results.set(node.name, cachedResult);
       state.execResults.set(node.name, {
         name: node.name,
-        hash,
+        hash: node.hash,
         status: "cached",
         result: cachedResult,
       });
       return;
     }
     case "success": {
-      const { node, hash, result } = action;
-      state.hashes.set(node.name, hash);
+      const { node, result } = action;
       state.results.set(node.name, result);
-      state.execResults.set(node.name, { name: node.name, hash, status: "done", result });
+      state.execResults.set(node.name, { name: node.name, hash: node.hash, status: "done", result });
       return;
     }
     case "failure": {
-      const { node, hash } = action;
+      const { node } = action;
       const error = action.error instanceof Error ? action.error : new Error(String(action.error));
       state.failed.add(node.name);
-      state.execResults.set(node.name, { name: node.name, hash, status: "fail", error });
+      state.execResults.set(node.name, { name: node.name, hash: node.hash, status: "fail", error });
       return;
     }
     case "dep-failure": {
@@ -111,10 +107,6 @@ export function hasWork(state: ExecState): boolean {
 
 export function hasCapacity(state: ExecState, maxParallelism?: number): boolean {
   return state.ready.length > 0 && (maxParallelism == null || state.inflight < maxParallelism);
-}
-
-export function depHashesFor(node: Node, state: ExecState): Map<string, string> {
-  return new Map(node.deps.map((d) => [d, state.hashes.get(d) ?? ""]));
 }
 
 export function inputsFor(node: Node, state: ExecState): Record<string, string> {
