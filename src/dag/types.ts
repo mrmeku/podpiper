@@ -81,11 +81,12 @@ export interface AnalysisResult {
   byKind: Map<string, NodeCounts>;
 }
 
+/** Type-safe handle to a DAG node. T is the deserialized output type of the node's action. */
 export interface NodeRef<T = unknown> {
   name: string;
-  parse: (raw: string) => T;
+  readonly _T?: T;
 }
 
-export function jsonRef<T>(name: string): NodeRef<T> {
-  return { name, parse: (raw) => JSON.parse(raw) as T };
+export function parseRef<T>(_ref: NodeRef<T>, raw: string): T {
+  return JSON.parse(raw) as T;
 }

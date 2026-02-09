@@ -14,32 +14,21 @@ import type {
 
 import * as execState from "./exec-state";
 import { computeHash, toCounts, validateNoCycles } from "./helpers";
-import { jsonRef } from "./types";
 
 function depsFromParams(params: BaseParams): string[] {
   if (!params.deps) return [];
-  return Object.values(params.deps).filter((v) => v != null).map((v) => v.name);
+  return Object.values(params.deps)
+    .filter((v) => v != null)
+    .map((v) => v.name);
 }
 
-export function rekeyByRole(
-  params: BaseParams,
-  rawInputs: Record<string, string>,
-): Record<string, string> {
-  if (!params.deps) return {};
+function parseInputsFor<P>(params: BaseParams, rawInputs: Record<string, string>): InputsFor<P> {
   return Object.fromEntries(
-    Object.entries(params.deps)
-      .filter(([, v]) => v != null)
-      .map(([role, ref]) => [role, rawInputs[ref!.name]!]),
-  );
-}
-
-function parseInputs(
-  params: BaseParams,
-  rawInputs: Record<string, string>,
-): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(rekeyByRole(params, rawInputs)).map(([k, v]) => [k, JSON.parse(v)]),
-  );
+    Object.entries(params.deps || [])
+      .map(([role, ref]) => [role, ref && rawInputs[ref.name]])
+      .filter((entry): entry is [string, string] => Boolean(entry[1]))
+      .map(([role, ref]) => [role, JSON.parse(ref)]),
+  ) as InputsFor<P>;
 }
 
 export function addNode<P extends BaseParams, R>(
@@ -56,9 +45,9 @@ export function addNode<P extends BaseParams, R>(
     config,
     params,
     action: async (rawInputs) =>
-      JSON.stringify(await action(params, parseInputs(params, rawInputs) as InputsFor<P>)),
+      JSON.stringify(await action(params, parseInputsFor<P>(params, rawInputs))),
   });
-  return jsonRef<R>(name);
+  return { name };
 }
 
 export const localRunner: NodeRunner = (node, rawInputs) => node.action(rawInputs);
@@ -105,42 +94,59 @@ export class Graph {
   }
 
   async execute(runner: NodeRunner = localRunner, opts?: ExecuteOptions): Promise<ExecResult[]> {
-    const { maxParallelism, onProgress: emit } = opts ?? {};
+    const { maxParallelism, onProgress: progressCallback } = opts ?? {};
     const state = execState.createExecState(this.nodes.values());
+    const updateState = (action: execState.ExecAction) => execState.send(state, action);
 
     const processNode = async (node: Node): Promise<void> => {
       const { name, kind } = node;
       const badDep = execState.firstFailedDep(node, state);
       if (badDep) {
-        execState.send(state, {
+        updateState({
           type: "failure",
           node,
           hash: "",
           error: new Error(`dependency ${badDep} failed`),
         });
-        emit?.({ node: name, kind, status: "dep-failed", error: `dependency ${badDep} failed` });
+        progressCallback?.({
+          node: name,
+          kind,
+          status: "dep-failed",
+          error: `dependency ${badDep} failed`,
+        });
         return;
       }
 
       const hash = computeHash(node, execState.depHashesFor(node, state));
       const [cachedResult, hit] = this.cache.get(hash);
       if (hit) {
-        execState.send(state, { type: "cache-hit", node, hash, cachedResult });
-        emit?.({ node: name, kind, status: "cached" });
+        updateState({ type: "cache-hit", node, hash, cachedResult });
+        progressCallback?.({ node: name, kind, status: "cached" });
         return;
       }
 
-      emit?.({ node: name, kind, status: "start" });
+      progressCallback?.({ node: name, kind, status: "start" });
       const startTime = Date.now();
       try {
         const result = await runner(node, execState.inputsFor(node, state));
         this.cache.put(hash, result);
-        execState.send(state, { type: "success", node, hash, result });
-        emit?.({ node: name, kind, status: "done", elapsed: Date.now() - startTime });
+        updateState({ type: "success", node, hash, result });
+        progressCallback?.({
+          node: name,
+          kind,
+          status: "done",
+          elapsed: Date.now() - startTime,
+        });
       } catch (e) {
-        execState.send(state, { type: "failure", node, hash, error: e });
+        updateState({ type: "failure", node, hash, error: e });
         const msg = e instanceof Error ? e.message : String(e);
-        emit?.({ node: name, kind, status: "fail", elapsed: Date.now() - startTime, error: msg });
+        progressCallback?.({
+          node: name,
+          kind,
+          status: "fail",
+          elapsed: Date.now() - startTime,
+          error: msg,
+        });
       }
     };
 
@@ -149,7 +155,7 @@ export class Graph {
       while (execState.canDispatch(state, maxParallelism)) {
         const node = execState.takeNext(state);
         processNode(node).finally(() => {
-          execState.send(state, { type: "complete", node });
+          updateState({ type: "complete", node });
           resumeLoop();
         });
       }

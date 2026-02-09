@@ -7,7 +7,6 @@ import { describe, expect, test } from "bun:test";
 import { LocalCache, MemCache, TieredCache } from "./cache";
 import { Graph, localRunner } from "./graph";
 import type { BaseParams, ExecResult, NodeRunner, ProgressEvent } from "./types";
-import { jsonRef } from "./types";
 
 function countExec(results: ExecResult[]): { exec: number; skip: number } {
   let exec = 0;
@@ -22,7 +21,15 @@ function countExec(results: ExecResult[]): { exec: number; skip: number } {
 
 const p = (kind: string, deps?: Record<string, string>): BaseParams =>
   deps
-    ? { kind, deps: Object.fromEntries(Object.entries(deps).map(([k, v]) => [k, jsonRef(v)])) }
+    ? {
+        kind,
+        deps: Object.fromEntries(
+          Object.entries(deps).map(([k, v]) => [
+            k,
+            { name: v },
+          ]),
+        ),
+      }
     : { kind };
 
 function addVideoNodes(g: Graph, vid: string): void {

@@ -28,7 +28,7 @@ export function createProgressRenderer(
   const dirtyKinds = [...analysis.byKind.entries()].filter(([, c]) => c.dirty > 0);
   if (dirtyKinds.length === 0) return { onProgress: () => {}, finish: () => {} };
 
-  const label = maxParallelism != null ? ` (parallelism: ${maxParallelism})` : "";
+  const label = maxParallelism ? ` (parallelism: ${maxParallelism})` : "";
   console.log(`Executing${label}...`);
   if (!process.stdout.isTTY) return createTextRenderer();
   return createBarRenderer(dirtyKinds);
