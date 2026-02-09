@@ -2,10 +2,9 @@ import type { NodeRef } from "@/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
 
-import { defineActionWithPorts } from "../define-action";
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
+import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";
-import { NodeKind, toVideoActionName } from "./node-kind";
 
 const UNTITLED_PATTERN = /^<Untitled Chapter \d+>$/;
 

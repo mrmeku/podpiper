@@ -2,9 +2,8 @@ import type { NodeRef } from "@/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 import type { WhisperJson, YtDlpInfo } from "@/types";
 
-import { defineActionWithPorts } from "../define-action";
+import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";
-import { NodeKind, toVideoActionName } from "./node-kind";
 
 function formatTranscriptForLlm(whisper: WhisperJson): string {
   return whisper.transcription.map((s) => s.text.trim()).join("\n");

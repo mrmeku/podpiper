@@ -1,7 +1,6 @@
 import { toVideoDir } from "@/paths";
 
-import { defineActionWithPorts } from "../define-action";
-import { NodeKind, toVideoActionName } from "./node-kind";
+import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 
 export interface DownloadResult {
   audio: string;

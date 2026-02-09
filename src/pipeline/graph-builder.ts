@@ -5,8 +5,8 @@ import type { Config, HasUploads, VideoInfo } from "@/types";
 
 import { artwork, channelAvatar } from "./actions/artwork";
 import { chapters } from "./actions/chapters";
+import { NodeKind } from "./actions/define-action";
 import { download } from "./actions/download";
-import { NodeKind } from "./actions/node-kind";
 import type { EpisodeOutput, RssEntryParams } from "./actions/rss-entry";
 import { rssEntry } from "./actions/rss-entry";
 import { summary } from "./actions/summary";

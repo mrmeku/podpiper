@@ -1,6 +1,6 @@
 import type { Graph } from "@/dag/graph";
 import type { Node } from "@/dag/types";
-import type { NodeKind } from "@/pipeline/actions/node-kind";
+import type { NodeKind } from "@/pipeline/actions/define-action";
 
 const NODE_LABELS: Record<NodeKind, string> = {
   download: "yt-dlp: download",
