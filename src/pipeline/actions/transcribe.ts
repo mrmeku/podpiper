@@ -1,4 +1,4 @@
-import type { NodeRef } from "@/dag/types";
+import type { NodeRef } from "@podpiper/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 
 import { NodeKind, defineActionWithPorts, toVideoActionName, toVideoDir } from "./define-action";

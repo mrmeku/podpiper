@@ -6,8 +6,8 @@ import { Command } from "commander";
 
 import { getConfig } from "@/cli/config";
 import { generateMermaid } from "@/cli/mermaid";
-import { LocalCache, MemCache } from "@/dag/cache";
-import { Graph } from "@/dag/graph";
+import { LocalCache, MemCache } from "@podpiper/dag/cache";
+import { Graph } from "@podpiper/dag/graph";
 import { checkMissing } from "@/pipeline/check";
 import { discoverVideos } from "@/pipeline/discovery";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
