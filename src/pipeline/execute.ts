@@ -1,11 +1,10 @@
+import type { Episode, UploadEntry } from "@/types";
 import type { Graph } from "@podpiper/dag/graph";
 import { localRunner } from "@podpiper/dag/graph";
 import type { ExecResult, ExecuteOptions } from "@podpiper/dag/types";
 import { parseRef } from "@podpiper/dag/types";
-import type { Episode, UploadEntry } from "@/types";
 
-
-import type { PipelineRefs } from "./graph-builder";
+import type { PipelineRefs } from "@/pipeline/graph-builder";
 
 export interface SyncResult {
   uploads: UploadEntry[];

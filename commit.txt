@@ -1,0 +1,15 @@
+Extract DAG engine into @podpiper/dag workspace package and restructure project
+
+Split the generic DAG execution engine (graph, cache, exec-state, types,
+define-action) into a standalone Bun workspace package under packages/dag/.
+It has no dependencies on the rest of the codebase.
+
+Other changes included in this cleanup:
+
+- Restructure CLI into per-command directories (sync/, check/, graph/) with
+  colocated helpers (render.ts, mermaid.ts)
+- Colocate rss/ and paths.ts into pipeline/ next to their consumers
+- Consolidate NodeKind and defineActionWithPorts into actions/define-action
+- Compute node hashes at insertion time instead of execution time
+- Replace ProgressCallback with structured ExecAction emissions
+- Combine original video description with AI summary in episode descriptions

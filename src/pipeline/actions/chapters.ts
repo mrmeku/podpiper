@@ -1,6 +1,6 @@
-import type { NodeRef } from "@podpiper/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
+import type { NodeRef } from "@podpiper/dag/types";
 
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";

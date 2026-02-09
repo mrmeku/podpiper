@@ -13,7 +13,9 @@ export interface ActionDef<Ctx, P extends BaseParams, R> {
   addNode: (graph: Graph, ctx: Ctx, params: P) => NodeRef<R>;
 }
 
-export function defineAction<Ctx, P extends BaseParams, R>(spec: ActionSpec<Ctx, P, R>): ActionDef<Ctx, P, R> {
+export function defineAction<Ctx, P extends BaseParams, R>(
+  spec: ActionSpec<Ctx, P, R>,
+): ActionDef<Ctx, P, R> {
   return {
     action: spec.action,
     addNode: (graph, ctx, params) => {

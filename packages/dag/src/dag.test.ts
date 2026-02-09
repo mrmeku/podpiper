@@ -24,12 +24,7 @@ const p = (kind: string, deps?: Record<string, string>): BaseParams =>
   deps
     ? {
         kind,
-        deps: Object.fromEntries(
-          Object.entries(deps).map(([k, v]) => [
-            k,
-            { name: v },
-          ]),
-        ),
+        deps: Object.fromEntries(Object.entries(deps).map(([k, v]) => [k, { name: v }])),
       }
     : { kind };
 
@@ -645,12 +640,7 @@ describe("Graph", () => {
       await g2.execute(localRunner, { onAction: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
-      expect(types).toEqual([
-        "cache-hit:a",
-        "complete:a",
-        "cache-hit:b",
-        "complete:b",
-      ]);
+      expect(types).toEqual(["cache-hit:a", "complete:a", "cache-hit:b", "complete:b"]);
     });
 
     test("emits start+failure on error with elapsed", async () => {
@@ -706,13 +696,7 @@ describe("Graph", () => {
       await g.execute(localRunner, { onAction: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
-      expect(types).toEqual([
-        "start:a",
-        "failure:a",
-        "complete:a",
-        "dep-failure:b",
-        "complete:b",
-      ]);
+      expect(types).toEqual(["start:a", "failure:a", "complete:a", "dep-failure:b", "complete:b"]);
       const depFail = actions.find((a) => a.type === "dep-failure")!;
       if (depFail.type === "dep-failure") {
         expect(depFail.error).toBeInstanceOf(Error);

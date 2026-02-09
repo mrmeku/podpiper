@@ -1,5 +1,5 @@
-import type { NodeRef } from "@podpiper/dag/types";
 import type { HasUploads } from "@/types";
+import type { NodeRef } from "@podpiper/dag/types";
 
 import { NodeKind, defineActionWithPorts } from "./define-action";
 

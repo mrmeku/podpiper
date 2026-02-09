@@ -1,6 +1,6 @@
-import type { NodeRef } from "@podpiper/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 import type { Chapter, Episode, HasUploads, UploadEntry, YtDlpInfo } from "@/types";
+import type { NodeRef } from "@podpiper/dag/types";
 
 import { NodeKind, defineActionWithPorts, toVideoActionName, toVideoDir } from "./define-action";
 import type { DownloadResult } from "./download";

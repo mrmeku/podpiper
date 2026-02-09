@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 
 import type { AnalyzedNode, Cache, Flushable, NodeCounts } from "./types";
 
-export function computeHash(node: { name: string; config: string; deps: string[] }, depHashes: Map<string, string>): string {
+export function computeHash(
+  node: { name: string; config: string; deps: string[] },
+  depHashes: Map<string, string>,
+): string {
   const h = createHash("sha256");
   h.update(node.name);
   h.update(node.config);

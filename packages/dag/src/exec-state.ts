@@ -79,7 +79,12 @@ export function send(state: ExecState, action: ExecAction): void {
     case "success": {
       const { node, result } = action;
       state.results.set(node.name, result);
-      state.execResults.set(node.name, { name: node.name, hash: node.hash, status: "done", result });
+      state.execResults.set(node.name, {
+        name: node.name,
+        hash: node.hash,
+        status: "done",
+        result,
+      });
       return;
     }
     case "failure": {

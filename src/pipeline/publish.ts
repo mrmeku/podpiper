@@ -3,7 +3,7 @@ import { mergeEpisodes, parseExistingFeed } from "@/pipeline/rss/parse";
 import type { FileSystem, ObjectStore } from "@/ports/types";
 import type { Config } from "@/types";
 
-import type { SyncResult } from "./sync";
+import type { SyncResult } from "./execute";
 
 export async function publish(
   result: SyncResult,
