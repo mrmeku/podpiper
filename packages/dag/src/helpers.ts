@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
 
-import type { AnalyzedNode, Cache, Flushable, Node, NodeCounts } from "./types";
+import type { AnalyzedNode, Cache, Flushable, NodeCounts } from "./types";
 
-export function computeHash(node: Node, depHashes: Map<string, string>): string {
+export function computeHash(
+  node: { name: string; config: string; deps: string[] },
+  depHashes: Map<string, string>,
+): string {
   const h = createHash("sha256");
   h.update(node.name);
   h.update(node.config);
@@ -19,7 +22,7 @@ export function toCounts(nodes: AnalyzedNode[]): NodeCounts {
   return { total: nodes.length, cached: nodes.length - dirty, dirty };
 }
 
-export function validateNoCycles(nodes: Map<string, Node>): string[] {
+export function validateNoCycles(nodes: Map<string, { deps: string[] }>): string[] {
   const visited = new Set<string>();
   const visiting = new Set<string>();
   const order: string[] = [];

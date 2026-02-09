@@ -1,0 +1,9 @@
+{
+  "name": "@podpiper/dag",
+  "private": true,
+  "module": "src/index.ts",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  }
+}

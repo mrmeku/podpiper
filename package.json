@@ -3,8 +3,11 @@
   "module": "src/cli/cli.ts",
   "type": "module",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "bin": {
-    "heidi-rss": "./src/cli/cli.ts"
+    "podpiper-cli": "./src/cli/cli.ts"
   },
   "scripts": {
     "typecheck": "tsgo --noEmit",

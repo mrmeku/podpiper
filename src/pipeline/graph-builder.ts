@@ -1,13 +1,13 @@
-import type { Graph } from "@/dag/graph";
-import type { NodeRef } from "@/dag/types";
 import type { Ports } from "@/ports/types";
 import type { Config, HasUploads, VideoInfo } from "@/types";
+import { Graph } from "@podpiper/dag/graph";
+import type { Cache, NodeRef } from "@podpiper/dag/types";
 
 import { artwork, channelAvatar } from "./actions/artwork";
 import { chapters } from "./actions/chapters";
+import { NodeKind } from "./actions/define-action";
 import { download } from "./actions/download";
-import { NodeKind } from "./actions/node-kind";
-import type { EpisodeOutput } from "./actions/rss-entry";
+import type { EpisodeOutput, RssEntryParams } from "./actions/rss-entry";
 import { rssEntry } from "./actions/rss-entry";
 import { summary } from "./actions/summary";
 import { thumbnail } from "./actions/thumbnail";
@@ -42,26 +42,25 @@ function addVideoSubgraph(
     chapterPrompt: config.chapterPrompt,
     deps: { download: dl, transcribe: tr },
   });
-  const baseDeps = { download: dl, transcribe: tr, thumbnail: th, chapters: ch };
+  const deps: RssEntryParams["deps"] = {
+    download: dl,
+    transcribe: tr,
+    thumbnail: th,
+    chapters: ch,
+  };
   if (config.summaryPrompt) {
-    const sm = summary.addNode(graph, ports, {
+    deps.summary = summary.addNode(graph, ports, {
       kind: NodeKind.Summary,
       videoId: video.id,
       summaryPrompt: config.summaryPrompt,
       deps: { download: dl, transcribe: tr },
     });
-    return rssEntry.addNode(graph, ports, {
-      kind: NodeKind.RssEntry,
-      video,
-      outputDir: config.outputDir,
-      deps: { ...baseDeps, summary: sm },
-    });
   }
   return rssEntry.addNode(graph, ports, {
     kind: NodeKind.RssEntry,
-    video,
+    videoId: video.id,
     outputDir: config.outputDir,
-    deps: baseDeps,
+    deps,
   });
 }
 
@@ -71,11 +70,12 @@ export interface PipelineRefs {
 }
 
 export function buildPipelineGraph(
-  graph: Graph,
+  cache: Cache,
   videos: VideoInfo[],
   ports: Ports,
   config: Config,
-): PipelineRefs {
+): { graph: Graph; refs: PipelineRefs } {
+  const graph = new Graph(cache);
   const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, config));
   const avatarDir = `${config.outputDir}/artwork`;
   const artworkPath = `${config.outputDir}/artwork.jpg`;
@@ -90,7 +90,10 @@ export function buildPipelineGraph(
     deps: { channel_avatar: avatarRef },
   });
   return {
-    publishRefs: [...entryRefs, artworkRef],
-    entryRefs,
+    graph,
+    refs: {
+      publishRefs: [...entryRefs, artworkRef],
+      entryRefs,
+    },
   };
 }

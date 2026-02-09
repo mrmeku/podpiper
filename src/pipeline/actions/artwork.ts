@@ -1,8 +1,7 @@
-import type { NodeRef } from "@/dag/types";
 import type { HasUploads } from "@/types";
+import type { NodeRef } from "@podpiper/dag/types";
 
-import { defineAction } from "../define-action";
-import { NodeKind } from "./node-kind";
+import { NodeKind, defineActionWithPorts } from "./define-action";
 
 export interface ArtworkOutput extends HasUploads {}
 
@@ -12,8 +11,8 @@ export interface ChannelAvatarParams {
   avatarDir: string;
 }
 
-export const channelAvatar = defineAction<ChannelAvatarParams, string>({
-  name: () => "channel_avatar",
+export const channelAvatar = defineActionWithPorts<ChannelAvatarParams, string>({
+  name: (p) => p.kind,
   config: () => `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`,
   action: (ports) => async (params) => {
     await ports.ytdlp.downloadChannelArtwork(params.avatarDir, params.channelUrl);
@@ -27,8 +26,8 @@ export interface ArtworkParams {
   deps: { channel_avatar: NodeRef<string> };
 }
 
-export const artwork = defineAction<ArtworkParams, ArtworkOutput>({
-  name: () => "artwork",
+export const artwork = defineActionWithPorts<ArtworkParams, ArtworkOutput>({
+  name: (p) => p.kind,
   config: "artwork-v1",
   action: (ports) => async (params, inputs) => {
     await ports.ffmpeg.processChannelArtwork(inputs.channel_avatar, params.artworkPath);

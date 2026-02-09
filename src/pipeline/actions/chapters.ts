@@ -1,11 +1,10 @@
-import type { NodeRef } from "@/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
+import type { NodeRef } from "@podpiper/dag/types";
 
-import { defineAction } from "../define-action";
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
+import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";
-import { NodeKind } from "./node-kind";
 
 const UNTITLED_PATTERN = /^<Untitled Chapter \d+>$/;
 
@@ -29,8 +28,8 @@ export interface ChaptersParams {
   deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
 }
 
-export const chapters = defineAction<ChaptersParams, Chapter[]>({
-  name: (p) => `chapters:${p.videoId}`,
+export const chapters = defineActionWithPorts<ChaptersParams, Chapter[]>({
+  name: toVideoActionName,
   config: (p) => {
     const promptHash = p.chapterPrompt ? Bun.hash(p.chapterPrompt).toString(36) : "none";
     return `extract-v1,fallback=${promptHash}`;

@@ -1,10 +1,9 @@
-import type { NodeRef } from "@/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 import type { WhisperJson, YtDlpInfo } from "@/types";
+import type { NodeRef } from "@podpiper/dag/types";
 
-import { defineAction } from "../define-action";
+import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";
-import { NodeKind } from "./node-kind";
 
 function formatTranscriptForLlm(whisper: WhisperJson): string {
   return whisper.transcription.map((s) => s.text.trim()).join("\n");
@@ -17,8 +16,8 @@ export interface SummaryParams {
   deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
 }
 
-export const summary = defineAction<SummaryParams, string>({
-  name: (p) => `summary:${p.videoId}`,
+export const summary = defineActionWithPorts<SummaryParams, string>({
+  name: toVideoActionName,
   config: (p) => {
     const promptHash = Bun.hash(p.summaryPrompt).toString(36);
     return `summary-v2,prompt=${promptHash}`;

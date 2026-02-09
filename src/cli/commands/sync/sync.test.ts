@@ -1,18 +1,17 @@
 import { describe, expect, test } from "bun:test";
 
-import { MemCache, TieredCache } from "@/dag/cache";
-import { Graph } from "@/dag/graph";
-import type { Cache, ExecResult } from "@/dag/types";
+import { extractReferencedUrls, parseExistingFeed } from "@/pipeline/rss/parse";
 import { createMemoryFs } from "@/ports/memory-fs";
 import type { SpiedPorts } from "@/ports/mock";
 import { createSpyPorts } from "@/ports/mock";
-import { extractReferencedUrls, parseExistingFeed } from "@/rss/parse";
 import type { Config, VideoInfo, YtDlpInfo } from "@/types";
+import { MemCache, TieredCache } from "@podpiper/dag/cache";
+import type { Cache, ExecResult } from "@podpiper/dag/types";
 
-import type { EpisodeOutput } from "./actions/rss-entry";
-import { buildPipelineGraph } from "./graph-builder";
-import { publish } from "./publish";
-import { sync } from "./sync";
+import type { EpisodeOutput } from "@/pipeline/actions/rss-entry";
+import { sync } from "@/pipeline/execute";
+import { buildPipelineGraph } from "@/pipeline/graph-builder";
+import { publish } from "@/pipeline/publish";
 
 const TEST_CONFIG: Config = {
   channelUrl: "https://www.youtube.com/@testchannel",
@@ -92,8 +91,7 @@ function buildAndSync(
   cache: Cache,
   opts?: { maxParallelism?: number },
 ) {
-  const graph = new Graph(cache);
-  const refs = buildPipelineGraph(graph, videos, ports, config);
+  const { graph, refs } = buildPipelineGraph(cache, videos, ports, config);
   return sync(graph, refs, opts);
 }
 
@@ -156,13 +154,15 @@ describe("sync pipeline", () => {
       },
     }).toEqual({
       vid_aaa: {
-        description: "Mock summary of the episode content.",
+        description:
+          "A video about deep learning.\n\n— Generated Summary —\n\nMock summary of the episode content.",
         chapters: 3,
         transcript: "vid_aaa/transcript.srt",
         duration: 1800,
       },
       vid_bbb: {
-        description: "Mock summary of the episode content.",
+        description:
+          "A video about growth mindset.\n\n— Generated Summary —\n\nMock summary of the episode content.",
         chapters: 0,
         transcript: "vid_bbb/transcript.srt",
         duration: 2400,
@@ -323,7 +323,8 @@ describe("sync pipeline", () => {
       transcript: cccEp.transcript,
       duration: cccEp.duration,
     }).toEqual({
-      description: "Mock summary of the episode content.",
+      description:
+        "A video about Rust programming.\n\n— Generated Summary —\n\nMock summary of the episode content.",
       chapters: 0,
       transcript: "vid_ccc/transcript.srt",
       duration: 3600,
