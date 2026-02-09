@@ -15,6 +15,8 @@ import type {
 import * as execState from "./exec-state";
 import { computeHash, toCounts, validateNoCycles } from "./helpers";
 
+type NodeDef = Omit<Node, "hash">;
+
 function depsFromParams(params: BaseParams): string[] {
   if (!params.deps) return [];
   return Object.values(params.deps)
@@ -56,8 +58,16 @@ export class Graph {
   private nodes = new Map<string, Node>();
   constructor(private cache: Cache) {}
 
-  add(node: Node): void {
-    this.nodes.set(node.name, node);
+  add(def: NodeDef): void {
+    if (this.nodes.has(def.name)) throw new Error(`duplicate node name: "${def.name}"`);
+    const depHashes = new Map(
+      def.deps.map((d) => {
+        const dep = this.nodes.get(d);
+        if (!dep) throw new Error(`node "${def.name}" depends on unknown node "${d}"`);
+        return [d, dep.hash];
+      }),
+    );
+    this.nodes.set(def.name, { ...def, hash: computeHash(def, depHashes) });
   }
 
   getNodes(): ReadonlyMap<string, Node> {
@@ -66,23 +76,10 @@ export class Graph {
 
   analyze(): AnalysisResult {
     validateNoCycles(this.nodes);
-    const hashes = new Map<string, string>();
-
-    const analyzed = Array.from(this.nodes.entries(), ([name, node]): AnalyzedNode => {
-      const depHashes = new Map(node.deps.map((d) => [d, hashes.get(d) ?? ""]));
-      const hash = computeHash(node, depHashes);
-      hashes.set(name, hash);
-      const [cachedResult, hit] = this.cache.get(hash);
-      return {
-        name,
-        kind: node.kind,
-        deps: node.deps,
-        hash,
-        dirty: !hit,
-        ...(hit ? { cachedResult } : {}),
-      };
+    const analyzed = Array.from(this.nodes.values(), (node): AnalyzedNode => {
+      const [cachedResult, hit] = this.cache.get(node.hash);
+      return { ...node, dirty: !hit, ...(hit ? { cachedResult } : {}) };
     });
-
     const totalCounts = toCounts(analyzed);
     const byKindCounts = new Map(
       Array.from(
@@ -112,10 +109,9 @@ export class Graph {
         return;
       }
 
-      const hash = computeHash(node, execState.depHashesFor(node, state));
-      const [cachedResult, hit] = this.cache.get(hash);
+      const [cachedResult, hit] = this.cache.get(node.hash);
       if (hit) {
-        dispatch({ type: "cache-hit", node, hash, cachedResult });
+        dispatch({ type: "cache-hit", node, cachedResult });
         return;
       }
 
@@ -123,10 +119,10 @@ export class Graph {
       const startTime = Date.now();
       try {
         const result = await runner(node, execState.inputsFor(node, state));
-        this.cache.put(hash, result);
-        dispatch({ type: "success", node, hash, result, elapsed: Date.now() - startTime });
+        this.cache.put(node.hash, result);
+        dispatch({ type: "success", node, result, elapsed: Date.now() - startTime });
       } catch (e) {
-        dispatch({ type: "failure", node, hash, error: e, elapsed: Date.now() - startTime });
+        dispatch({ type: "failure", node, error: e, elapsed: Date.now() - startTime });
       }
     };
 
