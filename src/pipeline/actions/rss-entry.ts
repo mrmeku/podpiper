@@ -30,12 +30,14 @@ function toR2Key(videoId: string, key: string) {
 
 export const rssEntry = defineAction<RssEntryParams, EpisodeOutput>({
   name: toVideoActionName,
-  config: "rss-v2",
+  config: "rss-v3",
   action: (ports) => async (params, inputs) => {
-    const description =
-      inputs.summary ??
-      (await ports.fs.readJson<YtDlpInfo>(inputs.download.info)).description ??
-      "";
+    const description = [
+      (await ports.fs.readJson<YtDlpInfo>(inputs.download.info)).description,
+      inputs.summary,
+    ]
+      .filter(Boolean)
+      .join("\n\n— Generated Summary —\n\n");
     const stat = await ports.fs.stat(inputs.download.audio);
     const info = await ports.fs.readJson<YtDlpInfo>(inputs.download.info);
     const srtExists = await ports.fs.exists(inputs.transcribe.srt);

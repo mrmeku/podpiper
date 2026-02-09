@@ -156,13 +156,13 @@ describe("sync pipeline", () => {
       },
     }).toEqual({
       vid_aaa: {
-        description: "Mock summary of the episode content.",
+        description: "A video about deep learning.\n\n— Generated Summary —\n\nMock summary of the episode content.",
         chapters: 3,
         transcript: "vid_aaa/transcript.srt",
         duration: 1800,
       },
       vid_bbb: {
-        description: "Mock summary of the episode content.",
+        description: "A video about growth mindset.\n\n— Generated Summary —\n\nMock summary of the episode content.",
         chapters: 0,
         transcript: "vid_bbb/transcript.srt",
         duration: 2400,
@@ -323,7 +323,7 @@ describe("sync pipeline", () => {
       transcript: cccEp.transcript,
       duration: cccEp.duration,
     }).toEqual({
-      description: "Mock summary of the episode content.",
+      description: "A video about Rust programming.\n\n— Generated Summary —\n\nMock summary of the episode content.",
       chapters: 0,
       transcript: "vid_ccc/transcript.srt",
       duration: 3600,

@@ -25,7 +25,11 @@ exports[`sync pipeline fresh run executes full pipeline and publishes correct ar
     <podcast:person role="host">Test Author</podcast:person>
     <item>
       <title>Understanding Deep Learning</title>
-      <description>Mock summary of the episode content.</description>
+      <description>A video about deep learning.
+
+— Generated Summary —
+
+Mock summary of the episode content.</description>
       <pubDate>Fri, 15 Mar 2024 00:00:00 GMT</pubDate>
       <guid isPermaLink="false">vid_aaa</guid>
       <enclosure url="https://cdn.test.com/vid_aaa/audio.mp3" length="16" type="audio/mpeg"/>
@@ -38,7 +42,11 @@ exports[`sync pipeline fresh run executes full pipeline and publishes correct ar
     </item>
     <item>
       <title>Growth Mindset Tips</title>
-      <description>Mock summary of the episode content.</description>
+      <description>A video about growth mindset.
+
+— Generated Summary —
+
+Mock summary of the episode content.</description>
       <pubDate>Sun, 10 Mar 2024 00:00:00 GMT</pubDate>
       <guid isPermaLink="false">vid_bbb</guid>
       <enclosure url="https://cdn.test.com/vid_bbb/audio.mp3" length="16" type="audio/mpeg"/>

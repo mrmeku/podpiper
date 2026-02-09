@@ -13,7 +13,7 @@ export interface ChannelAvatarParams {
 }
 
 export const channelAvatar = defineAction<ChannelAvatarParams, string>({
-  name: () => "channel_avatar",
+  name: (p) => p.kind,
   config: () => `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`,
   action: (ports) => async (params) => {
     await ports.ytdlp.downloadChannelArtwork(params.avatarDir, params.channelUrl);
@@ -28,7 +28,7 @@ export interface ArtworkParams {
 }
 
 export const artwork = defineAction<ArtworkParams, ArtworkOutput>({
-  name: () => "artwork",
+  name: (p) => p.kind,
   config: "artwork-v1",
   action: (ports) => async (params, inputs) => {
     await ports.ffmpeg.processChannelArtwork(inputs.channel_avatar, params.artworkPath);
