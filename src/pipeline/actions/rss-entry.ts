@@ -3,9 +3,8 @@ import { toVideoDir } from "@/paths";
 import type { TranscribeResult } from "@/ports/types";
 import type { Chapter, Episode, HasUploads, UploadEntry, YtDlpInfo } from "@/types";
 
-import { defineActionWithPorts } from "../define-action";
+import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";
-import { NodeKind, toVideoActionName } from "./node-kind";
 
 export interface EpisodeOutput extends HasUploads {
   episode: Episode;

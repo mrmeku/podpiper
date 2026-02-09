@@ -1,8 +1,7 @@
 import type { NodeRef } from "@/dag/types";
 import type { HasUploads } from "@/types";
 
-import { defineActionWithPorts } from "../define-action";
-import { NodeKind } from "./node-kind";
+import { NodeKind, defineActionWithPorts } from "./define-action";
 
 export interface ArtworkOutput extends HasUploads {}
 
