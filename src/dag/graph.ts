@@ -94,25 +94,20 @@ export class Graph {
   }
 
   async execute(runner: NodeRunner = localRunner, opts?: ExecuteOptions): Promise<ExecResult[]> {
-    const { maxParallelism, onProgress: progressCallback } = opts ?? {};
+    const { maxParallelism, onAction } = opts ?? {};
     const state = execState.createExecState(this.nodes.values());
-    const updateState = (action: execState.ExecAction) => execState.send(state, action);
+    const dispatch = (action: execState.ExecAction) => {
+      execState.send(state, action);
+      onAction?.(action);
+    };
 
     const processNode = async (node: Node): Promise<void> => {
-      const { name, kind } = node;
-      const badDep = execState.firstFailedDep(node, state);
-      if (badDep) {
-        updateState({
-          type: "failure",
+      const failedTransitiveDep = execState.failedTransitiveDep(node, state);
+      if (failedTransitiveDep) {
+        dispatch({
+          type: "dep-failure",
           node,
-          hash: "",
-          error: new Error(`dependency ${badDep} failed`),
-        });
-        progressCallback?.({
-          node: name,
-          kind,
-          status: "dep-failed",
-          error: `dependency ${badDep} failed`,
+          error: new Error(`dependency ${failedTransitiveDep} failed`),
         });
         return;
       }
@@ -120,42 +115,27 @@ export class Graph {
       const hash = computeHash(node, execState.depHashesFor(node, state));
       const [cachedResult, hit] = this.cache.get(hash);
       if (hit) {
-        updateState({ type: "cache-hit", node, hash, cachedResult });
-        progressCallback?.({ node: name, kind, status: "cached" });
+        dispatch({ type: "cache-hit", node, hash, cachedResult });
         return;
       }
 
-      progressCallback?.({ node: name, kind, status: "start" });
+      dispatch({ type: "start", node });
       const startTime = Date.now();
       try {
         const result = await runner(node, execState.inputsFor(node, state));
         this.cache.put(hash, result);
-        updateState({ type: "success", node, hash, result });
-        progressCallback?.({
-          node: name,
-          kind,
-          status: "done",
-          elapsed: Date.now() - startTime,
-        });
+        dispatch({ type: "success", node, hash, result, elapsed: Date.now() - startTime });
       } catch (e) {
-        updateState({ type: "failure", node, hash, error: e });
-        const msg = e instanceof Error ? e.message : String(e);
-        progressCallback?.({
-          node: name,
-          kind,
-          status: "fail",
-          elapsed: Date.now() - startTime,
-          error: msg,
-        });
+        dispatch({ type: "failure", node, hash, error: e, elapsed: Date.now() - startTime });
       }
     };
 
     let resumeLoop: () => void = () => {};
     while (execState.hasWork(state)) {
-      while (execState.canDispatch(state, maxParallelism)) {
+      while (execState.hasCapacity(state, maxParallelism)) {
         const node = execState.takeNext(state);
         processNode(node).finally(() => {
-          updateState({ type: "complete", node });
+          dispatch({ type: "complete", node });
           resumeLoop();
         });
       }

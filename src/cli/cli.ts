@@ -63,7 +63,7 @@ program
       const progress = createProgressRenderer(analysis, opts.parallel);
       const syncResult = await sync(graph, refs, {
         maxParallelism: opts.parallel,
-        onProgress: progress.onProgress,
+        onAction: progress.onAction,
       });
       progress.finish();
       renderFinalSummary(syncResult.results);

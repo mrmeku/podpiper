@@ -46,13 +46,17 @@ export function takeNext(state: ExecState): Node {
 }
 
 export type ExecAction =
+  | { type: "start"; node: Node }
   | { type: "complete"; node: Node }
   | { type: "cache-hit"; node: Node; hash: string; cachedResult: string }
-  | { type: "success"; node: Node; hash: string; result: string }
-  | { type: "failure"; node: Node; hash: string; error: unknown };
+  | { type: "success"; node: Node; hash: string; result: string; elapsed: number }
+  | { type: "failure"; node: Node; hash: string; error: unknown; elapsed: number }
+  | { type: "dep-failure"; node: Node; error: unknown };
 
 export function send(state: ExecState, action: ExecAction): void {
   switch (action.type) {
+    case "start":
+      return;
     case "complete": {
       state.inflight--;
       const children = (state.dependents.get(action.node.name) ?? []).filter(
@@ -89,6 +93,13 @@ export function send(state: ExecState, action: ExecAction): void {
       state.execResults.set(node.name, { name: node.name, hash, status: "fail", error });
       return;
     }
+    case "dep-failure": {
+      const { node } = action;
+      const error = action.error instanceof Error ? action.error : new Error(String(action.error));
+      state.failed.add(node.name);
+      state.execResults.set(node.name, { name: node.name, hash: "", status: "dep-failed", error });
+      return;
+    }
   }
 }
 
@@ -98,7 +109,7 @@ export function hasWork(state: ExecState): boolean {
   return state.ready.length > 0 || state.inflight > 0;
 }
 
-export function canDispatch(state: ExecState, maxParallelism?: number): boolean {
+export function hasCapacity(state: ExecState, maxParallelism?: number): boolean {
   return state.ready.length > 0 && (maxParallelism == null || state.inflight < maxParallelism);
 }
 
@@ -110,6 +121,6 @@ export function inputsFor(node: Node, state: ExecState): Record<string, string> 
   return Object.fromEntries(node.deps.map((d) => [d, state.results.get(d) ?? ""]));
 }
 
-export function firstFailedDep(node: Node, state: ExecState): string | undefined {
+export function failedTransitiveDep(node: Node, state: ExecState): string | undefined {
   return node.deps.find((d) => state.failed.has(d));
 }
