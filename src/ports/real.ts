@@ -1,6 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 
-import { CLAUDE_MODEL, WHISPER_MODEL_PATH } from "@/cli/config";
+import { CLAUDE_MODEL, WHISPER_MODEL_PATH } from "@/config";
 
 import { callClaude } from "./claude";
 import { createRealFfmpeg } from "./ffmpeg";

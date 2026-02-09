@@ -8,10 +8,10 @@ import type { Config, VideoInfo, YtDlpInfo } from "@/types";
 import { MemCache, TieredCache } from "@podpiper/dag/cache";
 import type { Cache, ExecResult } from "@podpiper/dag/types";
 
-import type { EpisodeOutput } from "./actions/rss-entry";
-import { buildPipelineGraph } from "./graph-builder";
-import { publish } from "./publish";
-import { sync } from "./sync";
+import type { EpisodeOutput } from "@/pipeline/actions/rss-entry";
+import { buildPipelineGraph } from "@/pipeline/graph-builder";
+import { sync } from "@/pipeline/execute";
+import { publish } from "@/pipeline/publish";
 
 const TEST_CONFIG: Config = {
   channelUrl: "https://www.youtube.com/@testchannel",

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { CLAUDE_MODEL } from "@/cli/config";
+import { CLAUDE_MODEL } from "@/config";
 import { callClaude } from "@/ports/claude";
 import type { WhisperSegment } from "@/types";
 

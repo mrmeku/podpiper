@@ -5,7 +5,7 @@ import { parseRef } from "@podpiper/dag/types";
 import type { Episode, UploadEntry } from "@/types";
 
 
-import type { PipelineRefs } from "./graph-builder";
+import type { PipelineRefs } from "@/pipeline/graph-builder";
 
 export interface SyncResult {
   uploads: UploadEntry[];
