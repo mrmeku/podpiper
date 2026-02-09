@@ -2,7 +2,7 @@ import type { NodeRef } from "@/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
 
-import { defineAction } from "../define-action";
+import { defineActionWithPorts } from "../define-action";
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
 import type { DownloadResult } from "./download";
 import { NodeKind, toVideoActionName } from "./node-kind";
@@ -29,7 +29,7 @@ export interface ChaptersParams {
   deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
 }
 
-export const chapters = defineAction<ChaptersParams, Chapter[]>({
+export const chapters = defineActionWithPorts<ChaptersParams, Chapter[]>({
   name: toVideoActionName,
   config: (p) => {
     const promptHash = p.chapterPrompt ? Bun.hash(p.chapterPrompt).toString(36) : "none";

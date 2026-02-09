@@ -1,7 +1,7 @@
 import type { NodeRef } from "@/dag/types";
 import { toVideoDir } from "@/paths";
 
-import { defineAction } from "../define-action";
+import { defineActionWithPorts } from "../define-action";
 import type { DownloadResult } from "./download";
 import { NodeKind, toVideoActionName } from "./node-kind";
 
@@ -12,7 +12,7 @@ export interface ThumbnailParams {
   deps: { download: NodeRef<DownloadResult> };
 }
 
-export const thumbnail = defineAction<ThumbnailParams, string>({
+export const thumbnail = defineActionWithPorts<ThumbnailParams, string>({
   name: toVideoActionName,
   config: "crop-v1",
   action: (ports) => async (params, inputs) => {

@@ -2,7 +2,7 @@ import type { NodeRef } from "@/dag/types";
 import { toVideoDir } from "@/paths";
 import type { TranscribeResult } from "@/ports/types";
 
-import { defineAction } from "../define-action";
+import { defineActionWithPorts } from "../define-action";
 import type { DownloadResult } from "./download";
 import { NodeKind, toVideoActionName } from "./node-kind";
 
@@ -13,7 +13,7 @@ export interface TranscribeParams {
   deps: { download: NodeRef<DownloadResult> };
 }
 
-export const transcribe = defineAction<TranscribeParams, TranscribeResult>({
+export const transcribe = defineActionWithPorts<TranscribeParams, TranscribeResult>({
   name: toVideoActionName,
   config: "whisper-v1,model=medium",
   action: (ports) => async (params, inputs) => {
