@@ -1,13 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { MemCache, TieredCache } from "@podpiper/dag/cache";
-import { Graph } from "@podpiper/dag/graph";
-import type { Cache, ExecResult } from "@podpiper/dag/types";
 import { extractReferencedUrls, parseExistingFeed } from "@/pipeline/rss/parse";
 import { createMemoryFs } from "@/ports/memory-fs";
 import type { SpiedPorts } from "@/ports/mock";
 import { createSpyPorts } from "@/ports/mock";
 import type { Config, VideoInfo, YtDlpInfo } from "@/types";
+import { MemCache, TieredCache } from "@podpiper/dag/cache";
+import type { Cache, ExecResult } from "@podpiper/dag/types";
 
 import type { EpisodeOutput } from "./actions/rss-entry";
 import { buildPipelineGraph } from "./graph-builder";
@@ -92,8 +91,7 @@ function buildAndSync(
   cache: Cache,
   opts?: { maxParallelism?: number },
 ) {
-  const graph = new Graph(cache);
-  const refs = buildPipelineGraph(graph, videos, ports, config);
+  const { graph, refs } = buildPipelineGraph(cache, videos, ports, config);
   return sync(graph, refs, opts);
 }
 

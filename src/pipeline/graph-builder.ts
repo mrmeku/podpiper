@@ -1,7 +1,7 @@
-import type { Graph } from "@podpiper/dag/graph";
-import type { NodeRef } from "@podpiper/dag/types";
 import type { Ports } from "@/ports/types";
 import type { Config, HasUploads, VideoInfo } from "@/types";
+import { Graph } from "@podpiper/dag/graph";
+import type { Cache, NodeRef } from "@podpiper/dag/types";
 
 import { artwork, channelAvatar } from "./actions/artwork";
 import { chapters } from "./actions/chapters";
@@ -70,11 +70,12 @@ export interface PipelineRefs {
 }
 
 export function buildPipelineGraph(
-  graph: Graph,
+  cache: Cache,
   videos: VideoInfo[],
   ports: Ports,
   config: Config,
-): PipelineRefs {
+): { graph: Graph; refs: PipelineRefs } {
+  const graph = new Graph(cache);
   const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, config));
   const avatarDir = `${config.outputDir}/artwork`;
   const artworkPath = `${config.outputDir}/artwork.jpg`;
@@ -89,7 +90,10 @@ export function buildPipelineGraph(
     deps: { channel_avatar: avatarRef },
   });
   return {
-    publishRefs: [...entryRefs, artworkRef],
-    entryRefs,
+    graph,
+    refs: {
+      publishRefs: [...entryRefs, artworkRef],
+      entryRefs,
+    },
   };
 }
