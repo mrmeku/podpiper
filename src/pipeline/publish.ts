@@ -1,6 +1,6 @@
+import { buildFeedXml } from "@/pipeline/rss/generate";
+import { mergeEpisodes, parseExistingFeed } from "@/pipeline/rss/parse";
 import type { FileSystem, ObjectStore } from "@/ports/types";
-import { buildFeedXml } from "@/rss/generate";
-import { mergeEpisodes, parseExistingFeed } from "@/rss/parse";
 import type { Config } from "@/types";
 
 import type { SyncResult } from "./sync";

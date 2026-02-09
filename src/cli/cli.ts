@@ -4,8 +4,8 @@ import { join } from "node:path";
 
 import { Command } from "commander";
 
+import { getConfig } from "@/cli/config";
 import { generateMermaid } from "@/cli/mermaid";
-import { getConfig } from "@/config";
 import { LocalCache, MemCache } from "@/dag/cache";
 import { Graph } from "@/dag/graph";
 import { checkMissing } from "@/pipeline/check";

@@ -3,10 +3,10 @@ import { describe, expect, test } from "bun:test";
 import { MemCache, TieredCache } from "@/dag/cache";
 import { Graph } from "@/dag/graph";
 import type { Cache, ExecResult } from "@/dag/types";
+import { extractReferencedUrls, parseExistingFeed } from "@/pipeline/rss/parse";
 import { createMemoryFs } from "@/ports/memory-fs";
 import type { SpiedPorts } from "@/ports/mock";
 import { createSpyPorts } from "@/ports/mock";
-import { extractReferencedUrls, parseExistingFeed } from "@/rss/parse";
 import type { Config, VideoInfo, YtDlpInfo } from "@/types";
 
 import type { EpisodeOutput } from "./actions/rss-entry";
@@ -156,13 +156,15 @@ describe("sync pipeline", () => {
       },
     }).toEqual({
       vid_aaa: {
-        description: "A video about deep learning.\n\n— Generated Summary —\n\nMock summary of the episode content.",
+        description:
+          "A video about deep learning.\n\n— Generated Summary —\n\nMock summary of the episode content.",
         chapters: 3,
         transcript: "vid_aaa/transcript.srt",
         duration: 1800,
       },
       vid_bbb: {
-        description: "A video about growth mindset.\n\n— Generated Summary —\n\nMock summary of the episode content.",
+        description:
+          "A video about growth mindset.\n\n— Generated Summary —\n\nMock summary of the episode content.",
         chapters: 0,
         transcript: "vid_bbb/transcript.srt",
         duration: 2400,
@@ -323,7 +325,8 @@ describe("sync pipeline", () => {
       transcript: cccEp.transcript,
       duration: cccEp.duration,
     }).toEqual({
-      description: "A video about Rust programming.\n\n— Generated Summary —\n\nMock summary of the episode content.",
+      description:
+        "A video about Rust programming.\n\n— Generated Summary —\n\nMock summary of the episode content.",
       chapters: 0,
       transcript: "vid_ccc/transcript.srt",
       duration: 3600,

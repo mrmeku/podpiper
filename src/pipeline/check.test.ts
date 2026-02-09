@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import { buildFeedXml } from "@/pipeline/rss/generate";
 import type { ObjectStore } from "@/ports/types";
-import { buildFeedXml } from "@/rss/generate";
 import type { Config, Episode, VideoInfo } from "@/types";
 
 import { checkMissing } from "./check";

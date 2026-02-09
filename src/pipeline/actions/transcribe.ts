@@ -1,8 +1,7 @@
 import type { NodeRef } from "@/dag/types";
-import { toVideoDir } from "@/paths";
 import type { TranscribeResult } from "@/ports/types";
 
-import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
+import { NodeKind, defineActionWithPorts, toVideoActionName, toVideoDir } from "./define-action";
 import type { DownloadResult } from "./download";
 
 export interface TranscribeParams {

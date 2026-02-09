@@ -1,5 +1,5 @@
+import { parseExistingFeed } from "@/pipeline/rss/parse";
 import type { ObjectStore } from "@/ports/types";
-import { parseExistingFeed } from "@/rss/parse";
 import type { Config, VideoInfo } from "@/types";
 
 export async function checkMissing(
