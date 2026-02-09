@@ -4,10 +4,10 @@ import { join } from "node:path";
 
 import { Command } from "commander";
 
+import { generateMermaid } from "@/cli/mermaid";
 import { getConfig } from "@/config";
 import { LocalCache, MemCache } from "@/dag/cache";
 import { Graph } from "@/dag/graph";
-import { generateMermaid } from "@/graph/mermaid";
 import { checkMissing } from "@/pipeline/check";
 import { discoverVideos } from "@/pipeline/discovery";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
