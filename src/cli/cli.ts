@@ -6,8 +6,6 @@ import { Command } from "commander";
 
 import { getConfig } from "@/cli/config";
 import { generateMermaid } from "@/cli/mermaid";
-import { LocalCache, MemCache } from "@podpiper/dag/cache";
-import { Graph } from "@podpiper/dag/graph";
 import { checkMissing } from "@/pipeline/check";
 import { discoverVideos } from "@/pipeline/discovery";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
@@ -16,6 +14,7 @@ import { sync } from "@/pipeline/sync";
 import { createRealPorts } from "@/ports/real";
 import { createStubPorts } from "@/ports/stub";
 import type { VideoInfo } from "@/types";
+import { LocalCache, MemCache } from "@podpiper/dag/cache";
 import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
 
 const program = new Command();
@@ -53,8 +52,7 @@ program
       }
 
       const cache = opts.force ? new MemCache() : new LocalCache(`${config.outputDir}/cache.json`);
-      const graph = new Graph(cache);
-      const refs = buildPipelineGraph(graph, videos, ports, config);
+      const { graph, refs } = buildPipelineGraph(cache, videos, ports, config);
 
       const analysis = graph.analyze();
       renderAnalysisSummary(analysis);
@@ -105,8 +103,8 @@ program
       uploadDate: "20240101",
       title: `Video ${i + 1}`,
     }));
-    const graph = new Graph(new MemCache());
-    buildPipelineGraph(graph, videos, createStubPorts(), config);
+
+    const { graph } = buildPipelineGraph(new MemCache(), videos, createStubPorts(), config);
     const mermaid = generateMermaid(graph);
 
     if (opts.output) {
