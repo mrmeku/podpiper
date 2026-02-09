@@ -33,116 +33,116 @@ const p = (kind: string, deps?: Record<string, string>): BaseParams =>
       }
     : { kind };
 
-function addVideoNodes(g: Graph, vid: string): void {
-  const n = (kind: string) => `${kind}:${vid}`;
+function addItemNodes(g: Graph, id: string): void {
+  const n = (kind: string) => `${kind}:${id}`;
   g.add({
-    name: n("video"),
-    kind: "video",
+    name: n("fetch"),
+    kind: "fetch",
     deps: [],
-    config: vid,
-    params: p("video"),
-    action: async () => `{"id":"${vid}"}`,
+    config: id,
+    params: p("fetch"),
+    action: async () => `{"id":"${id}"}`,
   });
   g.add({
-    name: n("audio"),
-    kind: "audio",
-    deps: [n("video")],
-    config: "format=mp3,bitrate=192k",
-    params: p("audio", { video: n("video") }),
-    action: async () => `/data/audio/${vid}.mp3`,
+    name: n("extract"),
+    kind: "extract",
+    deps: [n("fetch")],
+    config: "extract-v1",
+    params: p("extract", { fetch: n("fetch") }),
+    action: async () => `/out/${id}/raw.bin`,
   });
   g.add({
-    name: n("transcript"),
-    kind: "transcript",
-    deps: [n("audio")],
-    config: "model=whisper-large-v3",
-    params: p("transcript", { audio: n("audio") }),
-    action: async () => `Transcript of ${vid}`,
+    name: n("parse"),
+    kind: "parse",
+    deps: [n("extract")],
+    config: "parse-v1",
+    params: p("parse", { extract: n("extract") }),
+    action: async () => `Parsed ${id}`,
   });
   g.add({
-    name: n("summary"),
-    kind: "summary",
-    deps: [n("transcript")],
-    config: "prompt=v2,model=claude-sonnet",
-    params: p("summary", { transcript: n("transcript") }),
-    action: async () => `Summary of ${vid}`,
+    name: n("summarize"),
+    kind: "summarize",
+    deps: [n("parse")],
+    config: "summarize-v2",
+    params: p("summarize", { parse: n("parse") }),
+    action: async () => `Summary of ${id}`,
   });
   g.add({
-    name: n("chapters"),
-    kind: "chapters",
-    deps: [n("transcript")],
-    config: "prompt=v1,model=claude-sonnet",
-    params: p("chapters", { transcript: n("transcript") }),
-    action: async () => "00:00 Intro",
+    name: n("classify"),
+    kind: "classify",
+    deps: [n("parse")],
+    config: "classify-v1",
+    params: p("classify", { parse: n("parse") }),
+    action: async () => `["tag_a","tag_b"]`,
   });
   g.add({
-    name: n("thumbnail"),
-    kind: "thumbnail",
-    deps: [n("video")],
-    config: "style=podcast-v2",
-    params: p("thumbnail", { video: n("video") }),
-    action: async () => `/data/thumb/${vid}.png`,
+    name: n("resize"),
+    kind: "resize",
+    deps: [n("fetch")],
+    config: "resize-v1",
+    params: p("resize", { fetch: n("fetch") }),
+    action: async () => `/out/${id}/thumb.jpg`,
   });
   g.add({
-    name: n("rss_entry"),
-    kind: "rss_entry",
-    deps: [n("summary"), n("chapters"), n("audio"), n("thumbnail")],
-    config: "feed=v1",
-    params: p("rss_entry", {
-      summary: n("summary"),
-      chapters: n("chapters"),
-      audio: n("audio"),
-      thumbnail: n("thumbnail"),
+    name: n("entry"),
+    kind: "entry",
+    deps: [n("summarize"), n("classify"), n("extract"), n("resize")],
+    config: "entry-v1",
+    params: p("entry", {
+      summarize: n("summarize"),
+      classify: n("classify"),
+      extract: n("extract"),
+      resize: n("resize"),
     }),
-    action: async () => `<item>${vid}</item>`,
+    action: async () => `{"entry":"${id}"}`,
   });
 }
 
-function addFeedNode(g: Graph, vids: string[]): void {
-  const deps = vids.map((vid) => `rss_entry:${vid}`);
+function addAggregateNode(g: Graph, ids: string[]): void {
+  const deps = ids.map((id) => `entry:${id}`);
   const depsRecord = Object.fromEntries(deps.map((d) => [d, d]));
   g.add({
-    name: "feed",
-    kind: "feed",
+    name: "aggregate",
+    kind: "aggregate",
     deps,
-    config: "feed_format=rss2.0",
-    params: p("feed", depsRecord),
+    config: "aggregate-v1",
+    params: p("aggregate", depsRecord),
     action: async (rawInputs) => {
       const entries = Object.values(rawInputs);
-      return `<rss>${entries.join("")}</rss>`;
+      return `[${entries.join(",")}]`;
     },
   });
 }
 
-function buildGraph(cache: MemCache | LocalCache | TieredCache, vids: string[]): Graph {
+function buildGraph(cache: MemCache | LocalCache | TieredCache, ids: string[]): Graph {
   const g = new Graph(cache);
-  for (const vid of vids) addVideoNodes(g, vid);
-  addFeedNode(g, vids);
+  for (const id of ids) addItemNodes(g, id);
+  addAggregateNode(g, ids);
   return g;
 }
 
 describe("Graph", () => {
-  test("incremental videos", async () => {
+  test("incremental items", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "dag-test-"));
     const cache = new LocalCache(join(tempDir, "cache.json"));
 
-    // Run 1: 2 videos, all fresh
-    let results = await buildGraph(cache, ["vid_aaa", "vid_bbb"]).execute();
+    // Run 1: 2 items, all fresh
+    let results = await buildGraph(cache, ["aaa", "bbb"]).execute();
     let { exec, skip } = countExec(results);
     expect(skip).toBe(0);
-    expect(exec).toBe(15); // 7 per video + 1 feed
+    expect(exec).toBe(15); // 7 per item + 1 aggregate
 
-    // Run 2: same 2 videos, all cached
-    results = await buildGraph(cache, ["vid_aaa", "vid_bbb"]).execute();
+    // Run 2: same 2 items, all cached
+    results = await buildGraph(cache, ["aaa", "bbb"]).execute();
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(0);
     expect(skip).toBe(15);
 
-    // Run 3: new video vid_ccc
-    results = await buildGraph(cache, ["vid_aaa", "vid_bbb", "vid_ccc"]).execute();
+    // Run 3: new item ccc
+    results = await buildGraph(cache, ["aaa", "bbb", "ccc"]).execute();
     ({ exec, skip } = countExec(results));
-    expect(exec).toBe(8); // 7 for vid_ccc + 1 feed (deps changed)
-    expect(skip).toBe(14); // 7 for vid_aaa + 7 for vid_bbb
+    expect(exec).toBe(8); // 7 for ccc + 1 aggregate (deps changed)
+    expect(skip).toBe(14); // 7 for aaa + 7 for bbb
   });
 
   test("tiered cache", async () => {
@@ -150,18 +150,18 @@ describe("Graph", () => {
     const local = new MemCache();
 
     // Pre-warm remote
-    let results = await buildGraph(remote, ["vid_aaa"]).execute();
+    let results = await buildGraph(remote, ["aaa"]).execute();
     let { exec } = countExec(results);
     expect(exec).toBe(8);
 
     // Tiered: local miss -> remote hit -> pull into local
     const tiered = new TieredCache({ local, remote });
-    results = await buildGraph(tiered, ["vid_aaa"]).execute();
+    results = await buildGraph(tiered, ["aaa"]).execute();
     ({ exec } = countExec(results));
     expect(exec).toBe(0);
 
     // Local is now warm
-    results = await buildGraph(local, ["vid_aaa"]).execute();
+    results = await buildGraph(local, ["aaa"]).execute();
     ({ exec } = countExec(results));
     expect(exec).toBe(0);
   });
@@ -169,49 +169,49 @@ describe("Graph", () => {
   describe("analyze()", () => {
     test("all dirty on fresh cache", () => {
       const cache = new MemCache();
-      const { totalCounts } = buildGraph(cache, ["vid_aaa", "vid_bbb"]).analyze();
+      const { totalCounts } = buildGraph(cache, ["aaa", "bbb"]).analyze();
       expect(totalCounts).toEqual({ total: 15, cached: 0, dirty: 15 });
     });
 
     test("all cached after execute", async () => {
       const cache = new MemCache();
-      await buildGraph(cache, ["vid_aaa", "vid_bbb"]).execute();
-      const { totalCounts } = buildGraph(cache, ["vid_aaa", "vid_bbb"]).analyze();
+      await buildGraph(cache, ["aaa", "bbb"]).execute();
+      const { totalCounts } = buildGraph(cache, ["aaa", "bbb"]).analyze();
       expect(totalCounts).toEqual({ total: 15, cached: 15, dirty: 0 });
     });
 
-    test("incremental new video", async () => {
+    test("incremental new item", async () => {
       const cache = new MemCache();
-      await buildGraph(cache, ["vid_aaa", "vid_bbb"]).execute();
-      const { totalCounts } = buildGraph(cache, ["vid_aaa", "vid_bbb", "vid_ccc"]).analyze();
+      await buildGraph(cache, ["aaa", "bbb"]).execute();
+      const { totalCounts } = buildGraph(cache, ["aaa", "bbb", "ccc"]).analyze();
       expect(totalCounts.cached).toBe(14);
       expect(totalCounts.dirty).toBe(8);
     });
 
     test("byKind breakdown", () => {
       const cache = new MemCache();
-      const { byKind } = buildGraph(cache, ["vid_aaa", "vid_bbb"]).analyze();
+      const { byKind } = buildGraph(cache, ["aaa", "bbb"]).analyze();
       const toNodeCounts = (total: number) => ({
         total,
         cached: 0,
         dirty: total,
       });
       expect(Object.fromEntries(byKind)).toEqual({
-        video: toNodeCounts(2),
-        audio: toNodeCounts(2),
-        transcript: toNodeCounts(2),
-        summary: toNodeCounts(2),
-        chapters: toNodeCounts(2),
-        thumbnail: toNodeCounts(2),
-        rss_entry: toNodeCounts(2),
-        feed: toNodeCounts(1),
+        fetch: toNodeCounts(2),
+        extract: toNodeCounts(2),
+        parse: toNodeCounts(2),
+        summarize: toNodeCounts(2),
+        classify: toNodeCounts(2),
+        resize: toNodeCounts(2),
+        entry: toNodeCounts(2),
+        aggregate: toNodeCounts(1),
       });
     });
 
     test("analyze agrees with execute", async () => {
       const cache = new MemCache();
-      await buildGraph(cache, ["vid_aaa"]).execute();
-      const g = buildGraph(cache, ["vid_aaa", "vid_bbb"]);
+      await buildGraph(cache, ["aaa"]).execute();
+      const g = buildGraph(cache, ["aaa", "bbb"]);
       const { totalCounts } = g.analyze();
       const results = await g.execute();
       const { exec, skip } = countExec(results);
@@ -221,7 +221,7 @@ describe("Graph", () => {
 
     test("analyze hashes match execute hashes per node", async () => {
       const cache = new MemCache();
-      const g = buildGraph(cache, ["vid_aaa", "vid_bbb"]);
+      const g = buildGraph(cache, ["aaa", "bbb"]);
       const analyzeHashes = new Map(g.analyze().nodes.map((n) => [n.name, n.hash]));
       const results = await g.execute();
       const executeHashes = new Map(results.map((r) => [r.name, r.hash]));
@@ -230,23 +230,23 @@ describe("Graph", () => {
 
     test("nodes contain per-node details", () => {
       const cache = new MemCache();
-      const { nodes } = buildGraph(cache, ["vid_aaa"]).analyze();
+      const { nodes } = buildGraph(cache, ["aaa"]).analyze();
       expect(nodes.length).toBe(8);
-      const video = nodes.find((n) => n.name === "video:vid_aaa")!;
-      expect(video.kind).toBe("video");
-      expect(video.deps).toEqual([]);
-      expect(video.dirty).toBe(true);
-      expect(video.hash).toBeTypeOf("string");
-      expect(video.cachedResult).toBeUndefined();
+      const fetchNode = nodes.find((n) => n.name === "fetch:aaa")!;
+      expect(fetchNode.kind).toBe("fetch");
+      expect(fetchNode.deps).toEqual([]);
+      expect(fetchNode.dirty).toBe(true);
+      expect(fetchNode.hash).toBeTypeOf("string");
+      expect(fetchNode.cachedResult).toBeUndefined();
     });
 
     test("nodes reflect cache state", async () => {
       const cache = new MemCache();
-      await buildGraph(cache, ["vid_aaa"]).execute();
-      const { nodes } = buildGraph(cache, ["vid_aaa"]).analyze();
-      const video = nodes.find((n) => n.name === "video:vid_aaa")!;
-      expect(video.dirty).toBe(false);
-      expect(video.cachedResult).toBe('{"id":"vid_aaa"}');
+      await buildGraph(cache, ["aaa"]).execute();
+      const { nodes } = buildGraph(cache, ["aaa"]).analyze();
+      const fetchNode = nodes.find((n) => n.name === "fetch:aaa")!;
+      expect(fetchNode.dirty).toBe(false);
+      expect(fetchNode.cachedResult).toBe('{"id":"aaa"}');
     });
   });
 
@@ -350,42 +350,40 @@ describe("Graph", () => {
 
   test("config change rollback", async () => {
     const cache = new MemCache();
-    let summaryPrompt = "prompt=v2";
+    let leafConfig = "leaf-v2";
 
     const makeGraph = () => {
       const g = new Graph(cache);
-      const vid = "vid_aaa";
-      const n = (kind: string) => `${kind}:${vid}`;
       g.add({
-        name: n("video"),
-        kind: "video",
+        name: "fetch",
+        kind: "fetch",
         deps: [],
-        config: vid,
-        params: p("video"),
-        action: async () => `{"id":"${vid}"}`,
+        config: "fetch-v1",
+        params: p("fetch"),
+        action: async () => '{"id":"aaa"}',
       });
       g.add({
-        name: n("audio"),
-        kind: "audio",
-        deps: [n("video")],
-        config: "mp3",
-        params: p("audio", { video: n("video") }),
-        action: async () => `/audio/${vid}`,
+        name: "extract",
+        kind: "extract",
+        deps: ["fetch"],
+        config: "extract-v1",
+        params: p("extract", { fetch: "fetch" }),
+        action: async () => "/out/raw.bin",
       });
       g.add({
-        name: n("transcript"),
-        kind: "transcript",
-        deps: [n("audio")],
-        config: "whisper-v3",
-        params: p("transcript", { audio: n("audio") }),
-        action: async () => "transcript",
+        name: "parse",
+        kind: "parse",
+        deps: ["extract"],
+        config: "parse-v1",
+        params: p("parse", { extract: "extract" }),
+        action: async () => "parsed",
       });
       g.add({
-        name: n("summary"),
-        kind: "summary",
-        deps: [n("transcript")],
-        config: summaryPrompt,
-        params: p("summary", { transcript: n("transcript") }),
+        name: "summarize",
+        kind: "summarize",
+        deps: ["parse"],
+        config: leafConfig,
+        params: p("summarize", { parse: "parse" }),
         action: async () => "summary",
       });
       return g;
@@ -397,14 +395,14 @@ describe("Graph", () => {
     expect(exec).toBe(4);
     expect(skip).toBe(0);
 
-    // Change prompt - only summary re-executes
-    summaryPrompt = "prompt=v3";
+    // Change leaf config - only leaf re-executes
+    leafConfig = "leaf-v3";
     results = await makeGraph().execute();
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(1);
 
     // Rollback - content-addressed hit
-    summaryPrompt = "prompt=v2";
+    leafConfig = "leaf-v2";
     results = await makeGraph().execute();
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(0);
@@ -441,6 +439,130 @@ describe("Graph", () => {
     expect(calls).toEqual(["root", "child"]);
     const child = results.find((r) => r.name === "child")!;
     expect(child.status === "done" && child.result).toBe("result:child");
+  });
+
+  test("failure in one branch does not affect independent branches", async () => {
+    const cache = new MemCache();
+    const g = new Graph(cache);
+    g.add({
+      name: "good_root",
+      kind: "root",
+      deps: [],
+      config: "1",
+      params: p("root"),
+      action: async () => "ok",
+    });
+    g.add({
+      name: "good_child",
+      kind: "child",
+      deps: ["good_root"],
+      config: "2",
+      params: p("child", { good_root: "good_root" }),
+      action: async () => "ok",
+    });
+    g.add({
+      name: "bad_root",
+      kind: "root",
+      deps: [],
+      config: "3",
+      params: p("root"),
+      action: async () => {
+        throw new Error("boom");
+      },
+    });
+    g.add({
+      name: "bad_child",
+      kind: "child",
+      deps: ["bad_root"],
+      config: "4",
+      params: p("child", { bad_root: "bad_root" }),
+      action: async () => "unreachable",
+    });
+
+    const results = await g.execute();
+    const byName = Object.fromEntries(results.map((r) => [r.name, r.status]));
+    expect(byName).toEqual({
+      good_root: "done",
+      good_child: "done",
+      bad_root: "fail",
+      bad_child: "dep-failed",
+    });
+  });
+
+  test("dep-failure cascades through transitive dependencies", async () => {
+    const cache = new MemCache();
+    const g = new Graph(cache);
+    g.add({
+      name: "a",
+      kind: "root",
+      deps: [],
+      config: "1",
+      params: p("root"),
+      action: async () => {
+        throw new Error("boom");
+      },
+    });
+    g.add({
+      name: "b",
+      kind: "mid",
+      deps: ["a"],
+      config: "2",
+      params: p("mid", { a: "a" }),
+      action: async () => "unreachable",
+    });
+    g.add({
+      name: "c",
+      kind: "mid",
+      deps: ["b"],
+      config: "3",
+      params: p("mid", { b: "b" }),
+      action: async () => "unreachable",
+    });
+    g.add({
+      name: "d",
+      kind: "leaf",
+      deps: ["c"],
+      config: "4",
+      params: p("leaf", { c: "c" }),
+      action: async () => "unreachable",
+    });
+
+    const results = await g.execute();
+    const byName = Object.fromEntries(results.map((r) => [r.name, r.status]));
+    expect(byName).toEqual({
+      a: "fail",
+      b: "dep-failed",
+      c: "dep-failed",
+      d: "dep-failed",
+    });
+  });
+
+  test("maxParallelism caps concurrent execution", async () => {
+    const cache = new MemCache();
+    const g = new Graph(cache);
+    let peak = 0;
+    let inflight = 0;
+
+    for (let i = 0; i < 6; i++) {
+      g.add({
+        name: `task_${i}`,
+        kind: "task",
+        deps: [],
+        config: `${i}`,
+        params: p("task"),
+        action: async () => {
+          inflight++;
+          peak = Math.max(peak, inflight);
+          await Bun.sleep(20);
+          inflight--;
+          return `${i}`;
+        },
+      });
+    }
+
+    const results = await g.execute(localRunner, { maxParallelism: 2 });
+    expect(peak).toBe(2);
+    expect(results.filter((r) => r.status === "done").length).toBe(6);
   });
 
   describe("progress events", () => {

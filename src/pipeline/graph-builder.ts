@@ -1,5 +1,5 @@
-import type { Graph } from "@/dag/graph";
-import type { NodeRef } from "@/dag/types";
+import type { Graph } from "@podpiper/dag/graph";
+import type { NodeRef } from "@podpiper/dag/types";
 import type { Ports } from "@/ports/types";
 import type { Config, HasUploads, VideoInfo } from "@/types";
 

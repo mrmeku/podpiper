@@ -36,6 +36,9 @@
     "skipLibCheck": true,
 
     // Path aliases
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/*": ["./src/*"],
+      "@podpiper/dag/*": ["./packages/dag/src/*"]
+    }
   }
 }

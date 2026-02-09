@@ -1,4 +1,4 @@
-import type { NodeRef } from "@/dag/types";
+import type { NodeRef } from "@podpiper/dag/types";
 import type { HasUploads } from "@/types";
 
 import { NodeKind, defineActionWithPorts } from "./define-action";

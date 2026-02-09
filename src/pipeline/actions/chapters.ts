@@ -1,4 +1,4 @@
-import type { NodeRef } from "@/dag/types";
+import type { NodeRef } from "@podpiper/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
 

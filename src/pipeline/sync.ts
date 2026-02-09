@@ -1,7 +1,7 @@
-import type { Graph } from "@/dag/graph";
-import { localRunner } from "@/dag/graph";
-import type { ExecResult, ExecuteOptions } from "@/dag/types";
-import { parseRef } from "@/dag/types";
+import type { Graph } from "@podpiper/dag/graph";
+import { localRunner } from "@podpiper/dag/graph";
+import type { ExecResult, ExecuteOptions } from "@podpiper/dag/types";
+import { parseRef } from "@podpiper/dag/types";
 import type { Episode, UploadEntry } from "@/types";
 
 

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { MemCache, TieredCache } from "@/dag/cache";
-import { Graph } from "@/dag/graph";
-import type { Cache, ExecResult } from "@/dag/types";
+import { MemCache, TieredCache } from "@podpiper/dag/cache";
+import { Graph } from "@podpiper/dag/graph";
+import type { Cache, ExecResult } from "@podpiper/dag/types";
 import { extractReferencedUrls, parseExistingFeed } from "@/pipeline/rss/parse";
 import { createMemoryFs } from "@/ports/memory-fs";
 import type { SpiedPorts } from "@/ports/mock";
