@@ -1,4 +1,4 @@
-import type { NodeKind } from "@/pipeline/actions/define-action";
+import { NodeKind } from "@/pipeline/actions/define-action";
 import type { Graph } from "@podpiper/dag/graph";
 import type { Node } from "@podpiper/dag/types";
 
@@ -12,6 +12,8 @@ const NODE_LABELS: Record<NodeKind, string> = {
   channel_avatar: "yt-dlp: avatar",
   artwork: "ffmpeg: artwork",
 };
+
+const YTDLP_KINDS: Set<NodeKind> = new Set([NodeKind.Download, NodeKind.ChannelAvatar]);
 
 function toId(name: string): string {
   return name.replace(/:/g, "_");
@@ -46,7 +48,7 @@ export function generateMermaid(graph: Graph): string {
   const lines = ["graph TD"];
 
   // discovery phase
-  lines.push(`  subgraph discovery_phase ["Copper: Discovery"]`);
+  lines.push(`  subgraph discovery_phase ["Discovery"]`);
   lines.push(`    discovery["yt-dlp: fetch videos"]`);
   lines.push(`  end`);
   if (downloadIds.length) {
@@ -55,7 +57,7 @@ export function generateMermaid(graph: Graph): string {
 
   // pipeline phase
   lines.push("");
-  lines.push(`  subgraph pipeline_phase ["Silver: Pipeline"]`);
+  lines.push(`  subgraph pipeline_phase ["Execution"]`);
   let videoIdx = 0;
   for (const [vid, group] of videoGroups) {
     videoIdx++;
@@ -88,20 +90,37 @@ export function generateMermaid(graph: Graph): string {
   const artworkId = topLevel.find((n) => n.name === "artwork");
   const publishDeps = [...rssEntryIds, ...(artworkId ? [toId(artworkId.name)] : [])];
   lines.push("");
-  lines.push(`  subgraph publish_phase ["Gold: Publish"]`);
+  lines.push(`  subgraph publish_phase ["Publish"]`);
   lines.push(`    publish["R2 Uploads + Feed"]`);
   lines.push(`  end`);
   if (publishDeps.length) {
     lines.push(`  ${publishDeps.join(" & ")} --> publish`);
   }
 
-  // phase colors
+  // subgraph colors (light tints so nodes stand out)
   lines.push("");
-  lines.push(`  style discovery_phase fill:#f4d3a0,stroke:#c48540,color:#5c3a1a`);
-  lines.push(`  style pipeline_phase fill:#e8e8e8,stroke:#999,color:#333`);
-  lines.push(`  style publish_phase fill:#fef3c7,stroke:#d4a017,color:#5c4a00`);
+  lines.push(`  style discovery_phase fill:#fef7ed,stroke:#e8a95b,color:#7c4d1a`);
+  lines.push(`  style pipeline_phase fill:#f1f5f9,stroke:#94a3b8,color:#334155`);
+  lines.push(`  style publish_phase fill:#fefce8,stroke:#d4a017,color:#5c4a00`);
   for (let i = 1; i <= videoGroups.size; i++) {
-    lines.push(`  style video_${i} fill:#ede4f5,stroke:#9b72cf,color:#3b2456`);
+    lines.push(`  style video_${i} fill:#f5f3ff,stroke:#a78bfa,color:#4c1d95`);
+  }
+
+  // node colors: silver base, gold for publish, bronze for yt-dlp (applied last to override)
+  const silverIds = ["discovery"];
+  for (const node of nodes) {
+    silverIds.push(toId(node.name));
+  }
+  for (const id of silverIds) {
+    lines.push(`  style ${id} fill:#cbd5e1,stroke:#64748b,color:#0f172a`);
+  }
+  lines.push(`  style publish fill:#fbbf24,stroke:#b45309,color:#451a03`);
+  const ytdlpIds = ["discovery"];
+  for (const node of nodes) {
+    if (YTDLP_KINDS.has(node.kind as NodeKind)) ytdlpIds.push(toId(node.name));
+  }
+  for (const id of ytdlpIds) {
+    lines.push(`  style ${id} fill:#c2742f,stroke:#7c2d12,color:#fff`);
   }
 
   return lines.join("\n");
