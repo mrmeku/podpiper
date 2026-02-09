@@ -1,3 +1,5 @@
+import type { ExecAction } from "./exec-state";
+
 export interface BaseParams {
   kind: string;
   deps?: Record<string, NodeRef | undefined>;
@@ -45,19 +47,9 @@ export interface Flushable {
   flush: () => void | Promise<void>;
 }
 
-export type ProgressEvent = { node: string; kind: string } & (
-  | { status: "start" }
-  | { status: "done"; elapsed: number }
-  | { status: "cached" }
-  | { status: "fail"; error: string; elapsed: number }
-  | { status: "dep-failed"; error: string }
-);
-
-export type ProgressCallback = (event: ProgressEvent) => void;
-
 export interface ExecuteOptions {
   maxParallelism?: number;
-  onProgress?: ProgressCallback;
+  onAction?: (action: ExecAction) => void;
 }
 
 export interface NodeCounts {

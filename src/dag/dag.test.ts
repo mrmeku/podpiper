@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 import { LocalCache, MemCache, TieredCache } from "./cache";
+import type { ExecAction } from "./exec-state";
 import { Graph, localRunner } from "./graph";
-import type { BaseParams, ExecResult, NodeRunner, ProgressEvent } from "./types";
+import type { BaseParams, ExecResult, NodeRunner } from "./types";
 
 function countExec(results: ExecResult[]): { exec: number; skip: number } {
   let exec = 0;
@@ -434,7 +435,7 @@ describe("Graph", () => {
   });
 
   describe("progress events", () => {
-    test("emits start+done for dirty nodes", async () => {
+    test("emits start+success for dirty nodes", async () => {
       const cache = new MemCache();
       const g = new Graph(cache);
       g.add({
@@ -454,21 +455,24 @@ describe("Graph", () => {
         action: async () => "b",
       });
 
-      const events: ProgressEvent[] = [];
-      await g.execute(localRunner, { maxParallelism: 1, onProgress: (e) => events.push(e) });
+      const actions: ExecAction[] = [];
+      await g.execute(localRunner, { maxParallelism: 1, onAction: (a) => actions.push(a) });
 
-      expect(events).toEqual([
-        { node: "a", kind: "root", status: "start" },
-        { node: "a", kind: "root", status: "done", elapsed: expect.any(Number) },
-        { node: "b", kind: "child", status: "start" },
-        { node: "b", kind: "child", status: "done", elapsed: expect.any(Number) },
+      const types = actions.map((a) => `${a.type}:${a.node.name}`);
+      expect(types).toEqual([
+        "start:a",
+        "success:a",
+        "complete:a",
+        "start:b",
+        "success:b",
+        "complete:b",
       ]);
-      for (const e of events) {
-        if (e.status === "done") expect(e.elapsed).toBeGreaterThanOrEqual(0);
+      for (const a of actions) {
+        if (a.type === "success") expect(a.elapsed).toBeGreaterThanOrEqual(0);
       }
     });
 
-    test("emits cached for cached nodes", async () => {
+    test("emits cache-hit for cached nodes", async () => {
       const cache = new MemCache();
       const g1 = new Graph(cache);
       g1.add({
@@ -506,16 +510,19 @@ describe("Graph", () => {
         params: p("child", { a: "a" }),
         action: async () => "b",
       });
-      const events: ProgressEvent[] = [];
-      await g2.execute(localRunner, { onProgress: (e) => events.push(e) });
+      const actions: ExecAction[] = [];
+      await g2.execute(localRunner, { onAction: (a) => actions.push(a) });
 
-      expect(events).toEqual([
-        { node: "a", kind: "root", status: "cached" },
-        { node: "b", kind: "child", status: "cached" },
+      const types = actions.map((a) => `${a.type}:${a.node.name}`);
+      expect(types).toEqual([
+        "cache-hit:a",
+        "complete:a",
+        "cache-hit:b",
+        "complete:b",
       ]);
     });
 
-    test("emits start+fail on error with error message and elapsed", async () => {
+    test("emits start+failure on error with elapsed", async () => {
       const cache = new MemCache();
       const g = new Graph(cache);
       g.add({
@@ -529,18 +536,20 @@ describe("Graph", () => {
         },
       });
 
-      const events: ProgressEvent[] = [];
-      await g.execute(localRunner, { onProgress: (e) => events.push(e) });
+      const actions: ExecAction[] = [];
+      await g.execute(localRunner, { onAction: (a) => actions.push(a) });
 
-      expect(events).toEqual([
-        { node: "bad", kind: "task", status: "start" },
-        { node: "bad", kind: "task", status: "fail", error: "boom", elapsed: expect.any(Number) },
-      ]);
-      const fail = events[1]!;
-      if (fail.status === "fail") expect(fail.elapsed).toBeGreaterThanOrEqual(0);
+      const types = actions.map((a) => `${a.type}:${a.node.name}`);
+      expect(types).toEqual(["start:bad", "failure:bad", "complete:bad"]);
+      const fail = actions.find((a) => a.type === "failure")!;
+      if (fail.type === "failure") {
+        expect(fail.error).toBeInstanceOf(Error);
+        expect((fail.error as Error).message).toBe("boom");
+        expect(fail.elapsed).toBeGreaterThanOrEqual(0);
+      }
     });
 
-    test("emits dep-failed for dependency-failure skips", async () => {
+    test("emits dep-failure for dependency-failure skips", async () => {
       const cache = new MemCache();
       const g = new Graph(cache);
       g.add({
@@ -562,14 +571,22 @@ describe("Graph", () => {
         action: async () => "b",
       });
 
-      const events: ProgressEvent[] = [];
-      await g.execute(localRunner, { onProgress: (e) => events.push(e) });
+      const actions: ExecAction[] = [];
+      await g.execute(localRunner, { onAction: (a) => actions.push(a) });
 
-      expect(events).toEqual([
-        { node: "a", kind: "root", status: "start" },
-        { node: "a", kind: "root", status: "fail", error: "boom", elapsed: expect.any(Number) },
-        { node: "b", kind: "child", status: "dep-failed", error: "dependency a failed" },
+      const types = actions.map((a) => `${a.type}:${a.node.name}`);
+      expect(types).toEqual([
+        "start:a",
+        "failure:a",
+        "complete:a",
+        "dep-failure:b",
+        "complete:b",
       ]);
+      const depFail = actions.find((a) => a.type === "dep-failure")!;
+      if (depFail.type === "dep-failure") {
+        expect(depFail.error).toBeInstanceOf(Error);
+        expect((depFail.error as Error).message).toBe("dependency a failed");
+      }
     });
   });
 });

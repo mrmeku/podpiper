@@ -4,9 +4,10 @@ import { join } from "node:path";
 import { MultiBar, type SingleBar } from "cli-progress";
 import pc from "picocolors";
 
-import type { AnalysisResult, ExecResult, NodeCounts, ProgressCallback } from "@/dag/types";
+import type { ExecAction } from "@/dag/exec-state";
+import type { AnalysisResult, ExecResult, NodeCounts } from "@/dag/types";
 
-type ProgressRenderer = { onProgress: ProgressCallback; finish: () => void };
+type ProgressRenderer = { onAction: (action: ExecAction) => void; finish: () => void };
 
 export function renderAnalysisSummary(analysis: AnalysisResult): void {
   const { totalCounts, byKind } = analysis;
@@ -26,7 +27,7 @@ export function createProgressRenderer(
   maxParallelism?: number,
 ): ProgressRenderer {
   const dirtyKinds = [...analysis.byKind.entries()].filter(([, c]) => c.dirty > 0);
-  if (dirtyKinds.length === 0) return { onProgress: () => {}, finish: () => {} };
+  if (dirtyKinds.length === 0) return { onAction: () => {}, finish: () => {} };
 
   const label = maxParallelism ? ` (parallelism: ${maxParallelism})` : "";
   console.log(`Executing${label}...`);
@@ -86,27 +87,28 @@ function createBarRenderer(dirtyKinds: [string, NodeCounts][]): ProgressRenderer
   }
 
   return {
-    onProgress(event) {
-      if (!bars.has(event.kind)) return;
-      const k = event.kind;
-
-      switch (event.status) {
+    onAction(action) {
+      const k = action.node.kind;
+      if (!bars.has(k)) return;
+      switch (action.type) {
         case "start":
           inflight.set(k, (inflight.get(k) ?? 0) + 1);
           break;
-        case "done":
+        case "success":
           inflight.set(k, Math.max(0, (inflight.get(k) ?? 0) - 1));
           done.set(k, (done.get(k) ?? 0) + 1);
           break;
-        case "fail":
+        case "failure": {
           inflight.set(k, Math.max(0, (inflight.get(k) ?? 0) - 1));
           failed.set(k, (failed.get(k) ?? 0) + 1);
-          multibar.log(`  ${pc.red(`FAIL ${event.node}: ${event.error}`)}\n`);
+          const msg = action.error instanceof Error ? action.error.message : String(action.error);
+          multibar.log(`  ${pc.red(`FAIL ${action.node.name}: ${msg}`)}\n`);
           break;
-        case "dep-failed":
+        }
+        case "dep-failure":
           failed.set(k, (failed.get(k) ?? 0) + 1);
           break;
-        case "cached":
+        default:
           return;
       }
       update(k);
@@ -119,9 +121,13 @@ function createBarRenderer(dirtyKinds: [string, NodeCounts][]): ProgressRenderer
 
 function createTextRenderer(): ProgressRenderer {
   return {
-    onProgress(event) {
-      if (event.status === "done") console.log(`  done ${event.node} (${event.elapsed}ms)`);
-      else if (event.status === "fail") console.log(pc.red(`  FAIL ${event.node}: ${event.error}`));
+    onAction(action) {
+      if (action.type === "success") {
+        console.log(`  done ${action.node.name} (${action.elapsed}ms)`);
+      } else if (action.type === "failure") {
+        const msg = action.error instanceof Error ? action.error.message : String(action.error);
+        console.log(pc.red(`  FAIL ${action.node.name}: ${msg}`));
+      }
     },
     finish() {},
   };
