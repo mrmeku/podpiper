@@ -3,7 +3,7 @@ import { toVideoDir } from "@/paths";
 import type { TranscribeResult } from "@/ports/types";
 import type { Chapter, Episode, HasUploads, UploadEntry, YtDlpInfo } from "@/types";
 
-import { defineAction } from "../define-action";
+import { defineActionWithPorts } from "../define-action";
 import type { DownloadResult } from "./download";
 import { NodeKind, toVideoActionName } from "./node-kind";
 
@@ -28,7 +28,7 @@ function toR2Key(videoId: string, key: string) {
   return `${videoId}/${key}`;
 }
 
-export const rssEntry = defineAction<RssEntryParams, EpisodeOutput>({
+export const rssEntry = defineActionWithPorts<RssEntryParams, EpisodeOutput>({
   name: toVideoActionName,
   config: "rss-v3",
   action: (ports) => async (params, inputs) => {

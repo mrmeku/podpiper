@@ -1,6 +1,6 @@
 import { toVideoDir } from "@/paths";
 
-import { defineAction } from "../define-action";
+import { defineActionWithPorts } from "../define-action";
 import { NodeKind, toVideoActionName } from "./node-kind";
 
 export interface DownloadResult {
@@ -15,7 +15,7 @@ export interface DownloadParams {
   outputDir: string;
 }
 
-export const download = defineAction<DownloadParams, DownloadResult>({
+export const download = defineActionWithPorts<DownloadParams, DownloadResult>({
   name: toVideoActionName,
   config: "ytdlp-v1,quality=0,embed-thumb,embed-chapters",
   action: (ports) => async (params) => {

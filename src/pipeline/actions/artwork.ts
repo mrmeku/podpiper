@@ -1,7 +1,7 @@
 import type { NodeRef } from "@/dag/types";
 import type { HasUploads } from "@/types";
 
-import { defineAction } from "../define-action";
+import { defineActionWithPorts } from "../define-action";
 import { NodeKind } from "./node-kind";
 
 export interface ArtworkOutput extends HasUploads {}
@@ -12,7 +12,7 @@ export interface ChannelAvatarParams {
   avatarDir: string;
 }
 
-export const channelAvatar = defineAction<ChannelAvatarParams, string>({
+export const channelAvatar = defineActionWithPorts<ChannelAvatarParams, string>({
   name: (p) => p.kind,
   config: () => `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`,
   action: (ports) => async (params) => {
@@ -27,7 +27,7 @@ export interface ArtworkParams {
   deps: { channel_avatar: NodeRef<string> };
 }
 
-export const artwork = defineAction<ArtworkParams, ArtworkOutput>({
+export const artwork = defineActionWithPorts<ArtworkParams, ArtworkOutput>({
   name: (p) => p.kind,
   config: "artwork-v1",
   action: (ports) => async (params, inputs) => {

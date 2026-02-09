@@ -2,7 +2,7 @@ import type { NodeRef } from "@/dag/types";
 import type { TranscribeResult } from "@/ports/types";
 import type { WhisperJson, YtDlpInfo } from "@/types";
 
-import { defineAction } from "../define-action";
+import { defineActionWithPorts } from "../define-action";
 import type { DownloadResult } from "./download";
 import { NodeKind, toVideoActionName } from "./node-kind";
 
@@ -17,7 +17,7 @@ export interface SummaryParams {
   deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
 }
 
-export const summary = defineAction<SummaryParams, string>({
+export const summary = defineActionWithPorts<SummaryParams, string>({
   name: toVideoActionName,
   config: (p) => {
     const promptHash = Bun.hash(p.summaryPrompt).toString(36);
