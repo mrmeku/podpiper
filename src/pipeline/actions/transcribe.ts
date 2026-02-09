@@ -4,7 +4,7 @@ import type { TranscribeResult } from "@/ports/types";
 
 import { defineAction } from "../define-action";
 import type { DownloadResult } from "./download";
-import { NodeKind } from "./node-kind";
+import { NodeKind, toVideoActionName } from "./node-kind";
 
 export interface TranscribeParams {
   kind: typeof NodeKind.Transcribe;
@@ -14,7 +14,7 @@ export interface TranscribeParams {
 }
 
 export const transcribe = defineAction<TranscribeParams, TranscribeResult>({
-  name: (p) => `transcribe:${p.videoId}`,
+  name: toVideoActionName,
   config: "whisper-v1,model=medium",
   action: (ports) => async (params, inputs) => {
     const dir = toVideoDir(params.outputDir, params.videoId);

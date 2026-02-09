@@ -5,7 +5,7 @@ import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
 import { defineAction } from "../define-action";
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
 import type { DownloadResult } from "./download";
-import { NodeKind } from "./node-kind";
+import { NodeKind, toVideoActionName } from "./node-kind";
 
 const UNTITLED_PATTERN = /^<Untitled Chapter \d+>$/;
 
@@ -30,7 +30,7 @@ export interface ChaptersParams {
 }
 
 export const chapters = defineAction<ChaptersParams, Chapter[]>({
-  name: (p) => `chapters:${p.videoId}`,
+  name: toVideoActionName,
   config: (p) => {
     const promptHash = p.chapterPrompt ? Bun.hash(p.chapterPrompt).toString(36) : "none";
     return `extract-v1,fallback=${promptHash}`;

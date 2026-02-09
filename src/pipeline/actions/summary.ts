@@ -4,7 +4,7 @@ import type { WhisperJson, YtDlpInfo } from "@/types";
 
 import { defineAction } from "../define-action";
 import type { DownloadResult } from "./download";
-import { NodeKind } from "./node-kind";
+import { NodeKind, toVideoActionName } from "./node-kind";
 
 function formatTranscriptForLlm(whisper: WhisperJson): string {
   return whisper.transcription.map((s) => s.text.trim()).join("\n");
@@ -18,7 +18,7 @@ export interface SummaryParams {
 }
 
 export const summary = defineAction<SummaryParams, string>({
-  name: (p) => `summary:${p.videoId}`,
+  name: toVideoActionName,
   config: (p) => {
     const promptHash = Bun.hash(p.summaryPrompt).toString(36);
     return `summary-v2,prompt=${promptHash}`;
