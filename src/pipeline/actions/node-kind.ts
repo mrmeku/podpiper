@@ -8,3 +8,7 @@ export enum NodeKind {
   ChannelAvatar = "channel_avatar",
   Artwork = "artwork",
 }
+
+export function toVideoActionName<P extends { kind: NodeKind; videoId: string }>(p: P) {
+  return `${p.kind}:${p.videoId}`;
+}

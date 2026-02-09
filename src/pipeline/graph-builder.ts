@@ -7,7 +7,7 @@ import { artwork, channelAvatar } from "./actions/artwork";
 import { chapters } from "./actions/chapters";
 import { download } from "./actions/download";
 import { NodeKind } from "./actions/node-kind";
-import type { EpisodeOutput } from "./actions/rss-entry";
+import type { EpisodeOutput, RssEntryParams } from "./actions/rss-entry";
 import { rssEntry } from "./actions/rss-entry";
 import { summary } from "./actions/summary";
 import { thumbnail } from "./actions/thumbnail";
@@ -42,26 +42,25 @@ function addVideoSubgraph(
     chapterPrompt: config.chapterPrompt,
     deps: { download: dl, transcribe: tr },
   });
-  const baseDeps = { download: dl, transcribe: tr, thumbnail: th, chapters: ch };
+  const deps: RssEntryParams["deps"] = {
+    download: dl,
+    transcribe: tr,
+    thumbnail: th,
+    chapters: ch,
+  };
   if (config.summaryPrompt) {
-    const sm = summary.addNode(graph, ports, {
+    deps.summary = summary.addNode(graph, ports, {
       kind: NodeKind.Summary,
       videoId: video.id,
       summaryPrompt: config.summaryPrompt,
       deps: { download: dl, transcribe: tr },
     });
-    return rssEntry.addNode(graph, ports, {
-      kind: NodeKind.RssEntry,
-      video,
-      outputDir: config.outputDir,
-      deps: { ...baseDeps, summary: sm },
-    });
   }
   return rssEntry.addNode(graph, ports, {
     kind: NodeKind.RssEntry,
-    video,
+    videoId: video.id,
     outputDir: config.outputDir,
-    deps: baseDeps,
+    deps,
   });
 }
 
