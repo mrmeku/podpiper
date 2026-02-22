@@ -1,4 +1,5 @@
 import type { Chapter, WhisperSegment } from "@/types";
+import { jsonParse } from "@podpiper/dag/helpers";
 
 const CHAPTER_PROMPT_TEMPLATE = `You are a podcast chapter generator. Given numbered transcript segments from a YouTube video, decide whether chapters are appropriate and, if so, identify the major structural breaks.
 
@@ -42,7 +43,7 @@ export function parseChapterResponse(response: string, segments: WhisperSegment[
       .replace(/```(?:json)?\s*/g, "")
       .replace(/```/g, "")
       .trim();
-    const parsed: ChapterEntry[] = JSON.parse(cleaned);
+    const parsed = jsonParse<ChapterEntry[]>(cleaned, "chapter LLM response");
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter(

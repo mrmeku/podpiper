@@ -2,12 +2,12 @@
 
 exports[`graph command mermaid output 1`] = `
 "graph TD
-  subgraph discovery_phase ["Copper: Discovery"]
+  subgraph discovery_phase ["Discovery"]
     discovery["yt-dlp: fetch videos"]
   end
   discovery --> download_vid_aaa & download_vid_bbb
 
-  subgraph pipeline_phase ["Silver: Pipeline"]
+  subgraph pipeline_phase ["Execution"]
     subgraph video_1 ["Video 1"]
       download_vid_aaa["yt-dlp: download"]
       transcribe_vid_aaa["whisper: transcribe"]
@@ -39,14 +39,34 @@ exports[`graph command mermaid output 1`] = `
     channel_avatar --> artwork
   end
 
-  subgraph publish_phase ["Gold: Publish"]
+  subgraph publish_phase ["Publish"]
     publish["R2 Uploads + Feed"]
   end
   rss_entry_vid_aaa & rss_entry_vid_bbb & artwork --> publish
 
-  style discovery_phase fill:#f4d3a0,stroke:#c48540,color:#5c3a1a
-  style pipeline_phase fill:#e8e8e8,stroke:#999,color:#333
-  style publish_phase fill:#fef3c7,stroke:#d4a017,color:#5c4a00
-  style video_1 fill:#ede4f5,stroke:#9b72cf,color:#3b2456
-  style video_2 fill:#ede4f5,stroke:#9b72cf,color:#3b2456"
+  style discovery_phase fill:#fef7ed,stroke:#e8a95b,color:#7c4d1a
+  style pipeline_phase fill:#f1f5f9,stroke:#94a3b8,color:#334155
+  style publish_phase fill:#fefce8,stroke:#d4a017,color:#5c4a00
+  style video_1 fill:#f5f3ff,stroke:#a78bfa,color:#4c1d95
+  style video_2 fill:#f5f3ff,stroke:#a78bfa,color:#4c1d95
+  style discovery fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style download_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style transcribe_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style thumbnail_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style chapters_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style summary_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style rss_entry_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style download_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style transcribe_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style thumbnail_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style chapters_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style summary_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style rss_entry_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style channel_avatar fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style artwork fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style publish fill:#fbbf24,stroke:#b45309,color:#451a03
+  style discovery fill:#c2742f,stroke:#7c2d12,color:#fff
+  style download_vid_aaa fill:#c2742f,stroke:#7c2d12,color:#fff
+  style download_vid_bbb fill:#c2742f,stroke:#7c2d12,color:#fff
+  style channel_avatar fill:#c2742f,stroke:#7c2d12,color:#fff"
 `;

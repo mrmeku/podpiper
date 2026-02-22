@@ -6,6 +6,9 @@ export interface BaseParams {
   deps?: Record<string, NodeRef | undefined>;
 }
 
+/** Constrained output type: actions must return file paths. */
+export type Outputs = string | string[] | Record<string, string | string[]>;
+
 /** Maps a params object's `deps` record to the deserialized output types of each dependency. */
 export type InputsFor<P> = P extends { deps: infer D }
   ? {
@@ -15,46 +18,50 @@ export type InputsFor<P> = P extends { deps: infer D }
           : T
         : unknown;
     }
-  : {};
+  : Record<string, never>;
 
 /** User-supplied function that implements a DAG node's work. Receives typed params and dep outputs. */
-export type ActionFunc<P extends BaseParams, R> = (params: P, inputs: InputsFor<P>) => Promise<R>;
+export type ActionFunc<P extends BaseParams, R extends Outputs> = (
+  params: P,
+  inputs: InputsFor<P>,
+) => Promise<R>;
 
-/** A single unit of work in the DAG. All values are serialized strings at the executor level. */
+/** A single unit of work in the DAG. All values are Outputs at the executor level. */
 export interface Node {
   name: string;
   kind: string;
   /** Names of nodes this node depends on (must complete first). */
   deps: string[];
-  /** Serialized configuration — included in the content hash so config changes invalidate cache. */
+  /** Serialized configuration — included in the action key so config changes invalidate cache. */
   config: string;
-  /** Content hash — SHA256 of name, config, and sorted dep hashes. Computed at insertion time. */
-  hash: string;
   params: BaseParams;
-  /** Raw executor-level action. Receives dep results as `Record<name, JSON string>`, returns JSON string. */
-  action: (rawInputs: Record<string, string>) => Promise<string>;
+  /** Raw executor-level action. Receives dep outputs as `Record<name, Outputs>`, returns Outputs. */
+  action: (rawInputs: Record<string, Outputs>) => Promise<Outputs>;
 }
 
 /** Pluggable execution strategy — the executor calls this instead of `node.action` directly. */
-export type NodeRunner = (node: Node, inputs: Record<string, string>) => Promise<string>;
+export type NodeRunner = (node: Node, inputs: Record<string, Outputs>) => Promise<Outputs>;
+
+/** What gets stored per action key in the cache. */
+export interface CacheEntry {
+  /** The file paths the action produced. */
+  outputs: Outputs;
+  /** SHA256 of actual file contents at those paths. */
+  contentHash: string;
+}
 
 /** Discriminated union of per-node outcomes after DAG execution. */
-export type ExecResult = { name: string; hash: string } & (
-  | { status: "done"; result: string }
-  | { status: "cached"; result: string }
+export type ExecResult = { name: string; actionKey: string } & (
+  | { status: "done"; outputs: Outputs; contentHash: string }
+  | { status: "cached"; outputs: Outputs; contentHash: string }
   | { status: "fail"; error: Error }
   | { status: "dep-failed"; error: Error }
 );
 
 /** Content-addressed cache used by the executor to skip unchanged nodes. */
 export interface Cache {
-  get(hash: string): [string, boolean];
-  put(hash: string, result: string): void;
-  flush?: () => void | Promise<void>;
-}
-
-export interface Flushable {
-  flush: () => void | Promise<void>;
+  get(key: string): Promise<CacheEntry | undefined>;
+  put(key: string, entry: CacheEntry): Promise<void>;
 }
 
 export interface ExecuteOptions {
@@ -63,32 +70,15 @@ export interface ExecuteOptions {
   onAction?: (action: ExecAction) => void;
 }
 
-/** Aggregate counts for a set of analyzed nodes. */
-export interface NodeCounts {
-  total: number;
-  cached: number;
-  dirty: number;
-}
-
-/** Pre-execution snapshot of a single node: whether it needs to run, and any cached result. */
-export interface AnalyzedNode extends Node {
-  dirty: boolean;
-  cachedResult?: string;
-}
-
-/** Output of `graph.analyze()` — a dry-run view of what would execute. */
+/** Output of `graph.analyze()` — structural info, no cache prediction. */
 export interface AnalysisResult {
-  nodes: AnalyzedNode[];
-  totalCounts: NodeCounts;
-  byKind: Map<string, NodeCounts>;
+  nodes: Node[];
+  total: number;
+  byKind: Map<string, number>;
 }
 
-/** Type-safe handle to a DAG node. T is the deserialized output type of the node's action. */
-export interface NodeRef<T = unknown> {
+/** Type-safe handle to a DAG node. T is the output type of the node's action. */
+export interface NodeRef<T extends Outputs = Outputs> {
   name: string;
   readonly _T?: T;
-}
-
-export function parseRef<T>(_ref: NodeRef<T>, raw: string): T {
-  return JSON.parse(raw) as T;
 }

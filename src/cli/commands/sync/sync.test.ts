@@ -4,11 +4,11 @@ import { extractReferencedUrls, parseExistingFeed } from "@/pipeline/rss/parse";
 import { createMemoryFs } from "@/ports/memory-fs";
 import type { SpiedPorts } from "@/ports/mock";
 import { createSpyPorts } from "@/ports/mock";
-import type { Config, VideoInfo, YtDlpInfo } from "@/types";
+import type { Config, Episode, VideoInfo, YtDlpInfo } from "@/types";
 import { MemCache, TieredCache } from "@podpiper/dag/cache";
-import type { Cache, ExecResult } from "@podpiper/dag/types";
+import type { Cache, CacheEntry, ExecResult } from "@podpiper/dag/types";
 
-import type { EpisodeOutput } from "@/pipeline/actions/rss-entry";
+import type { RssEntryResult } from "@/pipeline/actions/rss-entry";
 import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
@@ -60,8 +60,8 @@ const VID_CCC_INFO: YtDlpInfo = {
   duration: 3600,
 };
 
-function createTestPorts() {
-  const fs = createMemoryFs();
+function createTestPorts(existingFs?: ReturnType<typeof createMemoryFs>) {
+  const fs = existingFs ?? createMemoryFs();
   const ports = createSpyPorts(fs, {
     ytdlp: {
       fetchVideoList: async () => [],
@@ -92,7 +92,7 @@ function buildAndSync(
   opts?: { maxParallelism?: number },
 ) {
   const { graph, refs } = buildPipelineGraph(cache, videos, ports, config);
-  return sync(graph, refs, opts);
+  return sync(graph, refs, ports.fs, opts);
 }
 
 function countExec(results: ExecResult[]): {
@@ -118,9 +118,18 @@ function getUploadCalls(ports: SpiedPorts): { key: string; cacheControl?: string
   }));
 }
 
+async function readEpisodeFromResult(
+  result: ExecResult,
+  fs: ReturnType<typeof createMemoryFs>,
+): Promise<Episode> {
+  if (result.status !== "done" && result.status !== "cached") throw new Error("expected done/cached");
+  const paths = result.outputs as RssEntryResult;
+  return JSON.parse(await fs.readText(paths.episode)) as Episode;
+}
+
 describe("sync pipeline", () => {
   test("fresh run executes full pipeline and publishes correct artifacts", async () => {
-    const { ports } = createTestPorts();
+    const { fs, ports } = createTestPorts();
     const cache = new MemCache();
 
     const sr = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
@@ -134,10 +143,8 @@ describe("sync pipeline", () => {
     // Episode data
     const aaaResult = sr.results.find((r) => r.name === "rss_entry:vid_aaa")!;
     const bbbResult = sr.results.find((r) => r.name === "rss_entry:vid_bbb")!;
-    if (aaaResult.status !== "done" || bbbResult.status !== "done")
-      throw new Error("expected done");
-    const aaaEp = (JSON.parse(aaaResult.result) as EpisodeOutput).episode;
-    const bbbEp = (JSON.parse(bbbResult.result) as EpisodeOutput).episode;
+    const aaaEp = await readEpisodeFromResult(aaaResult, fs);
+    const bbbEp = await readEpisodeFromResult(bbbResult, fs);
 
     expect({
       vid_aaa: {
@@ -293,9 +300,10 @@ describe("sync pipeline", () => {
 
   test("new episode added to warm cache only processes new video", async () => {
     const cache = new MemCache();
+    const sharedFs = createMemoryFs();
 
     // Run 1: warm cache with vid_aaa + vid_bbb
-    const { ports: p1 } = createTestPorts();
+    const { ports: p1 } = createTestPorts(sharedFs);
     await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p1, cache);
 
     // Run 2: add vid_ccc
@@ -303,7 +311,7 @@ describe("sync pipeline", () => {
       ...TEST_VIDEOS,
       { id: "vid_ccc", uploadDate: "20240320", title: "Video CCC" },
     ];
-    const { ports: p2 } = createTestPorts();
+    const { fs: fs2, ports: p2 } = createTestPorts(sharedFs);
     const r2 = await buildAndSync(allVideos, TEST_CONFIG, p2, cache);
     await publish(r2, TEST_CONFIG, p2.fs, p2.storage);
 
@@ -315,8 +323,7 @@ describe("sync pipeline", () => {
 
     // New episode data
     const cccResult = r2.results.find((r) => r.name === "rss_entry:vid_ccc")!;
-    if (cccResult.status !== "done") throw new Error("expected done");
-    const cccEp = (JSON.parse(cccResult.result) as EpisodeOutput).episode;
+    const cccEp = await readEpisodeFromResult(cccResult, fs2);
     expect({
       description: cccEp.description,
       chapters: cccEp.chapters.length,
@@ -356,7 +363,7 @@ describe("sync pipeline", () => {
     });
 
     // Sanity: third run with all 3 videos fully cached
-    const { ports: p3 } = createTestPorts();
+    const { ports: p3 } = createTestPorts(sharedFs);
     const r3 = await buildAndSync(allVideos, TEST_CONFIG, p3, cache);
     await publish(r3, TEST_CONFIG, p3.fs, p3.storage);
     expect({
@@ -384,14 +391,11 @@ describe("sync pipeline", () => {
   });
 
   test("partial cache eviction re-executes only evicted nodes", async () => {
-    const store = new Map<string, string>();
-    const cache: Cache & { evict(hash: string): void } = {
-      get: (hash) => {
-        const r = store.get(hash);
-        return r !== undefined ? [r, true] : ["", false];
-      },
-      put: (hash, result) => store.set(hash, result),
-      evict: (hash) => store.delete(hash),
+    const store = new Map<string, CacheEntry>();
+    const cache: Cache & { evict(key: string): void } = {
+      get: async (key) => store.get(key),
+      put: async (key, entry) => { store.set(key, entry); },
+      evict: (key) => store.delete(key),
     };
     const { ports } = createTestPorts();
 
@@ -401,7 +405,7 @@ describe("sync pipeline", () => {
 
     for (const r of r1.results) {
       if (r.name === "rss_entry:vid_aaa" || r.name === "artwork") {
-        cache.evict(r.hash);
+        cache.evict(r.actionKey);
       }
     }
     ports.storage.uploadFile.mockClear();
@@ -470,20 +474,21 @@ describe("sync pipeline", () => {
   });
 
   test("tiered cache promotes remote hits to local", async () => {
+    const sharedFs = createMemoryFs();
     const remote = new MemCache();
-    const { ports: p1 } = createTestPorts();
+    const { ports: p1 } = createTestPorts(sharedFs);
     const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p1, remote);
     expect(countExec(r1.results).exec).toBe(14);
 
     const local = new MemCache();
     const tiered = new TieredCache({ local, remote });
-    const { ports: p2 } = createTestPorts();
+    const { ports: p2 } = createTestPorts(sharedFs);
     const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p2, tiered);
     expect(countExec(r2.results).skip).toBe(14);
     expect(countExec(r2.results).exec).toBe(0);
 
     // Local is now warm from remote promotion
-    const { ports: p3 } = createTestPorts();
+    const { ports: p3 } = createTestPorts(sharedFs);
     const r3 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p3, local);
     expect(countExec(r3.results).skip).toBe(14);
     expect(countExec(r3.results).exec).toBe(0);

@@ -1,13 +1,17 @@
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { describe, expect, test } from "bun:test";
 
-import { LocalCache, MemCache, TieredCache } from "./cache";
+import { createMemoryFs } from "@/ports/memory-fs";
+import type { FileSystem } from "@/ports/types";
+import { MemCache, TieredCache } from "./cache";
+import { defineAction } from "./define-action";
 import type { ExecAction } from "./exec-state";
 import { Graph, localRunner } from "./graph";
 import type { BaseParams, ExecResult, NodeRunner } from "./types";
+
+async function write(fs: FileSystem, name: string, content: string): Promise<string> {
+  await fs.writeText(name, content);
+  return name;
+}
 
 function countExec(results: ExecResult[]): { exec: number; skip: number } {
   let exec = 0;
@@ -28,7 +32,7 @@ const p = (kind: string, deps?: Record<string, string>): BaseParams =>
       }
     : { kind };
 
-function addItemNodes(g: Graph, id: string): void {
+function addItemNodes(g: Graph, id: string, fs: FileSystem): void {
   const n = (kind: string) => `${kind}:${id}`;
   g.add({
     name: n("fetch"),
@@ -36,7 +40,7 @@ function addItemNodes(g: Graph, id: string): void {
     deps: [],
     config: id,
     params: p("fetch"),
-    action: async () => `{"id":"${id}"}`,
+    action: async () => write(fs, `${id}-fetch.json`, `{"id":"${id}"}`),
   });
   g.add({
     name: n("extract"),
@@ -44,7 +48,7 @@ function addItemNodes(g: Graph, id: string): void {
     deps: [n("fetch")],
     config: "extract-v1",
     params: p("extract", { fetch: n("fetch") }),
-    action: async () => `/out/${id}/raw.bin`,
+    action: async () => write(fs, `${id}-raw.bin`, `raw-${id}`),
   });
   g.add({
     name: n("parse"),
@@ -52,7 +56,7 @@ function addItemNodes(g: Graph, id: string): void {
     deps: [n("extract")],
     config: "parse-v1",
     params: p("parse", { extract: n("extract") }),
-    action: async () => `Parsed ${id}`,
+    action: async () => write(fs, `${id}-parsed.txt`, `Parsed ${id}`),
   });
   g.add({
     name: n("summarize"),
@@ -60,7 +64,7 @@ function addItemNodes(g: Graph, id: string): void {
     deps: [n("parse")],
     config: "summarize-v2",
     params: p("summarize", { parse: n("parse") }),
-    action: async () => `Summary of ${id}`,
+    action: async () => write(fs, `${id}-summary.txt`, `Summary of ${id}`),
   });
   g.add({
     name: n("classify"),
@@ -68,7 +72,7 @@ function addItemNodes(g: Graph, id: string): void {
     deps: [n("parse")],
     config: "classify-v1",
     params: p("classify", { parse: n("parse") }),
-    action: async () => `["tag_a","tag_b"]`,
+    action: async () => write(fs, `${id}-classify.json`, `["tag_a","tag_b"]`),
   });
   g.add({
     name: n("resize"),
@@ -76,7 +80,7 @@ function addItemNodes(g: Graph, id: string): void {
     deps: [n("fetch")],
     config: "resize-v1",
     params: p("resize", { fetch: n("fetch") }),
-    action: async () => `/out/${id}/thumb.jpg`,
+    action: async () => write(fs, `${id}-thumb.jpg`, `thumb-${id}`),
   });
   g.add({
     name: n("entry"),
@@ -89,11 +93,11 @@ function addItemNodes(g: Graph, id: string): void {
       extract: n("extract"),
       resize: n("resize"),
     }),
-    action: async () => `{"entry":"${id}"}`,
+    action: async () => write(fs, `${id}-entry.json`, `{"entry":"${id}"}`),
   });
 }
 
-function addAggregateNode(g: Graph, ids: string[]): void {
+function addAggregateNode(g: Graph, ids: string[], fs: FileSystem): void {
   const deps = ids.map((id) => `entry:${id}`);
   const depsRecord = Object.fromEntries(deps.map((d) => [d, d]));
   g.add({
@@ -102,152 +106,99 @@ function addAggregateNode(g: Graph, ids: string[]): void {
     deps,
     config: "aggregate-v1",
     params: p("aggregate", depsRecord),
-    action: async (rawInputs) => {
-      const entries = Object.values(rawInputs);
-      return `[${entries.join(",")}]`;
-    },
+    action: async () => write(fs, "aggregate.json", `[${ids.join(",")}]`),
   });
 }
 
-function buildGraph(cache: MemCache | LocalCache | TieredCache, ids: string[]): Graph {
-  const g = new Graph(cache);
-  for (const id of ids) addItemNodes(g, id);
-  addAggregateNode(g, ids);
+function buildGraph(cache: MemCache | TieredCache, ids: string[], fs: FileSystem): Graph {
+  const g = new Graph(cache, fs.hashFile);
+  for (const id of ids) addItemNodes(g, id, fs);
+  addAggregateNode(g, ids, fs);
   return g;
 }
 
 describe("Graph", () => {
   test("incremental items", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "dag-test-"));
-    const cache = new LocalCache(join(tempDir, "cache.json"));
+    const fs = createMemoryFs();
+    const cache = new MemCache();
 
     // Run 1: 2 items, all fresh
-    let results = await buildGraph(cache, ["aaa", "bbb"]).execute();
+    let results = await buildGraph(cache, ["aaa", "bbb"], fs).execute();
     let { exec, skip } = countExec(results);
     expect(skip).toBe(0);
-    expect(exec).toBe(15); // 7 per item + 1 aggregate
+    expect(exec).toBe(15);
 
     // Run 2: same 2 items, all cached
-    results = await buildGraph(cache, ["aaa", "bbb"]).execute();
+    results = await buildGraph(cache, ["aaa", "bbb"], fs).execute();
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(0);
     expect(skip).toBe(15);
 
     // Run 3: new item ccc
-    results = await buildGraph(cache, ["aaa", "bbb", "ccc"]).execute();
+    results = await buildGraph(cache, ["aaa", "bbb", "ccc"], fs).execute();
     ({ exec, skip } = countExec(results));
-    expect(exec).toBe(8); // 7 for ccc + 1 aggregate (deps changed)
-    expect(skip).toBe(14); // 7 for aaa + 7 for bbb
+    expect(exec).toBe(8);
+    expect(skip).toBe(14);
   });
 
   test("tiered cache", async () => {
+    const fs = createMemoryFs();
     const remote = new MemCache();
     const local = new MemCache();
 
-    // Pre-warm remote
-    let results = await buildGraph(remote, ["aaa"]).execute();
+    let results = await buildGraph(remote, ["aaa"], fs).execute();
     let { exec } = countExec(results);
     expect(exec).toBe(8);
 
-    // Tiered: local miss -> remote hit -> pull into local
     const tiered = new TieredCache({ local, remote });
-    results = await buildGraph(tiered, ["aaa"]).execute();
+    results = await buildGraph(tiered, ["aaa"], fs).execute();
     ({ exec } = countExec(results));
     expect(exec).toBe(0);
 
-    // Local is now warm
-    results = await buildGraph(local, ["aaa"]).execute();
+    results = await buildGraph(local, ["aaa"], fs).execute();
     ({ exec } = countExec(results));
     expect(exec).toBe(0);
   });
 
   describe("analyze()", () => {
-    test("all dirty on fresh cache", () => {
+    test("returns total count", () => {
+      const fs = createMemoryFs();
       const cache = new MemCache();
-      const { totalCounts } = buildGraph(cache, ["aaa", "bbb"]).analyze();
-      expect(totalCounts).toEqual({ total: 15, cached: 0, dirty: 15 });
-    });
-
-    test("all cached after execute", async () => {
-      const cache = new MemCache();
-      await buildGraph(cache, ["aaa", "bbb"]).execute();
-      const { totalCounts } = buildGraph(cache, ["aaa", "bbb"]).analyze();
-      expect(totalCounts).toEqual({ total: 15, cached: 15, dirty: 0 });
-    });
-
-    test("incremental new item", async () => {
-      const cache = new MemCache();
-      await buildGraph(cache, ["aaa", "bbb"]).execute();
-      const { totalCounts } = buildGraph(cache, ["aaa", "bbb", "ccc"]).analyze();
-      expect(totalCounts.cached).toBe(14);
-      expect(totalCounts.dirty).toBe(8);
+      const { total } = buildGraph(cache, ["aaa", "bbb"], fs).analyze();
+      expect(total).toBe(15);
     });
 
     test("byKind breakdown", () => {
+      const fs = createMemoryFs();
       const cache = new MemCache();
-      const { byKind } = buildGraph(cache, ["aaa", "bbb"]).analyze();
-      const toNodeCounts = (total: number) => ({
-        total,
-        cached: 0,
-        dirty: total,
-      });
+      const { byKind } = buildGraph(cache, ["aaa", "bbb"], fs).analyze();
       expect(Object.fromEntries(byKind)).toEqual({
-        fetch: toNodeCounts(2),
-        extract: toNodeCounts(2),
-        parse: toNodeCounts(2),
-        summarize: toNodeCounts(2),
-        classify: toNodeCounts(2),
-        resize: toNodeCounts(2),
-        entry: toNodeCounts(2),
-        aggregate: toNodeCounts(1),
+        fetch: 2,
+        extract: 2,
+        parse: 2,
+        summarize: 2,
+        classify: 2,
+        resize: 2,
+        entry: 2,
+        aggregate: 1,
       });
     });
 
-    test("analyze agrees with execute", async () => {
+    test("nodes list", () => {
+      const fs = createMemoryFs();
       const cache = new MemCache();
-      await buildGraph(cache, ["aaa"]).execute();
-      const g = buildGraph(cache, ["aaa", "bbb"]);
-      const { totalCounts } = g.analyze();
-      const results = await g.execute();
-      const { exec, skip } = countExec(results);
-      expect(totalCounts.dirty).toBe(exec);
-      expect(totalCounts.cached).toBe(skip);
-    });
-
-    test("analyze hashes match execute hashes per node", async () => {
-      const cache = new MemCache();
-      const g = buildGraph(cache, ["aaa", "bbb"]);
-      const analyzeHashes = new Map(g.analyze().nodes.map((n) => [n.name, n.hash]));
-      const results = await g.execute();
-      const executeHashes = new Map(results.map((r) => [r.name, r.hash]));
-      expect(Object.fromEntries(analyzeHashes)).toEqual(Object.fromEntries(executeHashes));
-    });
-
-    test("nodes contain per-node details", () => {
-      const cache = new MemCache();
-      const { nodes } = buildGraph(cache, ["aaa"]).analyze();
+      const { nodes } = buildGraph(cache, ["aaa"], fs).analyze();
       expect(nodes.length).toBe(8);
       const fetchNode = nodes.find((n) => n.name === "fetch:aaa")!;
       expect(fetchNode.kind).toBe("fetch");
       expect(fetchNode.deps).toEqual([]);
-      expect(fetchNode.dirty).toBe(true);
-      expect(fetchNode.hash).toBeTypeOf("string");
-      expect(fetchNode.cachedResult).toBeUndefined();
-    });
-
-    test("nodes reflect cache state", async () => {
-      const cache = new MemCache();
-      await buildGraph(cache, ["aaa"]).execute();
-      const { nodes } = buildGraph(cache, ["aaa"]).analyze();
-      const fetchNode = nodes.find((n) => n.name === "fetch:aaa")!;
-      expect(fetchNode.dirty).toBe(false);
-      expect(fetchNode.cachedResult).toBe('{"id":"aaa"}');
     });
   });
 
   test("readiness: dependent starts as soon as its deps finish", async () => {
+    const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache);
+    const g = new Graph(cache, fs.hashFile);
     const log: string[] = [];
 
     g.add({
@@ -259,7 +210,7 @@ describe("Graph", () => {
       action: async () => {
         await Bun.sleep(50);
         log.push("slow_root");
-        return "a";
+        return write(fs, "slow_root.txt", "a");
       },
     });
     g.add({
@@ -270,7 +221,7 @@ describe("Graph", () => {
       params: p("root"),
       action: async () => {
         log.push("fast_root");
-        return "b";
+        return write(fs, "fast_root.txt", "b");
       },
     });
     g.add({
@@ -281,7 +232,7 @@ describe("Graph", () => {
       params: p("child", { slow_root: "slow_root" }),
       action: async () => {
         log.push("slow_child");
-        return "c";
+        return write(fs, "slow_child.txt", "c");
       },
     });
     g.add({
@@ -292,7 +243,7 @@ describe("Graph", () => {
       params: p("child", { fast_root: "fast_root" }),
       action: async () => {
         log.push("fast_child");
-        return "d";
+        return write(fs, "fast_child.txt", "d");
       },
     });
 
@@ -301,8 +252,9 @@ describe("Graph", () => {
   });
 
   test("children of completed nodes run before queued siblings", async () => {
+    const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache);
+    const g = new Graph(cache, fs.hashFile);
     const log: string[] = [];
 
     g.add({
@@ -313,7 +265,7 @@ describe("Graph", () => {
       params: p("root"),
       action: async () => {
         log.push("first_root");
-        return "r1";
+        return write(fs, "r1.txt", "r1");
       },
     });
     g.add({
@@ -324,7 +276,7 @@ describe("Graph", () => {
       params: p("root"),
       action: async () => {
         log.push("second_root");
-        return "r2";
+        return write(fs, "r2.txt", "r2");
       },
     });
     g.add({
@@ -335,7 +287,7 @@ describe("Graph", () => {
       params: p("child", { first_root: "first_root" }),
       action: async () => {
         log.push("child");
-        return "c1";
+        return write(fs, "c1.txt", "c1");
       },
     });
 
@@ -344,18 +296,19 @@ describe("Graph", () => {
   });
 
   test("config change rollback", async () => {
+    const fs = createMemoryFs();
     const cache = new MemCache();
     let leafConfig = "leaf-v2";
 
     const makeGraph = () => {
-      const g = new Graph(cache);
+      const g = new Graph(cache, fs.hashFile);
       g.add({
         name: "fetch",
         kind: "fetch",
         deps: [],
         config: "fetch-v1",
         params: p("fetch"),
-        action: async () => '{"id":"aaa"}',
+        action: async () => write(fs, "fetch.json", '{"id":"aaa"}'),
       });
       g.add({
         name: "extract",
@@ -363,7 +316,7 @@ describe("Graph", () => {
         deps: ["fetch"],
         config: "extract-v1",
         params: p("extract", { fetch: "fetch" }),
-        action: async () => "/out/raw.bin",
+        action: async () => write(fs, "raw.bin", "raw"),
       });
       g.add({
         name: "parse",
@@ -371,7 +324,7 @@ describe("Graph", () => {
         deps: ["extract"],
         config: "parse-v1",
         params: p("parse", { extract: "extract" }),
-        action: async () => "parsed",
+        action: async () => write(fs, "parsed.txt", "parsed"),
       });
       g.add({
         name: "summarize",
@@ -379,24 +332,23 @@ describe("Graph", () => {
         deps: ["parse"],
         config: leafConfig,
         params: p("summarize", { parse: "parse" }),
-        action: async () => "summary",
+        action: async () => write(fs, "summary.txt", "summary"),
       });
       return g;
     };
 
-    // Fresh
     let results = await makeGraph().execute();
     let { exec, skip } = countExec(results);
     expect(exec).toBe(4);
     expect(skip).toBe(0);
 
-    // Change leaf config - only leaf re-executes
+    // Change leaf config — only leaf re-executes
     leafConfig = "leaf-v3";
     results = await makeGraph().execute();
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(1);
 
-    // Rollback - content-addressed hit
+    // Rollback — content-addressed hit
     leafConfig = "leaf-v2";
     results = await makeGraph().execute();
     ({ exec, skip } = countExec(results));
@@ -404,8 +356,9 @@ describe("Graph", () => {
   });
 
   test("mock runner: executor calls runner instead of node.action", async () => {
+    const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache);
+    const g = new Graph(cache, fs.hashFile);
     const calls: string[] = [];
 
     g.add({
@@ -425,27 +378,31 @@ describe("Graph", () => {
       action: async () => "should not be called",
     });
 
-    const mockRunner: NodeRunner = async (node, _inputs) => {
+    const mockRunner: NodeRunner = async (node) => {
       calls.push(node.name);
-      return `result:${node.name}`;
+      return write(fs, `${node.name}.txt`, `result:${node.name}`);
     };
 
     const results = await g.execute(mockRunner);
     expect(calls).toEqual(["root", "child"]);
     const child = results.find((r) => r.name === "child")!;
-    expect(child.status === "done" && child.result).toBe("result:child");
+    expect(child.status).toBe("done");
+    if (child.status === "done") {
+      expect(child.outputs).toContain("child.txt");
+    }
   });
 
   test("failure in one branch does not affect independent branches", async () => {
+    const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache);
+    const g = new Graph(cache, fs.hashFile);
     g.add({
       name: "good_root",
       kind: "root",
       deps: [],
       config: "1",
       params: p("root"),
-      action: async () => "ok",
+      action: async () => write(fs, "good_root.txt", "ok"),
     });
     g.add({
       name: "good_child",
@@ -453,7 +410,7 @@ describe("Graph", () => {
       deps: ["good_root"],
       config: "2",
       params: p("child", { good_root: "good_root" }),
-      action: async () => "ok",
+      action: async () => write(fs, "good_child.txt", "ok"),
     });
     g.add({
       name: "bad_root",
@@ -485,8 +442,9 @@ describe("Graph", () => {
   });
 
   test("dep-failure cascades through transitive dependencies", async () => {
+    const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache);
+    const g = new Graph(cache, fs.hashFile);
     g.add({
       name: "a",
       kind: "root",
@@ -533,8 +491,9 @@ describe("Graph", () => {
   });
 
   test("maxParallelism caps concurrent execution", async () => {
+    const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache);
+    const g = new Graph(cache, fs.hashFile);
     let peak = 0;
     let inflight = 0;
 
@@ -550,7 +509,7 @@ describe("Graph", () => {
           peak = Math.max(peak, inflight);
           await Bun.sleep(20);
           inflight--;
-          return `${i}`;
+          return write(fs, `task_${i}.txt`, `${i}`);
         },
       });
     }
@@ -560,17 +519,136 @@ describe("Graph", () => {
     expect(results.filter((r) => r.status === "done").length).toBe(6);
   });
 
+  describe("early cutoff", () => {
+    test("same output content skips downstream", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+      let aConfig = "a-v1";
+
+      const makeGraph = () => {
+        const g = new Graph(cache, fs.hashFile);
+        g.add({
+          name: "a",
+          kind: "root",
+          deps: [],
+          config: aConfig,
+          params: p("root"),
+          action: async () => write(fs, "a.txt", "stable-content"),
+        });
+        g.add({
+          name: "b",
+          kind: "child",
+          deps: ["a"],
+          config: "b-v1",
+          params: p("child", { a: "a" }),
+          action: async () => write(fs, "b.txt", "b-content"),
+        });
+        return g;
+      };
+
+      // Run 1: both execute
+      let results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 2, skip: 0 });
+
+      // Run 2: change A's config but produce same output content → B is cutoff
+      aConfig = "a-v2";
+      results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 1, skip: 1 });
+    });
+
+    test("different output content re-executes downstream", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+      let aConfig = "a-v1";
+      let aContent = "content-v1";
+
+      const makeGraph = () => {
+        const g = new Graph(cache, fs.hashFile);
+        g.add({
+          name: "a",
+          kind: "root",
+          deps: [],
+          config: aConfig,
+          params: p("root"),
+          action: async () => write(fs, "a.txt", aContent),
+        });
+        g.add({
+          name: "b",
+          kind: "child",
+          deps: ["a"],
+          config: "b-v1",
+          params: p("child", { a: "a" }),
+          action: async () => write(fs, "b.txt", "b-content"),
+        });
+        return g;
+      };
+
+      let results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 2, skip: 0 });
+
+      // Change A's config AND output content → B must re-execute
+      aConfig = "a-v2";
+      aContent = "content-v2";
+      results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 2, skip: 0 });
+    });
+
+    test("cutoff chain: A → B → C, only A runs if output unchanged", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+      let aConfig = "a-v1";
+
+      const makeGraph = () => {
+        const g = new Graph(cache, fs.hashFile);
+        g.add({
+          name: "a",
+          kind: "root",
+          deps: [],
+          config: aConfig,
+          params: p("root"),
+          action: async () => write(fs, "a.txt", "stable"),
+        });
+        g.add({
+          name: "b",
+          kind: "mid",
+          deps: ["a"],
+          config: "b-v1",
+          params: p("mid", { a: "a" }),
+          action: async () => write(fs, "b.txt", "b-stable"),
+        });
+        g.add({
+          name: "c",
+          kind: "leaf",
+          deps: ["b"],
+          config: "c-v1",
+          params: p("leaf", { b: "b" }),
+          action: async () => write(fs, "c.txt", "c-stable"),
+        });
+        return g;
+      };
+
+      let results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 3, skip: 0 });
+
+      // A re-executes (config change) but same output → B and C stay cached
+      aConfig = "a-v2";
+      results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 1, skip: 2 });
+    });
+  });
+
   describe("progress events", () => {
     test("emits start+success for dirty nodes", async () => {
+      const fs = createMemoryFs();
       const cache = new MemCache();
-      const g = new Graph(cache);
+      const g = new Graph(cache, fs.hashFile);
       g.add({
         name: "a",
         kind: "root",
         deps: [],
         config: "1",
         params: p("root"),
-        action: async () => "a",
+        action: async () => write(fs, "a.txt", "a"),
       });
       g.add({
         name: "b",
@@ -578,7 +656,7 @@ describe("Graph", () => {
         deps: ["a"],
         config: "2",
         params: p("child", { a: "a" }),
-        action: async () => "b",
+        action: async () => write(fs, "b.txt", "b"),
       });
 
       const actions: ExecAction[] = [];
@@ -599,53 +677,42 @@ describe("Graph", () => {
     });
 
     test("emits cache-hit for cached nodes", async () => {
+      const fs = createMemoryFs();
       const cache = new MemCache();
-      const g1 = new Graph(cache);
-      g1.add({
-        name: "a",
-        kind: "root",
-        deps: [],
-        config: "1",
-        params: p("root"),
-        action: async () => "a",
-      });
-      g1.add({
-        name: "b",
-        kind: "child",
-        deps: ["a"],
-        config: "2",
-        params: p("child", { a: "a" }),
-        action: async () => "b",
-      });
-      await g1.execute();
+      const makeGraph = () => {
+        const g = new Graph(cache, fs.hashFile);
+        g.add({
+          name: "a",
+          kind: "root",
+          deps: [],
+          config: "1",
+          params: p("root"),
+          action: async () => write(fs, "a.txt", "a"),
+        });
+        g.add({
+          name: "b",
+          kind: "child",
+          deps: ["a"],
+          config: "2",
+          params: p("child", { a: "a" }),
+          action: async () => write(fs, "b.txt", "b"),
+        });
+        return g;
+      };
 
-      const g2 = new Graph(cache);
-      g2.add({
-        name: "a",
-        kind: "root",
-        deps: [],
-        config: "1",
-        params: p("root"),
-        action: async () => "a",
-      });
-      g2.add({
-        name: "b",
-        kind: "child",
-        deps: ["a"],
-        config: "2",
-        params: p("child", { a: "a" }),
-        action: async () => "b",
-      });
+      await makeGraph().execute();
+
       const actions: ExecAction[] = [];
-      await g2.execute(localRunner, { onAction: (a) => actions.push(a) });
+      await makeGraph().execute(localRunner, { onAction: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
       expect(types).toEqual(["cache-hit:a", "complete:a", "cache-hit:b", "complete:b"]);
     });
 
     test("emits start+failure on error with elapsed", async () => {
+      const fs = createMemoryFs();
       const cache = new MemCache();
-      const g = new Graph(cache);
+      const g = new Graph(cache, fs.hashFile);
       g.add({
         name: "bad",
         kind: "task",
@@ -671,8 +738,9 @@ describe("Graph", () => {
     });
 
     test("emits dep-failure for dependency-failure skips", async () => {
+      const fs = createMemoryFs();
       const cache = new MemCache();
-      const g = new Graph(cache);
+      const g = new Graph(cache, fs.hashFile);
       g.add({
         name: "a",
         kind: "root",
@@ -704,4 +772,130 @@ describe("Graph", () => {
       }
     });
   });
+
+  describe("verify outputs on cache hit", () => {
+    test("deleted output causes re-execution", async () => {
+      const files = new Map<string, string>();
+      const hashFile = async (path: string) => {
+        const data = files.get(path);
+        if (data === undefined) throw new Error(`ENOENT: ${path}`);
+        return new Bun.CryptoHasher("sha256").update(data).digest("hex");
+      };
+      const cache = new MemCache();
+      const makeGraph = () => {
+        const g = new Graph(cache, hashFile);
+        g.add({
+          name: "a",
+          kind: "root",
+          deps: [],
+          config: "1",
+          params: p("root"),
+          action: async () => {
+            files.set("a.txt", "content-a");
+            return "a.txt";
+          },
+        });
+        return g;
+      };
+
+      let results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
+
+      results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 0, skip: 1 });
+
+      files.delete("a.txt");
+      results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
+    });
+
+    test("corrupted output causes re-execution", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+      const makeGraph = () => {
+        const g = new Graph(cache, fs.hashFile);
+        g.add({
+          name: "a",
+          kind: "root",
+          deps: [],
+          config: "1",
+          params: p("root"),
+          action: async () => write(fs, "a.txt", "original"),
+        });
+        return g;
+      };
+
+      await makeGraph().execute();
+      await fs.writeText("a.txt", "tampered");
+
+      const results = await makeGraph().execute();
+      expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
+    });
+  });
+
+  describe("structured config via defineAction", () => {
+    test("object config produces deterministic cache keys", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+
+      const action = defineAction<null, BaseParams, string, { version: number; flag: boolean }>({
+        name: (params) => params.kind,
+        config: { version: 1, flag: true },
+        action: (_ctx, _config) => async () => write(fs, "out.txt", "result"),
+      });
+
+      const g = new Graph(cache, fs.hashFile);
+      action.addNode(g, null, { kind: "test" });
+      let results = await g.execute();
+      expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
+
+      const g2 = new Graph(cache, fs.hashFile);
+      action.addNode(g2, null, { kind: "test" });
+      results = await g2.execute();
+      expect(countExec(results)).toEqual({ exec: 0, skip: 1 });
+    });
+
+    test("config object passed to action function", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+      let receivedConfig: unknown;
+
+      const action = defineAction<null, BaseParams, string, { model: string }>({
+        name: (params) => params.kind,
+        config: { model: "gpt-4" },
+        action: (_ctx, config) => async () => {
+          receivedConfig = config;
+          return write(fs, "out.txt", "result");
+        },
+      });
+
+      const g = new Graph(cache, fs.hashFile);
+      action.addNode(g, null, { kind: "test" });
+      await g.execute();
+      expect(receivedConfig).toEqual({ model: "gpt-4" });
+    });
+
+    test("config change invalidates cache", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+
+      const makeAction = (version: number) =>
+        defineAction<null, BaseParams, string, { version: number }>({
+          name: (p) => p.kind,
+          config: { version },
+          action: (_ctx, _config) => async () => write(fs, "out.txt", "result"),
+        });
+
+      const g1 = new Graph(cache, fs.hashFile);
+      makeAction(1).addNode(g1, null, { kind: "test" });
+      let results = await g1.execute();
+      expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
+
+      const g2 = new Graph(cache, fs.hashFile);
+      makeAction(2).addNode(g2, null, { kind: "test" });
+      results = await g2.execute();
+      expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
+    });
+  });
 });
+

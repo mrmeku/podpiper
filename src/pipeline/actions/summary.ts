@@ -1,8 +1,9 @@
 import type { TranscribeResult } from "@/ports/types";
-import type { WhisperJson, YtDlpInfo } from "@/types";
+import { readJson, readJsonIfExists } from "@/typed-path";
+import type { WhisperJson } from "@/types";
 import type { NodeRef } from "@podpiper/dag/types";
 
-import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
+import { NodeKind, defineActionWithPorts, toVideoActionName, toVideoDir } from "./define-action";
 import type { DownloadResult } from "./download";
 
 function formatTranscriptForLlm(whisper: WhisperJson): string {
@@ -12,24 +13,36 @@ function formatTranscriptForLlm(whisper: WhisperJson): string {
 export interface SummaryParams {
   kind: typeof NodeKind.Summary;
   videoId: string;
-  summaryPrompt: string;
+  outputDir: string;
   deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
 }
 
-export const summary = defineActionWithPorts<SummaryParams, string>({
-  name: toVideoActionName,
-  config: (p) => {
-    const promptHash = Bun.hash(p.summaryPrompt).toString(36);
-    return `summary-v2,prompt=${promptHash}`;
-  },
-  action: (ports) => async (params, inputs) => {
-    const info = await ports.fs.readJson<YtDlpInfo>(inputs.download.info);
-    const jsonExists = await ports.fs.exists(inputs.transcribe.json);
-    if (!jsonExists) return info.description ?? "";
-    const whisper = await ports.fs.readJson<WhisperJson>(inputs.transcribe.json);
-    if (!whisper.transcription.length) return info.description ?? "";
-    const transcript = formatTranscriptForLlm(whisper);
-    const prompt = `${params.summaryPrompt}\n\nPlease summarize this episode titled "${info.title}". Here is the transcript:\n\n${transcript}`;
-    return ports.claude.call(prompt);
-  },
-});
+export function toSummaryFile(outputDir: string, videoId: string): string {
+  return `${toVideoDir(outputDir, videoId)}/summary.txt`;
+}
+
+interface SummaryConfig {
+  version: 2;
+  prompt: string;
+}
+
+export const summary = (summaryPrompt: string) =>
+  defineActionWithPorts<SummaryParams, string, SummaryConfig>({
+    name: toVideoActionName,
+    config: { version: 2, prompt: summaryPrompt },
+    action: (ports, config) => async (params, inputs) => {
+      const info = await readJson(ports.fs, inputs.download.info);
+      let text: string = info.description ?? "";
+
+      const whisper = await readJsonIfExists(ports.fs, inputs.transcribe.json);
+      if (whisper && whisper.transcription.length) {
+        const transcript = formatTranscriptForLlm(whisper);
+        const prompt = `${config.prompt}\n\nPlease summarize this episode titled "${info.title}". Here is the transcript:\n\n${transcript}`;
+        text = await ports.claude.call(prompt);
+      }
+
+      const outputPath = toSummaryFile(params.outputDir, params.videoId);
+      await ports.fs.writeText(outputPath, text);
+      return outputPath;
+    },
+  });

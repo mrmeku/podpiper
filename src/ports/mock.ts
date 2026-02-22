@@ -1,16 +1,21 @@
 import { type Mock, spyOn } from "bun:test";
 
+import { jsonPath } from "@/typed-path";
+import type { WhisperJson } from "@/types";
+
 import { createMemoryFs } from "./memory-fs";
 import { createStubPorts } from "./stub";
 import type { FileSystem, Ports } from "./types";
 
-type SpiedInterface<T> = { [K in keyof T]: T[K] & Mock<any> };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SpiedInterface<T> = { [K in keyof T]: T[K] & Mock<(...args: any[]) => any> };
 export type SpiedPorts = { [K in keyof Ports]: SpiedInterface<Ports[K]> };
 
 function spyAllMethods(ports: Ports): SpiedPorts {
   for (const portName of Object.keys(ports) as (keyof Ports)[]) {
     const port = ports[portName];
     for (const method of Object.keys(port)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-function-type
       spyOn(port as unknown as Record<string, Function>, method as any);
     }
   }
@@ -62,7 +67,7 @@ export function createMockPorts(
             ],
           }),
         );
-        return { srt, json };
+        return { srt, json: jsonPath<WhisperJson>(json) };
       },
       ...overrides?.whisper,
     },
