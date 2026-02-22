@@ -1,8 +1,9 @@
-import type { ExecResult, Node } from "./types";
+import type { ExecResult, Node, Outputs } from "./types";
 
 export interface ExecState {
   dependents: Map<string, Node[]>;
-  results: Map<string, string>;
+  results: Map<string, Outputs>;
+  contentHashes: Map<string, string>;
   execResults: Map<string, ExecResult>;
   failed: Set<string>;
   ready: Node[];
@@ -27,6 +28,7 @@ export function createExecState(nodes: Iterable<Node>): ExecState {
   return {
     dependents: buildDependents(allNodes),
     results: new Map(),
+    contentHashes: new Map(),
     execResults: new Map(),
     failed: new Set(),
     ready: leafs,
@@ -46,8 +48,15 @@ export function takeNext(state: ExecState): Node {
 export type ExecAction =
   | { type: "start"; node: Node }
   | { type: "complete"; node: Node }
-  | { type: "cache-hit"; node: Node; cachedResult: string }
-  | { type: "success"; node: Node; result: string; elapsed: number }
+  | { type: "cache-hit"; node: Node; actionKey: string; outputs: Outputs; contentHash: string }
+  | {
+      type: "success";
+      node: Node;
+      actionKey: string;
+      outputs: Outputs;
+      contentHash: string;
+      elapsed: number;
+    }
   | { type: "failure"; node: Node; error: unknown; elapsed: number }
   | { type: "dep-failure"; node: Node; error: unknown };
 
@@ -66,24 +75,28 @@ export function send(state: ExecState, action: ExecAction): void {
       return;
     }
     case "cache-hit": {
-      const { node, cachedResult } = action;
-      state.results.set(node.name, cachedResult);
+      const { node, actionKey, outputs, contentHash } = action;
+      state.results.set(node.name, outputs);
+      state.contentHashes.set(node.name, contentHash);
       state.execResults.set(node.name, {
         name: node.name,
-        hash: node.hash,
+        actionKey,
         status: "cached",
-        result: cachedResult,
+        outputs,
+        contentHash,
       });
       return;
     }
     case "success": {
-      const { node, result } = action;
-      state.results.set(node.name, result);
+      const { node, actionKey, outputs, contentHash } = action;
+      state.results.set(node.name, outputs);
+      state.contentHashes.set(node.name, contentHash);
       state.execResults.set(node.name, {
         name: node.name,
-        hash: node.hash,
+        actionKey,
         status: "done",
-        result,
+        outputs,
+        contentHash,
       });
       return;
     }
@@ -91,14 +104,24 @@ export function send(state: ExecState, action: ExecAction): void {
       const { node } = action;
       const error = action.error instanceof Error ? action.error : new Error(String(action.error));
       state.failed.add(node.name);
-      state.execResults.set(node.name, { name: node.name, hash: node.hash, status: "fail", error });
+      state.execResults.set(node.name, {
+        name: node.name,
+        actionKey: "",
+        status: "fail",
+        error,
+      });
       return;
     }
     case "dep-failure": {
       const { node } = action;
       const error = action.error instanceof Error ? action.error : new Error(String(action.error));
       state.failed.add(node.name);
-      state.execResults.set(node.name, { name: node.name, hash: "", status: "dep-failed", error });
+      state.execResults.set(node.name, {
+        name: node.name,
+        actionKey: "",
+        status: "dep-failed",
+        error,
+      });
       return;
     }
   }
@@ -114,8 +137,8 @@ export function hasCapacity(state: ExecState, maxParallelism?: number): boolean 
   return state.ready.length > 0 && (maxParallelism == null || state.inflight < maxParallelism);
 }
 
-export function inputsFor(node: Node, state: ExecState): Record<string, string> {
-  return Object.fromEntries(node.deps.map((d) => [d, state.results.get(d) ?? ""]));
+export function inputsFor(node: Node, state: ExecState): Record<string, Outputs> {
+  return Object.fromEntries(node.deps.map((d) => [d, state.results.get(d)!]));
 }
 
 export function failedTransitiveDep(node: Node, state: ExecState): string | undefined {

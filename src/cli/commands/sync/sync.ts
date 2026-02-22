@@ -6,7 +6,8 @@ import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
 import { createRealPorts } from "@/ports/real";
-import { LocalCache, MemCache } from "@podpiper/dag/cache";
+import type { CacheEntry } from "@podpiper/dag/types";
+import { LocalCache } from "@podpiper/dag/cache";
 import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
 
 export function registerSync(program: Command) {
@@ -42,9 +43,14 @@ export function registerSync(program: Command) {
           console.log(`Processing ${videos.length} (limit=${opts.limit})`);
         }
 
-        const cache = opts.force
-          ? new MemCache()
-          : new LocalCache(`${config.outputDir}/cache.json`);
+        const cachePath = `${config.outputDir}/cache.json`;
+        let initial: Record<string, CacheEntry> = {};
+        if (!opts.force) {
+          try {
+            initial = await ports.fs.readJson(cachePath);
+          } catch {}
+        }
+        const cache = new LocalCache(initial, (data) => ports.fs.writeText(cachePath, data));
         const { graph, refs } = buildPipelineGraph(cache, videos, ports, config);
 
         const analysis = graph.analyze();
@@ -52,10 +58,11 @@ export function registerSync(program: Command) {
         if (opts.dryRun) return;
 
         const progress = createProgressRenderer(analysis, opts.parallel);
-        const syncResult = await sync(graph, refs, {
+        const syncResult = await sync(graph, refs, ports.fs, {
           maxParallelism: opts.parallel,
           onAction: progress.onAction,
         });
+        await cache.flush();
         progress.finish();
         renderFinalSummary(syncResult.results);
 

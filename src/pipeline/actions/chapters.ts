@@ -1,9 +1,11 @@
 import type { TranscribeResult } from "@/ports/types";
-import type { Chapter, WhisperJson, YtDlpChapter } from "@/types";
+import type { JsonPath } from "@/typed-path";
+import { jsonPath, readJson, readJsonIfExists } from "@/typed-path";
+import type { Chapter, YtDlpChapter } from "@/types";
 import type { NodeRef } from "@podpiper/dag/types";
 
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
-import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
+import { NodeKind, defineActionWithPorts, toVideoActionName, toVideoDir } from "./define-action";
 import type { DownloadResult } from "./download";
 
 const UNTITLED_PATTERN = /^<Untitled Chapter \d+>$/;
@@ -24,29 +26,36 @@ function convertYtDlpChapters(chapters?: YtDlpChapter[]): Chapter[] {
 export interface ChaptersParams {
   kind: typeof NodeKind.Chapters;
   videoId: string;
-  chapterPrompt: string | undefined;
+  outputDir: string;
   deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
 }
 
-export const chapters = defineActionWithPorts<ChaptersParams, Chapter[]>({
-  name: toVideoActionName,
-  config: (p) => {
-    const promptHash = p.chapterPrompt ? Bun.hash(p.chapterPrompt).toString(36) : "none";
-    return `extract-v1,fallback=${promptHash}`;
-  },
-  action: (ports) => async (params, inputs) => {
-    const info = await ports.fs.readJson<{ chapters?: YtDlpChapter[] }>(inputs.download.info);
-    const chapters = convertYtDlpChapters(info.chapters);
-    if (chapters.length > 0) return chapters;
-    if (params.chapterPrompt) {
-      const jsonExists = await ports.fs.exists(inputs.transcribe.json);
-      if (jsonExists) {
-        const whisper = await ports.fs.readJson<WhisperJson>(inputs.transcribe.json);
-        const prompt = buildChapterPrompt(whisper.transcription, params.chapterPrompt);
-        const result = await ports.claude.call(prompt);
-        return parseChapterResponse(result, whisper.transcription);
+export function toChaptersFile(outputDir: string, videoId: string): string {
+  return `${toVideoDir(outputDir, videoId)}/chapters.json`;
+}
+
+interface ChaptersConfig {
+  version: 1;
+  prompt: string | undefined;
+}
+
+export const chapters = (chapterPrompt: string | undefined) =>
+  defineActionWithPorts<ChaptersParams, JsonPath<Chapter[]>, ChaptersConfig>({
+    name: toVideoActionName,
+    config: { version: 1, prompt: chapterPrompt },
+    action: (ports, config) => async (params, inputs) => {
+      const info = await readJson(ports.fs, inputs.download.info);
+      let result = convertYtDlpChapters(info.chapters);
+      if (result.length === 0 && config.prompt) {
+        const whisper = await readJsonIfExists(ports.fs, inputs.transcribe.json);
+        if (whisper) {
+          const prompt = buildChapterPrompt(whisper.transcription, config.prompt);
+          const llmResult = await ports.claude.call(prompt);
+          result = parseChapterResponse(llmResult, whisper.transcription);
+        }
       }
-    }
-    return [];
-  },
-});
+      const outputPath = toChaptersFile(params.outputDir, params.videoId);
+      await ports.fs.writeText(outputPath, JSON.stringify(result));
+      return jsonPath<Chapter[]>(outputPath);
+    },
+  });

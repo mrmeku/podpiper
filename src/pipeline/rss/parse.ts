@@ -66,7 +66,8 @@ export function extractReferencedUrls(xml: string): string[] {
   const parser = new XMLParser(xmlParserOptions);
   const feed = parser.parse(xml);
   const channel = feed.rss.channel;
-  const items: any[] = Array.isArray(channel.item)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const items: Record<string, any>[] = Array.isArray(channel.item)
     ? channel.item
     : channel.item
       ? [channel.item]

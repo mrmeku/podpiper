@@ -6,6 +6,14 @@ A cacheable DAG execution engine. Define nodes with typed dependencies, wire the
 
 Everything operates on strings. A node takes strings in, returns a string out. This makes caching trivial — the executor never needs to know what your data looks like. Type safety is added on top with `NodeRef<T>` wrappers that carry a phantom type parameter. The graph-building layer uses these to ensure you can't wire a `NodeRef<A>` where a `NodeRef<B>` goes.
 
+`addNode` is the serialization boundary. It wraps a typed action with `JSON.stringify`/`JSON.parse` and returns a `NodeRef<R>`. Three layers result:
+
+| Layer    | Sees                                       | Example                         |
+| -------- | ------------------------------------------ | ------------------------------- |
+| User     | Typed code — `FetchResult`, `string`, etc. | `inputs.source.url`             |
+| Executor | Raw JSON strings between nodes             | `'{"url":"…","size":42}'`       |
+| Bridge   | `parseInputsFor<P>` — rekeys node names to role names and `JSON.parse`s each value | automatic |
+
 ## Modules
 
 | File               | Purpose                                                                                    |
