@@ -1,10 +1,14 @@
+import type { JsonPath } from "@/typed-path";
+import { jsonPath } from "@/typed-path";
+import type { YtDlpInfo } from "@/types";
+
 import { NodeKind, defineActionWithPorts, toVideoActionName, toVideoDir } from "./define-action";
 
-export interface DownloadResult {
+export type DownloadResult = {
   audio: string;
-  info: string;
+  info: JsonPath<YtDlpInfo>;
   thumb: string;
-}
+};
 
 export interface DownloadParams {
   kind: typeof NodeKind.Download;
@@ -20,7 +24,7 @@ export const download = defineActionWithPorts<DownloadParams, DownloadResult>({
     await ports.ytdlp.downloadVideo(dir, params.videoId);
     return {
       audio: `${dir}/audio.mp3`,
-      info: `${dir}/audio.info.json`,
+      info: jsonPath<YtDlpInfo>(`${dir}/audio.info.json`),
       thumb: `${dir}/audio.jpg`,
     };
   },

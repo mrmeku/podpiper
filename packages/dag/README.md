@@ -1,21 +1,29 @@
 # @podpiper/dag
 
-A cacheable DAG execution engine. Define nodes with typed dependencies, wire them into a graph, and execute with automatic Merkle-based caching and parallel scheduling.
+A cacheable DAG execution engine. Define nodes with typed dependencies, wire them into a graph, and execute with content-addressed caching and parallel scheduling.
 
 ## Core Idea
 
-Everything operates on strings. A node takes strings in, returns a string out. This makes caching trivial — the executor never needs to know what your data looks like. Type safety is added on top with `NodeRef<T>` wrappers that carry a phantom type parameter. The graph-building layer uses these to ensure you can't wire a `NodeRef<A>` where a `NodeRef<B>` goes.
+Everything operates on file paths. A node takes file paths in, produces file paths out (`Outputs = string | string[] | Record<string, string | string[]>`). The executor never interprets file contents — it just hashes them for cache invalidation. Type safety is added on top with `NodeRef<T>` wrappers that carry a phantom type parameter, ensuring you can't wire a `NodeRef<A>` where a `NodeRef<B>` goes.
+
+`addNode` is the serialization boundary. It wraps a typed `ActionFunc<P, R>` with input resolution (rekeying dep names to role names) and returns a `NodeRef<R>`. Three layers result:
+
+| Layer    | Sees                                         | Example                          |
+| -------- | -------------------------------------------- | -------------------------------- |
+| User     | Typed code — `ResizeParams`, `string`, etc.  | `inputs.source` (a file path)    |
+| Executor | `Outputs` values keyed by node name          | `{ "fetch:img_001": "/tmp/a.jpg" }` |
+| Bridge   | `resolveInputs` — rekeys node names to role names | automatic                    |
 
 ## Modules
 
 | File               | Purpose                                                                                    |
 | ------------------ | ------------------------------------------------------------------------------------------ |
-| `types.ts`         | Core interfaces: `Node`, `Cache`, `NodeRef<T>`, `ExecResult`, `InputsFor`                  |
-| `graph.ts`         | `Graph` class: node registration, Merkle hashing, analysis, execution loop                 |
+| `types.ts`         | Core interfaces: `Node`, `Cache`, `CacheEntry`, `NodeRef<T>`, `ExecResult`, `Outputs`      |
+| `graph.ts`         | `Graph` class: node registration, analysis, execution loop                                 |
 | `exec-state.ts`    | Scheduler state machine: ready queue, inflight tracking, dependency fan-out                |
-| `define-action.ts` | `defineAction` factory: binds context, params, and serde into a reusable action definition |
+| `define-action.ts` | `defineAction` factory: binds context, params, and config into a reusable action definition |
 | `cache.ts`         | `MemCache`, `LocalCache` (JSON file), `TieredCache` (local + remote with promotion)        |
-| `helpers.ts`       | SHA256 hashing, cycle detection, node counting                                             |
+| `helpers.ts`       | SHA256 hashing, output verification, cycle detection                                       |
 
 ## Nodes
 
@@ -25,47 +33,52 @@ interface Node {
   kind: string;
   deps: string[];
   config: string;
-  hash: string;
   params: BaseParams;
-  action: (rawInputs: Record<string, string>) => Promise<string>;
+  action: (rawInputs: Record<string, Outputs>) => Promise<Outputs>;
 }
 ```
 
-`params` holds everything serializable — IDs, paths, prompts, dep refs. External dependencies (filesystem, HTTP clients, CLI tools) get bound at definition time via a context object and stay outside `params`. This means `params` can be shipped to a remote worker. The worker just needs the action registry and its own context.
+`params` holds everything serializable — IDs, paths, prompts, dep refs. External dependencies (filesystem, HTTP clients, CLI tools) get bound at definition time via a context object and stay outside `params`.
 
-`kind` groups nodes by type (`"fetch"`, `"transform"`) for analysis counts and progress displays. Not part of the cache hash.
+`kind` groups nodes by type (`"fetch"`, `"transform"`) for analysis counts and progress displays. Not part of the cache key.
 
-`config` is a version tag plus any parameters that should invalidate cache when changed (e.g., `"v1"` or `"v2,model=gpt4"`). Included in the content hash.
+`config` is a version tag plus any parameters that should invalidate cache when changed (e.g., `"v1"` or `"v2,model=gpt4"`). Included in the action key hash.
 
 ## Caching
 
-Each node's cache key is a SHA256 hash of:
+Each node's **action key** is a SHA256 of:
 
 - Its name
 - Its config string
-- Its dependencies' names and hashes (sorted)
+- Its dependencies' names and **content hashes** (sorted)
 
-A Merkle tree. Change anything upstream and all downstream hashes change automatically.
+Content hashes are computed by hashing the actual file contents at the output paths. This creates a Merkle tree where changes propagate downstream, but with **early cutoff** — if a re-executed node produces files with the same content hash as before, downstream nodes stay cached even though their action key changed.
+
+On cache hit, the executor calls `verifyOutputs` to re-hash the cached file paths. If any file is missing or corrupted, the node re-executes.
 
 Three cache implementations:
 
 - **`MemCache`** — in-memory `Map`. Gone when the process exits.
-- **`LocalCache`** — reads/writes a JSON file on disk. Call `flush()` after execution to persist.
+- **`LocalCache`** — takes initial `Record<string, CacheEntry>` and an optional `onFlush` callback. Call `flush()` after execution to persist.
 - **`TieredCache`** — checks local first, then remote. Promotes remote hits to local on read.
 
 Implement the `Cache` interface to add your own:
 
 ```typescript
 interface Cache {
-  get(hash: string): [string, boolean];
-  put(hash: string, result: string): void;
-  flush?: () => void | Promise<void>;
+  get(key: string): Promise<CacheEntry | undefined>;
+  put(key: string, entry: CacheEntry): Promise<void>;
+}
+
+interface CacheEntry {
+  outputs: Outputs;
+  contentHash: string;
 }
 ```
 
 ## Defining Actions
 
-`defineAction` separates the three concerns — naming, cache config, and execution — into a single spec:
+`defineAction` separates naming, cache config, and execution into a single spec:
 
 ```typescript
 const resize = defineAction<Ctx, ResizeParams, string>({
@@ -73,13 +86,13 @@ const resize = defineAction<Ctx, ResizeParams, string>({
   config: "v1",
   action: (ctx) => async (params, inputs) => {
     const outPath = `${params.outputDir}/resized.jpg`;
-    await ctx.imageLib.resize(inputs.source.path, outPath);
+    await ctx.imageLib.resize(inputs.source, outPath);
     return outPath;
   },
 });
 ```
 
-The first type parameter (`Ctx`) is the context type — whatever external dependencies your actions need. It's generic so the DAG engine has no opinion about what your context looks like.
+The first type parameter (`Ctx`) is the context type — whatever external dependencies your actions need. The `config` field can be a string or an object (objects are JSON-stringified). Changing config invalidates the cache for that action.
 
 Params declare dependencies with `NodeRef<T>`:
 
@@ -88,11 +101,11 @@ interface ResizeParams {
   kind: "resize";
   imageId: string;
   outputDir: string;
-  deps: { source: NodeRef<FetchResult> };
+  deps: { source: NodeRef<string> };
 }
 ```
 
-`InputsFor<P>` derives the typed inputs from the `deps` record. Inside the action, `inputs.source` is a `FetchResult`, not a string you parse. The framework handles serde: it parses raw JSON inputs, rekeys them from node names (`"fetch:img_001"`) to role names (`"source"`), and stringifies the return value.
+`InputsFor<P>` derives the typed inputs from the `deps` record. Inside the action, `inputs.source` is the output type of the referenced node. The framework resolves inputs by rekeying from node names (`"fetch:img_001"`) to role names (`"source"`).
 
 The returned `ActionDef` has an `addNode` method that wires everything together:
 
@@ -102,12 +115,13 @@ resize.addNode(graph, ctx, params); // returns NodeRef<string>
 
 ## Analysis
 
-`graph.analyze()` walks the full DAG before execution. Computes Merkle hashes, checks each node against the cache, returns per-node dirty/cached status and per-kind aggregate counts. Powers dry-run mode without running any actions.
+`graph.analyze()` validates the DAG (no cycles) and returns structural info:
 
 ```typescript
 const analysis = graph.analyze();
-// analysis.totalCounts  → { total: 14, cached: 8, dirty: 6 }
-// analysis.byKind       → Map { "fetch" => { total: 2, cached: 0, dirty: 2 }, ... }
+// analysis.total   → 14
+// analysis.byKind  → Map { "fetch" => 2, "transform" => 5, ... }
+// analysis.nodes   → Node[]
 ```
 
 ## Execution
@@ -124,7 +138,7 @@ const results = await graph.execute(localRunner, {
 The executor is a readiness-loop state machine:
 
 1. `createExecState` seeds the ready queue with zero-dep leaf nodes
-2. The loop pops nodes via `takeNext`, checks cache, runs the action (or skips on cache hit / dep failure)
+2. The loop pops nodes via `takeNext`, checks cache (with output verification), runs the action or skips on cache hit / dep failure
 3. On completion, newly-ready children are pushed to the **front** of the queue (`unshift`). This keeps related work together — node A's fetch finishes, its dependent transform starts immediately instead of waiting behind queued fetches from other subgraphs
 4. The loop continues while there's work remaining (ready > 0 or inflight > 0), dispatching up to `maxParallelism` concurrent nodes
 
@@ -135,18 +149,18 @@ Every state transition emits an `ExecAction` to the `onAction` callback:
 | Action        | When                                                                         |
 | ------------- | ---------------------------------------------------------------------------- |
 | `start`       | Node begins executing                                                        |
-| `success`     | Node completed successfully                                                  |
+| `success`     | Node completed successfully (includes outputs, contentHash, elapsed time)    |
 | `failure`     | Node threw an error                                                          |
-| `cache-hit`   | Node skipped via cache                                                       |
+| `cache-hit`   | Node skipped — cached outputs verified intact                                |
 | `dep-failure` | Node skipped because an upstream dependency failed                           |
 | `complete`    | Node fully done (after success/failure/cache-hit) — triggers child promotion |
 
 Results are a discriminated union per node:
 
 ```typescript
-type ExecResult = { name: string; hash: string } & (
-  | { status: "done"; result: string }
-  | { status: "cached"; result: string }
+type ExecResult = { name: string; actionKey: string } & (
+  | { status: "done"; outputs: Outputs; contentHash: string }
+  | { status: "cached"; outputs: Outputs; contentHash: string }
   | { status: "fail"; error: Error }
   | { status: "dep-failed"; error: Error }
 );
@@ -162,45 +176,59 @@ import type { NodeRef } from "@podpiper/dag/types";
 
 // 1. Define your context type
 interface Ctx {
-  http: { fetch: (url: string) => Promise<string> };
+  fs: { write: (path: string, data: string) => Promise<void> };
 }
 
 // 2. Define actions
 interface FetchParams {
   kind: "fetch";
   url: string;
+  outPath: string;
 }
 
 const fetch = defineAction<Ctx, FetchParams, string>({
   name: (p) => `fetch:${p.url}`,
   config: "v1",
-  action: (ctx) => async (params) => ctx.http.fetch(params.url),
+  action: (ctx) => async (params) => {
+    const data = await (await globalThis.fetch(params.url)).text();
+    await ctx.fs.write(params.outPath, data);
+    return params.outPath;
+  },
 });
 
 interface TransformParams {
   kind: "transform";
   id: string;
+  outPath: string;
   deps: { source: NodeRef<string> };
 }
 
 const transform = defineAction<Ctx, TransformParams, string>({
   name: (p) => `transform:${p.id}`,
   config: "v1",
-  action: (_ctx) => async (_params, inputs) => inputs.source.toUpperCase(),
+  action: (ctx) => async (params, inputs) => {
+    const data = await Bun.file(inputs.source).text();
+    await ctx.fs.write(params.outPath, data.toUpperCase());
+    return params.outPath;
+  },
 });
 
 // 3. Build graph
+const hashFile = async (p: string) =>
+  new Bun.CryptoHasher("sha256").update(await Bun.file(p).arrayBuffer()).digest("hex");
 const cache = new MemCache();
-const graph = new Graph(cache);
-const ctx: Ctx = { http: myHttpClient };
+const graph = new Graph(cache, hashFile);
+const ctx: Ctx = { fs: myFs };
 
 const sourceRef = fetch.addNode(graph, ctx, {
   kind: "fetch",
   url: "https://example.com/data.json",
+  outPath: "/tmp/data.json",
 });
 transform.addNode(graph, ctx, {
   kind: "transform",
   id: "main",
+  outPath: "/tmp/transformed.json",
   deps: { source: sourceRef },
 });
 

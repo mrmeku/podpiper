@@ -1,4 +1,4 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 
 import { CLAUDE_MODEL, WHISPER_MODEL_PATH } from "@/config";
 
@@ -14,18 +14,26 @@ export function createRealPorts(opts?: { force?: boolean; cookies?: boolean }): 
     fs: {
       exists: async (path) => Bun.file(path).exists(),
       readText: async (path) => Bun.file(path).text(),
-      readJson: async (path) => Bun.file(path).json(),
+      readJson: async (path) => {
+        try {
+          return await Bun.file(path).json();
+        } catch (e) {
+          throw new Error(`Failed to parse JSON from ${path}`, { cause: e });
+        }
+      },
       readBinary: async (path) => new Uint8Array(await Bun.file(path).arrayBuffer()),
+      hashFile: async (path) => {
+        const hasher = new Bun.CryptoHasher("sha256");
+        for await (const chunk of Bun.file(path).stream()) hasher.update(chunk);
+        return hasher.digest("hex");
+      },
       writeText: async (path, content) => {
         await Bun.write(path, content);
       },
       stat: async (path) => {
-        try {
-          const s = await stat(path);
-          return { size: s.size };
-        } catch {
-          return null;
-        }
+        const f = Bun.file(path);
+        if (!(await f.exists())) return null;
+        return { size: f.size };
       },
       readdir: async (path) => {
         const entries = await readdir(path, { withFileTypes: true });

@@ -1,39 +1,31 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-
-import type { Cache, Flushable } from "./types";
+import type { Cache, CacheEntry } from "./types";
 
 export class MemCache implements Cache {
-  private results = new Map<string, string>();
-  get(hash: string): [string, boolean] {
-    const r = this.results.get(hash);
-    return r !== undefined ? [r, true] : ["", false];
+  private entries = new Map<string, CacheEntry>();
+  async get(key: string): Promise<CacheEntry | undefined> {
+    return this.entries.get(key);
   }
-  put(hash: string, result: string): void {
-    this.results.set(hash, result);
+  async put(key: string, entry: CacheEntry): Promise<void> {
+    this.entries.set(key, entry);
   }
 }
 
-export class LocalCache implements Cache, Flushable {
-  private results: Record<string, string>;
-  constructor(private path: string) {
-    try {
-      this.results = JSON.parse(readFileSync(path, "utf-8")) as Record<string, string>;
-    } catch {
-      this.results = {};
-    }
+export class LocalCache implements Cache {
+  private entries: Record<string, CacheEntry>;
+  constructor(
+    initial: Record<string, CacheEntry>,
+    private onFlush?: (data: string) => void | Promise<void>,
+  ) {
+    this.entries = initial;
   }
-  get(hash: string): [string, boolean] {
-    const r = this.results[hash];
-    return r !== undefined ? [r, true] : ["", false];
+  async get(key: string): Promise<CacheEntry | undefined> {
+    return this.entries[key];
   }
-  put(hash: string, result: string): void {
-    this.results[hash] = result;
+  async put(key: string, entry: CacheEntry): Promise<void> {
+    this.entries[key] = entry;
   }
-  flush(): void {
-    const dir = dirname(this.path);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(this.path, JSON.stringify(this.results, null, 2));
+  async flush(): Promise<void> {
+    await this.onFlush?.(JSON.stringify(this.entries, null, 2));
   }
 }
 
@@ -44,18 +36,18 @@ export class TieredCache implements Cache {
     this.local = opts.local;
     this.remote = opts.remote;
   }
-  get(hash: string): [string, boolean] {
-    const [lr, lok] = this.local.get(hash);
-    if (lok) return [lr, true];
-    const [rr, rok] = this.remote.get(hash);
-    if (rok) {
-      this.local.put(hash, rr);
-      return [rr, true];
+  async get(key: string): Promise<CacheEntry | undefined> {
+    const local = await this.local.get(key);
+    if (local) return local;
+    const remote = await this.remote.get(key);
+    if (remote) {
+      await this.local.put(key, remote);
+      return remote;
     }
-    return ["", false];
+    return undefined;
   }
-  put(hash: string, result: string): void {
-    this.local.put(hash, result);
-    this.remote.put(hash, result);
+  async put(key: string, entry: CacheEntry): Promise<void> {
+    await this.local.put(key, entry);
+    await this.remote.put(key, entry);
   }
 }

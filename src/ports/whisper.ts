@@ -2,6 +2,9 @@ import { basename, join } from "node:path";
 
 import { $ } from "bun";
 
+import { jsonPath } from "@/typed-path";
+import type { WhisperJson } from "@/types";
+
 import type { Transcriber } from "./types";
 
 export function createRealWhisper(modelPath: string): Transcriber {
@@ -11,7 +14,7 @@ export function createRealWhisper(modelPath: string): Transcriber {
       await $`whisper-cli -m ${modelPath} -oj -osrt -np -f ${audioPath} -of ${join(outputDir, prefix)}`.quiet();
       return {
         srt: join(outputDir, `${prefix}.srt`),
-        json: join(outputDir, `${prefix}.json`),
+        json: jsonPath<WhisperJson>(join(outputDir, `${prefix}.json`)),
       };
     },
   };
