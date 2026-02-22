@@ -1,26 +1,25 @@
 import type { Graph } from "./graph";
 import { addNode as graphAddNode } from "./graph";
-import type { ActionFunc, BaseParams, NodeRef } from "./types";
+import type { ActionFunc, BaseParams, NodeRef, Outputs } from "./types";
 
-export interface ActionSpec<Ctx, P extends BaseParams, R> {
+export interface ActionSpec<Ctx, P extends BaseParams, R extends Outputs, C = string> {
   name: (params: P) => string;
-  config: string | ((params: P) => string);
-  action: (ctx: Ctx) => ActionFunc<P, R>;
+  config: C;
+  action: (ctx: Ctx, config: C) => ActionFunc<P, R>;
 }
 
-export interface ActionDef<Ctx, P extends BaseParams, R> {
-  action: (ctx: Ctx) => ActionFunc<P, R>;
+export interface ActionDef<Ctx, P extends BaseParams, R extends Outputs> {
   addNode: (graph: Graph, ctx: Ctx, params: P) => NodeRef<R>;
 }
 
-export function defineAction<Ctx, P extends BaseParams, R>(
-  spec: ActionSpec<Ctx, P, R>,
+export function defineAction<Ctx, P extends BaseParams, R extends Outputs, C = string>(
+  spec: ActionSpec<Ctx, P, R, C>,
 ): ActionDef<Ctx, P, R> {
+  const configStr = typeof spec.config === "string"
+    ? spec.config
+    : JSON.stringify(spec.config);
   return {
-    action: spec.action,
-    addNode: (graph, ctx, params) => {
-      const config = typeof spec.config === "string" ? spec.config : spec.config(params);
-      return graphAddNode(graph, spec.name(params), config, params, spec.action(ctx));
-    },
+    addNode: (graph, ctx, params) =>
+      graphAddNode(graph, spec.name(params), configStr, params, spec.action(ctx, spec.config)),
   };
 }

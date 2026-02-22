@@ -1,3 +1,6 @@
+import { jsonPath } from "@/typed-path";
+import type { WhisperJson } from "@/types";
+
 import type { Ports } from "./types";
 
 const noop = async () => {};
@@ -7,11 +10,12 @@ export function createStubPorts(): Ports {
     fs: {
       exists: async () => false,
       readText: async () => "",
-      readJson: async () => ({}) as any,
+      readJson: async () => ({}) as never,
       readBinary: async () => new Uint8Array(),
       writeText: noop,
       stat: async () => null,
       readdir: async () => [],
+      hashFile: async () => "",
     },
     ytdlp: {
       fetchVideoList: async () => [],
@@ -19,7 +23,7 @@ export function createStubPorts(): Ports {
       downloadChannelArtwork: noop,
     },
     ffmpeg: { cropThumbnail: noop, processChannelArtwork: noop },
-    whisper: { transcribe: async () => ({ srt: "", json: "" }) },
+    whisper: { transcribe: async () => ({ srt: "", json: jsonPath<WhisperJson>("") }) },
     claude: { call: async () => "" },
     storage: {
       uploadFile: noop,
