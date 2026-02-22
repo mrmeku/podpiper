@@ -144,7 +144,7 @@ export type PodcastConfig = {
   description: string;
 } & ApplePodcastCategory;
 
-export interface R2Config {
+export interface StorageConfig {
   bucket: string;
   publicUrl: string;
 }
@@ -152,7 +152,7 @@ export interface R2Config {
 export interface Config {
   channelUrl: string;
   outputDir: string;
-  r2: R2Config;
+  storage: StorageConfig;
   podcast: PodcastConfig;
   summaryPrompt?: string;
   chapterPrompt?: string;
@@ -209,7 +209,7 @@ export interface WhisperJson {
 
 export interface UploadEntry {
   localPath: string;
-  r2Key: string;
+  key: string;
   cacheControl?: string;
 }
 

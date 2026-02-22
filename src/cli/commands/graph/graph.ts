@@ -7,7 +7,6 @@ import { getConfig } from "@/config";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { createStubPorts } from "@/ports/stub";
 import type { VideoInfo } from "@/types";
-import { MemCache } from "@podpiper/dag/cache";
 import { generateMermaid } from "./mermaid";
 
 export function registerGraph(program: Command) {
@@ -25,7 +24,7 @@ export function registerGraph(program: Command) {
         title: `Video ${i + 1}`,
       }));
 
-      const { graph } = buildPipelineGraph(new MemCache(), videos, createStubPorts(), config);
+      const { graph } = buildPipelineGraph(videos, createStubPorts(), config);
       const mermaid = generateMermaid(graph);
 
       if (opts.output) {

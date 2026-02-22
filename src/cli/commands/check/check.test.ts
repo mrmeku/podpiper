@@ -9,7 +9,7 @@ import { checkMissing } from "./check";
 const TEST_CONFIG: Config = {
   channelUrl: "https://www.youtube.com/@testchannel",
   outputDir: "/test/output",
-  r2: { bucket: "test-bucket", publicUrl: "https://cdn.test.com" },
+  storage: { bucket: "test-bucket", publicUrl: "https://cdn.test.com" },
   podcast: {
     title: "Test Podcast",
     author: "Test Author",

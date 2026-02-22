@@ -70,6 +70,12 @@ export interface ExecuteOptions {
   onAction?: (action: ExecAction) => void;
 }
 
+/** Kind-level dependency edge — collapses concrete nodes into kind-level topology. */
+export interface KindEdge {
+  kind: string;
+  depKinds: string[];
+}
+
 /** Output of `graph.analyze()` — structural info, no cache prediction. */
 export interface AnalysisResult {
   nodes: Node[];

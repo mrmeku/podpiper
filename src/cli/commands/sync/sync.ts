@@ -6,8 +6,8 @@ import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
 import { createRealPorts } from "@/ports/real";
-import type { CacheEntry } from "@podpiper/dag/types";
 import { LocalCache } from "@podpiper/dag/cache";
+import type { CacheEntry } from "@podpiper/dag/types";
 import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
 
 export function registerSync(program: Command) {
@@ -51,14 +51,15 @@ export function registerSync(program: Command) {
           } catch {}
         }
         const cache = new LocalCache(initial, (data) => ports.fs.writeText(cachePath, data));
-        const { graph, refs } = buildPipelineGraph(cache, videos, ports, config);
+        const { graph, refs } = buildPipelineGraph(videos, ports, config);
 
         const analysis = graph.analyze();
         renderAnalysisSummary(analysis);
         if (opts.dryRun) return;
 
+        const executionCtx = { cache, hashFile: ports.fs.hashFile };
         const progress = createProgressRenderer(analysis, opts.parallel);
-        const syncResult = await sync(graph, refs, ports.fs, {
+        const syncResult = await sync(graph, refs, ports.fs, executionCtx, {
           maxParallelism: opts.parallel,
           onAction: progress.onAction,
         });

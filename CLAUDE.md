@@ -12,40 +12,6 @@ General programming principles:
 7. write the program, reflect on its quality, simplicity, correctness, and ease of modification, and then go back and write a second version
 8. prefer idiomatic solutions — use the conventions, naming patterns, and standard approaches of the language/framework rather than inventing custom ones
 
-## Podcast RSS Feed Specs
-
-Reference specifications for feed generation:
-
-- RSS 2.0: https://www.rssboard.org/rss-specification
-- Apple Podcasts: https://podcasters.apple.com/support/823-podcast-requirements
-- Podcast Index namespace: https://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/1.0.md
-
-XML namespaces needed:
-
-- `xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"`
-- `xmlns:media="http://search.yahoo.com/mrss/"`
-
-Channel-level image (need BOTH):
-
-- `<image><url>...</url><title>...</title><link>...</link></image>` (standard RSS)
-- `<itunes:image href="..."/>` (iTunes namespace)
-
-Artwork specs:
-
-- Minimum 1400x1400px, max 3000x3000px, square, JPEG/PNG
-
-**Pocket Casts episode artwork (REQUIRED):**
-
-- RSS-based `<itunes:image>` in items is DISABLED in Pocket Casts
-- Must embed artwork directly in MP3 ID3 tags (yt-dlp handles this via `--embed-thumbnail`)
-- User enables via: Profile > Settings > Appearance > Use Episode Artwork
-- Refresh artwork: Profile > Settings > Appearance > Refresh all podcast artwork
-
-**Thumbnail processing:**
-
-- yt-dlp downloads thumbnails with `--write-thumbnail --convert-thumbnails jpg`
-- ffmpeg pads to square and scales to 1400x1400: `pad=iw:iw:0:(oh-ih)/2:black,scale=1400:1400:flags=lanczos`
-
 ## Project
 
 **podpiper** - CLI tool to download YouTube channels as podcast RSS feeds, hosted on Cloudflare R2.
@@ -53,66 +19,18 @@ Artwork specs:
 ### Architecture
 
 - **Runtime**: Bun + TypeScript (`bunx tsgo` for typechecking)
-- **Entry**: `src/cli.ts` using Commander with `sync`, `check`, and `graph` commands
+- **Entry**: `src/cli/cli.ts` using Commander with `sync`, `check`, and `graph` commands
 - **Config**: `src/config.ts` - channel definitions with YouTube URL, R2 config, podcast metadata, optional LLM prompts
 - **Execution**: DAG-based pipeline with automatic caching and parallel execution
 - **Ports**: All external tools (yt-dlp, ffmpeg, whisper-cli, claude, S3, filesystem) are behind interfaces in `src/ports/types.ts`, with real/mock/stub implementations
-
-### Core Modules
-
-| Module                          | Purpose                                                                                             |
-| ------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `src/dag/graph.ts`              | DAG execution engine: topological sort, SHA256 hashing, level-parallel execution with semaphore     |
-| `src/dag/cache.ts`              | MemCache (in-memory), LocalCache (JSON file), TieredCache (local + remote)                          |
-| `src/pipeline/graph-builder.ts` | Wires per-video DAG: download -> {thumbnail, transcribe, chapters, summary} -> rss_entry            |
-| `src/pipeline/sync.ts`          | Builds graph, executes it, collects upload entries from results                                     |
-| `src/pipeline/publish.ts`       | Uploads files to R2, merges episodes into existing feed, publishes feed.xml                         |
-| `src/pipeline/check.ts`         | Diffs video list against existing feed to find unprocessed videos                                   |
-| `src/pipeline/discovery.ts`     | Fetches video list from YouTube via yt-dlp                                                          |
-| `src/pipeline/actions/*.ts`     | Individual DAG node actions: download, transcribe, thumbnail, chapters, summary, rss-entry, artwork |
-| `src/rss/generate.ts`           | Builds RSS 2.0 XML with iTunes/Media/Podcast Index namespaces                                       |
-| `src/rss/parse.ts`              | Parses existing feed XML, merges episodes (dedup by id, sort by date)                               |
-| `src/ports/*.ts`                | Port interfaces and implementations (ytdlp, ffmpeg, whisper, claude, s3, memory-fs)                 |
+- **DAG engine**: `packages/dag/` is a **reusable, generic workspace package** — it must stay free of podcast-specific concerns (intended for use outside podpiper). The bridge: `src/pipeline/actions/define-action.ts` wraps the generic `defineAction` with a `Ports`-typed context via `defineActionWithPorts`.
 
 ### Data Flow
 
 1. `discoverVideos()` gets all videos via `yt-dlp --flat-playlist`
 2. `buildPipelineGraph()` wires a DAG per video: download -> {thumbnail, transcribe} -> {chapters, summary} -> rss_entry
 3. `sync()` executes the DAG with caching - unchanged nodes are skipped via SHA256 hash matching
-4. `publish()` uploads files to R2, fetches existing feed, merges episodes, generates and uploads new feed.xml
-
-### Output Structure
-
-```
-output/{channel}/
-├── cache.json
-├── feed.xml
-├── artwork.jpg
-├── artwork/channel_avatar.jpg
-└── videos/{videoId}/
-    ├── audio.mp3
-    ├── audio.info.json
-    ├── audio.jpg (original thumbnail)
-    ├── audio.en.srt (subtitles)
-    ├── thumbnail.jpg (1400x1400)
-    └── chapters.json
-```
-
-### CLI Commands
-
-- `bun run src/cli.ts check <channel>` - show videos not in feed
-- `bun run src/cli.ts sync <channel> [-n N] [-c] [-p N] [-f]` - process and upload videos (`-f` skips cache)
-- `bun run src/cli.ts graph <channel> [-n N] [-o path]` - visualize the DAG
-
-### Dependencies
-
-- yt-dlp (external) - YouTube download and metadata
-- ffmpeg (external) - thumbnail processing
-- whisper-cli (external) - speech-to-text transcription
-- claude (external) - LLM for chapter generation and summaries
-- @aws-sdk/client-s3 - R2 upload/download
-- fast-xml-parser - RSS generation/parsing
-- commander - CLI
+4. `publish()` uploads files to R2, fetches existing feed, merges episodes, generates and uploads new feed.xml. Only nodes with status `"done"` (freshly executed, not cached) contribute uploads — cached episodes are assumed to already be on R2.
 
 ### Testing
 
@@ -127,4 +45,22 @@ Tests should exercise real logic: data transformations, parsing, merge semantics
 
 ### Coding Patterns
 
-**File paths**: Never use inline `Bun.file()` for artifact paths. Always define helper functions like `toXxxFile(dirPath)` in the relevant module (e.g., `src/paths.ts`). This keeps paths centralized and consistent.
+**File paths**: Never use inline `Bun.file()` for artifact paths. Always define helper functions like `toXxxFile(outputDir, videoId)` in the relevant action module (e.g., `toChaptersFile` in `chapters.ts`, `toSummaryFile` in `summary.ts`, `toVideoDir` in `define-action.ts`). This keeps paths centralized and consistent.
+
+### Cache Constraints
+
+**Action key = hash(nodeName + config + sorted dep content hashes)**
+
+- **Config changes invalidate cache.** If you change an ffmpeg filter or LLM prompt, bump the config string/version. If you don't, cached outputs won't re-execute.
+- **Dep hashes are sorted** before hashing, so reordering the `deps` record doesn't invalidate cache.
+- **`--force` vs config bump:** `--force` (CLI flag) skips cache entirely for a one-off retry. Config bumps are for when the action's logic actually changed and all future runs should re-execute.
+- **Early cutoff:** If a node re-executes but produces files with identical content, the `contentHash` doesn't change. Downstream nodes hit cache. Config rollbacks are cheap.
+- **Output verification:** Before accepting a cache hit, the executor verifies all output files still exist and their content hash matches. Missing or corrupted files trigger re-execution.
+
+### RSS Feed Specs
+
+See `docs/rss-specs.md` for XML namespace requirements, artwork specs, and Pocket Casts episode artwork rules.
+
+### Adding a Pipeline Action
+
+See `docs/adding-pipeline-action.md` for the step-by-step recipe.

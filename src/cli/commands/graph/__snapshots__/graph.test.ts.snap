@@ -40,7 +40,7 @@ exports[`graph command mermaid output 1`] = `
   end
 
   subgraph publish_phase ["Publish"]
-    publish["R2 Uploads + Feed"]
+    publish["Upload + Feed"]
   end
   rss_entry_vid_aaa & rss_entry_vid_bbb & artwork --> publish
 
