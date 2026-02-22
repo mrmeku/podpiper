@@ -10,16 +10,30 @@ export interface ActionSpec<Ctx, P extends BaseParams, R extends Outputs, C = st
 
 export interface ActionDef<Ctx, P extends BaseParams, R extends Outputs> {
   addNode: (graph: Graph, ctx: Ctx, params: P) => NodeRef<R>;
+  createAction: (ctx: Ctx) => ActionFunc<P, R>;
+}
+
+function stableStringify(obj: unknown) {
+  return JSON.stringify(obj, (_, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+      : v,
+  );
 }
 
 export function defineAction<Ctx, P extends BaseParams, R extends Outputs, C = string>(
   spec: ActionSpec<Ctx, P, R, C>,
 ): ActionDef<Ctx, P, R> {
-  const configStr = typeof spec.config === "string"
-    ? spec.config
-    : JSON.stringify(spec.config);
+  const configStr = typeof spec.config === "string" ? spec.config : stableStringify(spec.config);
   return {
     addNode: (graph, ctx, params) =>
-      graphAddNode(graph, spec.name(params), configStr, params, spec.action(ctx, spec.config)),
+      graphAddNode({
+        graph,
+        name: spec.name(params),
+        config: configStr,
+        params,
+        action: spec.action(ctx, spec.config),
+      }),
+    createAction: (ctx) => spec.action(ctx, spec.config),
   };
 }

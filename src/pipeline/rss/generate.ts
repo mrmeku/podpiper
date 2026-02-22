@@ -42,7 +42,7 @@ interface RssItem {
 }
 
 function buildItem(config: Config, ep: Episode): RssItem {
-  const thumbUrl = ep.thumbnail ? `${config.r2.publicUrl}/${encodeUrl(ep.thumbnail)}` : null;
+  const thumbUrl = ep.thumbnail ? `${config.storage.publicUrl}/${encodeUrl(ep.thumbnail)}` : null;
   const hasChapters = ep.chapters.length > 0;
   return {
     title: ep.title,
@@ -50,7 +50,7 @@ function buildItem(config: Config, ep: Episode): RssItem {
     pubDate: formatPubDate(ep.uploadDate),
     guid: { "#text": ep.id, "@_isPermaLink": "false" },
     enclosure: {
-      "@_url": `${config.r2.publicUrl}/${encodeUrl(ep.filename)}`,
+      "@_url": `${config.storage.publicUrl}/${encodeUrl(ep.filename)}`,
       "@_length": ep.fileSize,
       "@_type": "audio/mpeg",
     },
@@ -65,13 +65,13 @@ function buildItem(config: Config, ep: Episode): RssItem {
     }),
     ...(hasChapters && {
       "podcast:chapters": {
-        "@_url": `${config.r2.publicUrl}/${ep.id}/chapters.json`,
+        "@_url": `${config.storage.publicUrl}/${ep.id}/chapters.json`,
         "@_type": "application/json+chapters",
       },
     }),
     ...(ep.transcript && {
       "podcast:transcript": {
-        "@_url": `${config.r2.publicUrl}/${encodeUrl(ep.transcript)}`,
+        "@_url": `${config.storage.publicUrl}/${encodeUrl(ep.transcript)}`,
         "@_type": "application/srt",
       },
     }),
@@ -84,7 +84,7 @@ function buildItem(config: Config, ep: Episode): RssItem {
 
 export function buildFeedXml(config: Config, episodes: Episode[]): string {
   const { podcast } = config;
-  const artworkUrl = `${config.r2.publicUrl}/artwork.jpg`;
+  const artworkUrl = `${config.storage.publicUrl}/artwork.jpg`;
   const builder = new XMLBuilder(xmlBuilderOptions);
   const items = episodes.map((ep) => buildItem(config, ep));
   const newestEpisode = episodes[0];

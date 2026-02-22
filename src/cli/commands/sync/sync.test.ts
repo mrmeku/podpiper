@@ -3,8 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { extractReferencedUrls, parseExistingFeed } from "@/pipeline/rss/parse";
 import { createMemoryFs } from "@/ports/memory-fs";
 import type { SpiedPorts } from "@/ports/mock";
-import { createSpyPorts } from "@/ports/mock";
-import type { Config, Episode, VideoInfo, YtDlpInfo } from "@/types";
+import type { Config, Episode, VideoInfo } from "@/types";
 import { MemCache, TieredCache } from "@podpiper/dag/cache";
 import type { Cache, CacheEntry, ExecResult } from "@podpiper/dag/types";
 
@@ -12,77 +11,8 @@ import type { RssEntryResult } from "@/pipeline/actions/rss-entry";
 import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
-
-const TEST_CONFIG: Config = {
-  channelUrl: "https://www.youtube.com/@testchannel",
-  outputDir: "/test/output",
-  r2: { bucket: "test-bucket", publicUrl: "https://cdn.test.com" },
-  podcast: {
-    title: "Test Podcast",
-    author: "Test Author",
-    description: "A test podcast",
-    category: "Technology",
-  },
-  summaryPrompt: "Summarize this episode concisely.",
-};
-
-const TEST_VIDEOS: VideoInfo[] = [
-  { id: "vid_aaa", uploadDate: "20240315", title: "Video AAA" },
-  { id: "vid_bbb", uploadDate: "20240310", title: "Video BBB" },
-];
-
-const VID_AAA_INFO: YtDlpInfo = {
-  id: "vid_aaa",
-  title: "Understanding Deep Learning",
-  description: "A video about deep learning.",
-  upload_date: "20240315",
-  duration: 1800,
-  chapters: [
-    { start_time: 0, end_time: 600, title: "Introduction" },
-    { start_time: 600, end_time: 1200, title: "Core Concepts" },
-    { start_time: 1200, end_time: 1800, title: "Conclusion" },
-  ],
-};
-
-const VID_BBB_INFO: YtDlpInfo = {
-  id: "vid_bbb",
-  title: "Growth Mindset Tips",
-  description: "A video about growth mindset.",
-  upload_date: "20240310",
-  duration: 2400,
-};
-
-const VID_CCC_INFO: YtDlpInfo = {
-  id: "vid_ccc",
-  title: "Intro to Rust Programming",
-  description: "A video about Rust programming.",
-  upload_date: "20240320",
-  duration: 3600,
-};
-
-function createTestPorts(existingFs?: ReturnType<typeof createMemoryFs>) {
-  const fs = existingFs ?? createMemoryFs();
-  const ports = createSpyPorts(fs, {
-    ytdlp: {
-      fetchVideoList: async () => [],
-      downloadVideo: async (outputDir: string, videoId: string) => {
-        const infoMap: Record<string, YtDlpInfo> = {
-          vid_aaa: VID_AAA_INFO,
-          vid_bbb: VID_BBB_INFO,
-          vid_ccc: VID_CCC_INFO,
-        };
-        const info = infoMap[videoId] ?? VID_BBB_INFO;
-        await fs.writeText(`${outputDir}/audio.mp3`, `fake-mp3-${videoId}`);
-        await fs.writeText(`${outputDir}/audio.info.json`, JSON.stringify(info));
-        await fs.writeText(`${outputDir}/audio.jpg`, `fake-thumb-${videoId}`);
-      },
-      downloadChannelArtwork: async (outputDir: string) => {
-        await fs.writeText(`${outputDir}/channel_avatar.jpg`, "fake-avatar");
-      },
-    },
-  });
-  return { fs, ports };
-}
+import { createTestPorts, TEST_CONFIG, TEST_VIDEOS } from "@/pipeline/test-fixtures";
+import type { ExecutionContext } from "@podpiper/dag/execute";
 
 function buildAndSync(
   videos: VideoInfo[],
@@ -91,8 +21,9 @@ function buildAndSync(
   cache: Cache,
   opts?: { maxParallelism?: number },
 ) {
-  const { graph, refs } = buildPipelineGraph(cache, videos, ports, config);
-  return sync(graph, refs, ports.fs, opts);
+  const { graph, refs } = buildPipelineGraph(videos, ports, config);
+  const executionCtx: ExecutionContext = { cache, hashFile: ports.fs.hashFile };
+  return sync(graph, refs, ports.fs, executionCtx, opts);
 }
 
 function countExec(results: ExecResult[]): {
@@ -382,11 +313,11 @@ describe("sync pipeline", () => {
     const sr = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, new MemCache());
     await publish(sr, TEST_CONFIG, ports.fs, ports.storage);
     const feedXml = await ports.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
-    const prefix = TEST_CONFIG.r2.publicUrl + "/";
+    const prefix = TEST_CONFIG.storage.publicUrl + "/";
     const referencedKeys = extractReferencedUrls(feedXml)
       .map((u) => decodeURIComponent(u.replace(prefix, "")))
       .sort();
-    const uploadedKeys = sr.uploads.map((u) => u.r2Key).sort();
+    const uploadedKeys = sr.uploads.map((u) => u.key).sort();
     expect(uploadedKeys).toEqual(referencedKeys);
   });
 
@@ -449,7 +380,7 @@ describe("sync pipeline", () => {
       dag: countExec(sr2.results),
       syncEpisodes: sr2.episodes.length,
       feedEpisodes: parseExistingFeed(
-        TEST_CONFIG.r2.publicUrl,
+        TEST_CONFIG.storage.publicUrl,
         await p2.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`),
       )
         .map((e) => e.id)

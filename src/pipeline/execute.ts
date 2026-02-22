@@ -2,6 +2,8 @@ import type { FileSystem } from "@/ports/types";
 import type { JsonPath } from "@/typed-path";
 import { readJson } from "@/typed-path";
 import type { Episode, UploadEntry } from "@/types";
+import type { ExecutionContext } from "@podpiper/dag/execute";
+import { execute } from "@podpiper/dag/execute";
 import type { Graph } from "@podpiper/dag/graph";
 import { localRunner } from "@podpiper/dag/graph";
 import type { ExecResult, ExecuteOptions } from "@podpiper/dag/types";
@@ -19,10 +21,11 @@ export async function sync(
   graph: Graph,
   refs: PipelineRefs,
   fs: FileSystem,
+  executionCtx: ExecutionContext,
   opts?: ExecuteOptions,
 ): Promise<SyncResult> {
   const { entryRefs, artworkRef } = refs;
-  const results = await graph.execute(localRunner, opts);
+  const results = await execute(graph, executionCtx, localRunner, opts);
   const resultsByName = new Map(results.map((r) => [r.name, r]));
   const uploads: UploadEntry[] = [];
   const episodes: Episode[] = [];

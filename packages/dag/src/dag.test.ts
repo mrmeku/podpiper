@@ -5,6 +5,8 @@ import type { FileSystem } from "@/ports/types";
 import { MemCache, TieredCache } from "./cache";
 import { defineAction } from "./define-action";
 import type { ExecAction } from "./exec-state";
+import { execute } from "./execute";
+import type { ExecutionContext } from "./execute";
 import { Graph, localRunner } from "./graph";
 import type { BaseParams, ExecResult, NodeRunner } from "./types";
 
@@ -110,11 +112,15 @@ function addAggregateNode(g: Graph, ids: string[], fs: FileSystem): void {
   });
 }
 
-function buildGraph(cache: MemCache | TieredCache, ids: string[], fs: FileSystem): Graph {
-  const g = new Graph(cache, fs.hashFile);
+function buildGraph(ids: string[], fs: FileSystem): Graph {
+  const g = new Graph();
   for (const id of ids) addItemNodes(g, id, fs);
   addAggregateNode(g, ids, fs);
   return g;
+}
+
+function ctx(cache: MemCache | TieredCache, fs: FileSystem): ExecutionContext {
+  return { cache, hashFile: fs.hashFile };
 }
 
 describe("Graph", () => {
@@ -122,20 +128,17 @@ describe("Graph", () => {
     const fs = createMemoryFs();
     const cache = new MemCache();
 
-    // Run 1: 2 items, all fresh
-    let results = await buildGraph(cache, ["aaa", "bbb"], fs).execute();
+    let results = await execute(buildGraph(["aaa", "bbb"], fs), ctx(cache, fs));
     let { exec, skip } = countExec(results);
     expect(skip).toBe(0);
     expect(exec).toBe(15);
 
-    // Run 2: same 2 items, all cached
-    results = await buildGraph(cache, ["aaa", "bbb"], fs).execute();
+    results = await execute(buildGraph(["aaa", "bbb"], fs), ctx(cache, fs));
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(0);
     expect(skip).toBe(15);
 
-    // Run 3: new item ccc
-    results = await buildGraph(cache, ["aaa", "bbb", "ccc"], fs).execute();
+    results = await execute(buildGraph(["aaa", "bbb", "ccc"], fs), ctx(cache, fs));
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(8);
     expect(skip).toBe(14);
@@ -144,34 +147,55 @@ describe("Graph", () => {
   test("tiered cache", async () => {
     const fs = createMemoryFs();
     const remote = new MemCache();
-    const local = new MemCache();
 
-    let results = await buildGraph(remote, ["aaa"], fs).execute();
+    let results = await execute(buildGraph(["aaa"], fs), ctx(remote, fs));
     let { exec } = countExec(results);
     expect(exec).toBe(8);
 
+    const local = new MemCache();
     const tiered = new TieredCache({ local, remote });
-    results = await buildGraph(tiered, ["aaa"], fs).execute();
+    results = await execute(buildGraph(["aaa"], fs), ctx(tiered, fs));
     ({ exec } = countExec(results));
     expect(exec).toBe(0);
 
-    results = await buildGraph(local, ["aaa"], fs).execute();
+    results = await execute(buildGraph(["aaa"], fs), ctx(local, fs));
     ({ exec } = countExec(results));
     expect(exec).toBe(0);
+  });
+
+  describe("kindTopology()", () => {
+    test("extracts kind-level edges from concrete graph", () => {
+      const fs = createMemoryFs();
+      expect(buildGraph(["aaa"], fs).kindTopology()).toEqual([
+        { kind: "fetch", depKinds: [] },
+        { kind: "extract", depKinds: ["fetch"] },
+        { kind: "parse", depKinds: ["extract"] },
+        { kind: "summarize", depKinds: ["parse"] },
+        { kind: "classify", depKinds: ["parse"] },
+        { kind: "resize", depKinds: ["fetch"] },
+        { kind: "entry", depKinds: ["summarize", "classify", "extract", "resize"] },
+        { kind: "aggregate", depKinds: ["entry"] },
+      ]);
+    });
+
+    test("multiple items produce same topology as single item", () => {
+      const fs = createMemoryFs();
+      const single = buildGraph(["aaa"], fs).kindTopology();
+      const multi = buildGraph(["aaa", "bbb", "ccc"], fs).kindTopology();
+      expect(multi).toEqual(single);
+    });
   });
 
   describe("analyze()", () => {
     test("returns total count", () => {
       const fs = createMemoryFs();
-      const cache = new MemCache();
-      const { total } = buildGraph(cache, ["aaa", "bbb"], fs).analyze();
+      const { total } = buildGraph(["aaa", "bbb"], fs).analyze();
       expect(total).toBe(15);
     });
 
     test("byKind breakdown", () => {
       const fs = createMemoryFs();
-      const cache = new MemCache();
-      const { byKind } = buildGraph(cache, ["aaa", "bbb"], fs).analyze();
+      const { byKind } = buildGraph(["aaa", "bbb"], fs).analyze();
       expect(Object.fromEntries(byKind)).toEqual({
         fetch: 2,
         extract: 2,
@@ -186,8 +210,7 @@ describe("Graph", () => {
 
     test("nodes list", () => {
       const fs = createMemoryFs();
-      const cache = new MemCache();
-      const { nodes } = buildGraph(cache, ["aaa"], fs).analyze();
+      const { nodes } = buildGraph(["aaa"], fs).analyze();
       expect(nodes.length).toBe(8);
       const fetchNode = nodes.find((n) => n.name === "fetch:aaa")!;
       expect(fetchNode.kind).toBe("fetch");
@@ -198,7 +221,7 @@ describe("Graph", () => {
   test("readiness: dependent starts as soon as its deps finish", async () => {
     const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache, fs.hashFile);
+    const g = new Graph();
     const log: string[] = [];
 
     g.add({
@@ -247,14 +270,14 @@ describe("Graph", () => {
       },
     });
 
-    await g.execute();
+    await execute(g, ctx(cache, fs));
     expect(log).toEqual(["fast_root", "fast_child", "slow_root", "slow_child"]);
   });
 
   test("children of completed nodes run before queued siblings", async () => {
     const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache, fs.hashFile);
+    const g = new Graph();
     const log: string[] = [];
 
     g.add({
@@ -291,7 +314,7 @@ describe("Graph", () => {
       },
     });
 
-    await g.execute(localRunner, { maxParallelism: 1 });
+    await execute(g, ctx(cache, fs), localRunner, { maxParallelism: 1 });
     expect(log).toEqual(["first_root", "child", "second_root"]);
   });
 
@@ -301,7 +324,7 @@ describe("Graph", () => {
     let leafConfig = "leaf-v2";
 
     const makeGraph = () => {
-      const g = new Graph(cache, fs.hashFile);
+      const g = new Graph();
       g.add({
         name: "fetch",
         kind: "fetch",
@@ -337,20 +360,18 @@ describe("Graph", () => {
       return g;
     };
 
-    let results = await makeGraph().execute();
+    let results = await execute(makeGraph(), ctx(cache, fs));
     let { exec, skip } = countExec(results);
     expect(exec).toBe(4);
     expect(skip).toBe(0);
 
-    // Change leaf config — only leaf re-executes
     leafConfig = "leaf-v3";
-    results = await makeGraph().execute();
+    results = await execute(makeGraph(), ctx(cache, fs));
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(1);
 
-    // Rollback — content-addressed hit
     leafConfig = "leaf-v2";
-    results = await makeGraph().execute();
+    results = await execute(makeGraph(), ctx(cache, fs));
     ({ exec, skip } = countExec(results));
     expect(exec).toBe(0);
   });
@@ -358,7 +379,7 @@ describe("Graph", () => {
   test("mock runner: executor calls runner instead of node.action", async () => {
     const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache, fs.hashFile);
+    const g = new Graph();
     const calls: string[] = [];
 
     g.add({
@@ -383,7 +404,7 @@ describe("Graph", () => {
       return write(fs, `${node.name}.txt`, `result:${node.name}`);
     };
 
-    const results = await g.execute(mockRunner);
+    const results = await execute(g, ctx(cache, fs), mockRunner);
     expect(calls).toEqual(["root", "child"]);
     const child = results.find((r) => r.name === "child")!;
     expect(child.status).toBe("done");
@@ -395,7 +416,7 @@ describe("Graph", () => {
   test("failure in one branch does not affect independent branches", async () => {
     const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache, fs.hashFile);
+    const g = new Graph();
     g.add({
       name: "good_root",
       kind: "root",
@@ -431,7 +452,7 @@ describe("Graph", () => {
       action: async () => "unreachable",
     });
 
-    const results = await g.execute();
+    const results = await execute(g, ctx(cache, fs));
     const byName = Object.fromEntries(results.map((r) => [r.name, r.status]));
     expect(byName).toEqual({
       good_root: "done",
@@ -444,7 +465,7 @@ describe("Graph", () => {
   test("dep-failure cascades through transitive dependencies", async () => {
     const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache, fs.hashFile);
+    const g = new Graph();
     g.add({
       name: "a",
       kind: "root",
@@ -480,7 +501,7 @@ describe("Graph", () => {
       action: async () => "unreachable",
     });
 
-    const results = await g.execute();
+    const results = await execute(g, ctx(cache, fs));
     const byName = Object.fromEntries(results.map((r) => [r.name, r.status]));
     expect(byName).toEqual({
       a: "fail",
@@ -493,7 +514,7 @@ describe("Graph", () => {
   test("maxParallelism caps concurrent execution", async () => {
     const fs = createMemoryFs();
     const cache = new MemCache();
-    const g = new Graph(cache, fs.hashFile);
+    const g = new Graph();
     let peak = 0;
     let inflight = 0;
 
@@ -514,7 +535,7 @@ describe("Graph", () => {
       });
     }
 
-    const results = await g.execute(localRunner, { maxParallelism: 2 });
+    const results = await execute(g, ctx(cache, fs), localRunner, { maxParallelism: 2 });
     expect(peak).toBe(2);
     expect(results.filter((r) => r.status === "done").length).toBe(6);
   });
@@ -526,7 +547,7 @@ describe("Graph", () => {
       let aConfig = "a-v1";
 
       const makeGraph = () => {
-        const g = new Graph(cache, fs.hashFile);
+        const g = new Graph();
         g.add({
           name: "a",
           kind: "root",
@@ -546,13 +567,11 @@ describe("Graph", () => {
         return g;
       };
 
-      // Run 1: both execute
-      let results = await makeGraph().execute();
+      let results = await execute(makeGraph(), ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 2, skip: 0 });
 
-      // Run 2: change A's config but produce same output content → B is cutoff
       aConfig = "a-v2";
-      results = await makeGraph().execute();
+      results = await execute(makeGraph(), ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 1, skip: 1 });
     });
 
@@ -563,7 +582,7 @@ describe("Graph", () => {
       let aContent = "content-v1";
 
       const makeGraph = () => {
-        const g = new Graph(cache, fs.hashFile);
+        const g = new Graph();
         g.add({
           name: "a",
           kind: "root",
@@ -583,13 +602,12 @@ describe("Graph", () => {
         return g;
       };
 
-      let results = await makeGraph().execute();
+      let results = await execute(makeGraph(), ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 2, skip: 0 });
 
-      // Change A's config AND output content → B must re-execute
       aConfig = "a-v2";
       aContent = "content-v2";
-      results = await makeGraph().execute();
+      results = await execute(makeGraph(), ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 2, skip: 0 });
     });
 
@@ -599,7 +617,7 @@ describe("Graph", () => {
       let aConfig = "a-v1";
 
       const makeGraph = () => {
-        const g = new Graph(cache, fs.hashFile);
+        const g = new Graph();
         g.add({
           name: "a",
           kind: "root",
@@ -627,12 +645,11 @@ describe("Graph", () => {
         return g;
       };
 
-      let results = await makeGraph().execute();
+      let results = await execute(makeGraph(), ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 3, skip: 0 });
 
-      // A re-executes (config change) but same output → B and C stay cached
       aConfig = "a-v2";
-      results = await makeGraph().execute();
+      results = await execute(makeGraph(), ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 1, skip: 2 });
     });
   });
@@ -641,7 +658,7 @@ describe("Graph", () => {
     test("emits start+success for dirty nodes", async () => {
       const fs = createMemoryFs();
       const cache = new MemCache();
-      const g = new Graph(cache, fs.hashFile);
+      const g = new Graph();
       g.add({
         name: "a",
         kind: "root",
@@ -660,7 +677,10 @@ describe("Graph", () => {
       });
 
       const actions: ExecAction[] = [];
-      await g.execute(localRunner, { maxParallelism: 1, onAction: (a) => actions.push(a) });
+      await execute(g, ctx(cache, fs), localRunner, {
+        maxParallelism: 1,
+        onAction: (a) => actions.push(a),
+      });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
       expect(types).toEqual([
@@ -680,7 +700,7 @@ describe("Graph", () => {
       const fs = createMemoryFs();
       const cache = new MemCache();
       const makeGraph = () => {
-        const g = new Graph(cache, fs.hashFile);
+        const g = new Graph();
         g.add({
           name: "a",
           kind: "root",
@@ -700,10 +720,12 @@ describe("Graph", () => {
         return g;
       };
 
-      await makeGraph().execute();
+      await execute(makeGraph(), ctx(cache, fs));
 
       const actions: ExecAction[] = [];
-      await makeGraph().execute(localRunner, { onAction: (a) => actions.push(a) });
+      await execute(makeGraph(), ctx(cache, fs), localRunner, {
+        onAction: (a) => actions.push(a),
+      });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
       expect(types).toEqual(["cache-hit:a", "complete:a", "cache-hit:b", "complete:b"]);
@@ -712,7 +734,7 @@ describe("Graph", () => {
     test("emits start+failure on error with elapsed", async () => {
       const fs = createMemoryFs();
       const cache = new MemCache();
-      const g = new Graph(cache, fs.hashFile);
+      const g = new Graph();
       g.add({
         name: "bad",
         kind: "task",
@@ -725,7 +747,7 @@ describe("Graph", () => {
       });
 
       const actions: ExecAction[] = [];
-      await g.execute(localRunner, { onAction: (a) => actions.push(a) });
+      await execute(g, ctx(cache, fs), localRunner, { onAction: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
       expect(types).toEqual(["start:bad", "failure:bad", "complete:bad"]);
@@ -740,7 +762,7 @@ describe("Graph", () => {
     test("emits dep-failure for dependency-failure skips", async () => {
       const fs = createMemoryFs();
       const cache = new MemCache();
-      const g = new Graph(cache, fs.hashFile);
+      const g = new Graph();
       g.add({
         name: "a",
         kind: "root",
@@ -761,7 +783,7 @@ describe("Graph", () => {
       });
 
       const actions: ExecAction[] = [];
-      await g.execute(localRunner, { onAction: (a) => actions.push(a) });
+      await execute(g, ctx(cache, fs), localRunner, { onAction: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
       expect(types).toEqual(["start:a", "failure:a", "complete:a", "dep-failure:b", "complete:b"]);
@@ -782,8 +804,9 @@ describe("Graph", () => {
         return new Bun.CryptoHasher("sha256").update(data).digest("hex");
       };
       const cache = new MemCache();
+      const executionCtx: ExecutionContext = { cache, hashFile };
       const makeGraph = () => {
-        const g = new Graph(cache, hashFile);
+        const g = new Graph();
         g.add({
           name: "a",
           kind: "root",
@@ -798,14 +821,14 @@ describe("Graph", () => {
         return g;
       };
 
-      let results = await makeGraph().execute();
+      let results = await execute(makeGraph(), executionCtx);
       expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
 
-      results = await makeGraph().execute();
+      results = await execute(makeGraph(), executionCtx);
       expect(countExec(results)).toEqual({ exec: 0, skip: 1 });
 
       files.delete("a.txt");
-      results = await makeGraph().execute();
+      results = await execute(makeGraph(), executionCtx);
       expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
     });
 
@@ -813,7 +836,7 @@ describe("Graph", () => {
       const fs = createMemoryFs();
       const cache = new MemCache();
       const makeGraph = () => {
-        const g = new Graph(cache, fs.hashFile);
+        const g = new Graph();
         g.add({
           name: "a",
           kind: "root",
@@ -825,10 +848,10 @@ describe("Graph", () => {
         return g;
       };
 
-      await makeGraph().execute();
+      await execute(makeGraph(), ctx(cache, fs));
       await fs.writeText("a.txt", "tampered");
 
-      const results = await makeGraph().execute();
+      const results = await execute(makeGraph(), ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
     });
   });
@@ -844,14 +867,14 @@ describe("Graph", () => {
         action: (_ctx, _config) => async () => write(fs, "out.txt", "result"),
       });
 
-      const g = new Graph(cache, fs.hashFile);
+      const g = new Graph();
       action.addNode(g, null, { kind: "test" });
-      let results = await g.execute();
+      let results = await execute(g, ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
 
-      const g2 = new Graph(cache, fs.hashFile);
+      const g2 = new Graph();
       action.addNode(g2, null, { kind: "test" });
-      results = await g2.execute();
+      results = await execute(g2, ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 0, skip: 1 });
     });
 
@@ -869,9 +892,9 @@ describe("Graph", () => {
         },
       });
 
-      const g = new Graph(cache, fs.hashFile);
+      const g = new Graph();
       action.addNode(g, null, { kind: "test" });
-      await g.execute();
+      await execute(g, ctx(cache, fs));
       expect(receivedConfig).toEqual({ model: "gpt-4" });
     });
 
@@ -886,16 +909,15 @@ describe("Graph", () => {
           action: (_ctx, _config) => async () => write(fs, "out.txt", "result"),
         });
 
-      const g1 = new Graph(cache, fs.hashFile);
+      const g1 = new Graph();
       makeAction(1).addNode(g1, null, { kind: "test" });
-      let results = await g1.execute();
+      let results = await execute(g1, ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
 
-      const g2 = new Graph(cache, fs.hashFile);
+      const g2 = new Graph();
       makeAction(2).addNode(g2, null, { kind: "test" });
-      results = await g2.execute();
+      results = await execute(g2, ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
     });
   });
 });
-

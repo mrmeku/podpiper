@@ -36,7 +36,7 @@ export const artwork = defineActionWithPorts<ArtworkParams, JsonPath<UploadEntry
   action: (ports) => async (params, inputs) => {
     await ports.ffmpeg.processChannelArtwork(inputs.channel_avatar, params.artworkPath);
     const uploads: UploadEntry[] = [
-      { localPath: params.artworkPath, r2Key: "artwork.jpg", cacheControl: "max-age=86400" },
+      { localPath: params.artworkPath, key: "artwork.jpg", cacheControl: "max-age=86400" },
     ];
     const outputPath = toArtworkUploadsFile(params.outputDir);
     await ports.fs.writeText(outputPath, JSON.stringify(uploads));

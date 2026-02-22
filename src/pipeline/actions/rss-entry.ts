@@ -24,7 +24,7 @@ export interface RssEntryParams {
   };
 }
 
-function toR2Key(videoId: string, key: string) {
+function toObjectKey(videoId: string, key: string) {
   return `${videoId}/${key}`;
 }
 
@@ -44,7 +44,7 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, RssEntryResult>({
     async (params, inputs) => {
       const { videoId, outputDir } = params;
       const dir = toVideoDir(outputDir, videoId);
-      const r2 = (key: string) => toR2Key(videoId, key);
+      const objectKey = (key: string) => toObjectKey(videoId, key);
 
       const info = await readJson(fs, inputs.download.info);
       const chapters = await readJson(fs, inputs.chapters);
@@ -62,26 +62,25 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, RssEntryResult>({
         description,
         uploadDate: info.upload_date,
         duration: info.duration,
-        filename: r2("audio.mp3"),
+        filename: objectKey("audio.mp3"),
         fileSize: (await fs.stat(inputs.download.audio))?.size,
-        thumbnail: r2("thumbnail.jpg"),
+        thumbnail: objectKey("thumbnail.jpg"),
         chapters,
-        transcript: srtExists ? r2("transcript.srt") : null,
+        transcript: srtExists ? objectKey("transcript.srt") : null,
       };
 
-      // Build upload manifest
       const uploads: UploadEntry[] = [
-        { localPath: inputs.download.audio, r2Key: episode.filename },
-        { localPath: inputs.thumbnail, r2Key: episode.thumbnail! },
+        { localPath: inputs.download.audio, key: episode.filename },
+        { localPath: inputs.thumbnail, key: episode.thumbnail! },
       ];
       if (srtExists) {
-        uploads.push({ localPath: inputs.transcribe.srt, r2Key: episode.transcript! });
+        uploads.push({ localPath: inputs.transcribe.srt, key: episode.transcript! });
       }
       if (chapters.length > 0) {
         const chaptersJson = JSON.stringify({ version: "1.2.0", chapters }, null, 2);
         const chaptersPath = `${dir}/chapters-upload.json`;
         await fs.writeText(chaptersPath, chaptersJson);
-        uploads.push({ localPath: chaptersPath, r2Key: r2("chapters.json") });
+        uploads.push({ localPath: chaptersPath, key: objectKey("chapters.json") });
       }
 
       const episodePath = `${dir}/episode.json`;
