@@ -15,8 +15,7 @@ function spyAllMethods(ports: Ports): SpiedPorts {
   for (const portName of Object.keys(ports) as (keyof Ports)[]) {
     const port = ports[portName];
     for (const method of Object.keys(port)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-function-type
-      spyOn(port as unknown as Record<string, Function>, method as any);
+      spyOn(port, method as never);
     }
   }
   return ports as unknown as SpiedPorts;

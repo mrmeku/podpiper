@@ -3,9 +3,9 @@ import type { Config } from "./types";
 export const CLAUDE_MODEL = "sonnet";
 export const WHISPER_MODEL_PATH = `${process.env.HOME}/.whisper-models/ggml-medium.bin`;
 
-type ChannelDef = Omit<Config, "outputDir">;
+export type ChannelDef = Omit<Config, "outputDir"> & { schedule?: string };
 
-const channels: Record<string, ChannelDef> = {
+export const channels: Record<string, ChannelDef> = {
   heidi: {
     channelUrl: "https://www.youtube.com/@heidipriebe1/videos",
     chapterPrompt: `CHANNEL: Heidi Priebe
@@ -24,7 +24,7 @@ CHANNEL-SPECIFIC RULES:
 - Her videos almost always warrant chapters — return an empty array only for shorts or very brief announcements.
 - For numbered-list videos, the chapter count should match her numbering. This is an exception to the typical 3-7 cap.`,
     summaryPrompt: `Write a one-paragraph summary (3-5 sentences) of this content for display as a podcast episode description. Summarize what the video covers — the main topic and the general arc of the discussion. Mention the most important ideas without trying to be exhaustive. Write in present tense as appropriate. Be plain and informative — no rhetorical questions, no "in this video", no marketing language, no calls to action. Do not reference the creator by name or role — summarize the content itself, not who is presenting it.`,
-    r2: {
+    storage: {
       bucket: "heidipriebe",
       publicUrl: "https://heidipriebe.cast.mrmeku.com",
     },
@@ -38,7 +38,7 @@ CHANNEL-SPECIFIC RULES:
   },
   asianometry: {
     channelUrl: "https://www.youtube.com/asianometry",
-    r2: {
+    storage: {
       bucket: "asianometry",
       publicUrl: "https://asianometry.cast.mrmeku.com",
     },

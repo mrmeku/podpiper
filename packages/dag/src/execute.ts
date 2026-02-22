@@ -1,0 +1,91 @@
+import * as execState from "./exec-state";
+import { localRunner } from "./graph";
+import { type HashFileFn, computeHash, hashOutputFiles, verifyOutputs } from "./helpers";
+import type { Cache, ExecResult, ExecuteOptions, Node, NodeRunner } from "./types";
+
+import type { Graph } from "./graph";
+
+/** Required infrastructure for execution — stable, typically shared across invocations (e.g. one
+ * ExecutionContext for all Hatchet tasks in a channel). The runner parameter on execute() is separate
+ * because it's the execution *strategy* that varies per invocation (Bazel: SpawnStrategy vs
+ * ActionExecutionContext — different selection mechanisms, different lifetimes). */
+export interface ExecutionContext {
+  cache: Cache;
+  hashFile: HashFileFn;
+}
+
+export async function execute(
+  graph: Graph,
+  ctx: ExecutionContext,
+  runner: NodeRunner = localRunner,
+  opts?: ExecuteOptions,
+): Promise<ExecResult[]> {
+  const { maxParallelism, onAction } = opts ?? {};
+  const nodes = graph.getNodes();
+  const state = execState.createExecState(nodes.values());
+  const dispatch = (action: execState.ExecAction) => {
+    execState.send(state, action);
+    onAction?.(action);
+  };
+
+  const processNode = async (node: Node): Promise<void> => {
+    const failedDep = execState.failedTransitiveDep(node, state);
+    if (failedDep) {
+      dispatch({
+        type: "dep-failure",
+        node,
+        error: new Error(`dependency ${failedDep} failed`),
+      });
+      return;
+    }
+
+    const depContentHashes = new Map(node.deps.map((d) => [d, state.contentHashes.get(d)!]));
+    const actionKey = computeHash(node, depContentHashes);
+
+    const cached = await ctx.cache.get(actionKey);
+    if (cached && (await verifyOutputs(cached, ctx.hashFile))) {
+      dispatch({
+        type: "cache-hit",
+        node,
+        actionKey,
+        outputs: cached.outputs,
+        contentHash: cached.contentHash,
+      });
+      return;
+    }
+
+    dispatch({ type: "start", node });
+    const startTime = Date.now();
+    try {
+      const outputs = await runner(node, execState.inputsFor(node, state));
+      const contentHash = await hashOutputFiles(outputs, ctx.hashFile);
+      await ctx.cache.put(actionKey, { outputs, contentHash });
+      dispatch({
+        type: "success",
+        node,
+        actionKey,
+        outputs,
+        contentHash,
+        elapsed: Date.now() - startTime,
+      });
+    } catch (e) {
+      dispatch({ type: "failure", node, error: e, elapsed: Date.now() - startTime });
+    }
+  };
+
+  let resumeLoop: () => void = () => {};
+  while (execState.hasWork(state)) {
+    while (execState.hasCapacity(state, maxParallelism)) {
+      const node = execState.takeNext(state);
+      processNode(node).finally(() => {
+        dispatch({ type: "complete", node });
+        resumeLoop();
+      });
+    }
+    await new Promise<void>((r) => {
+      resumeLoop = r;
+    });
+  }
+
+  return [...state.execResults.values()];
+}
