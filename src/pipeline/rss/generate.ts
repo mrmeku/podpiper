@@ -32,8 +32,8 @@ interface RssItem {
   description: string;
   pubDate: string;
   guid: { "#text": string; "@_isPermaLink": string };
-  enclosure: { "@_url": string; "@_length": number; "@_type": string };
-  "itunes:duration": string;
+  enclosure: { "@_url": string; "@_length": number | undefined; "@_type": string };
+  "itunes:duration": string | undefined;
   "itunes:image"?: { "@_href": string };
   "media:content"?: { "@_url": string; "@_medium": string; "@_type": string };
   "podcast:chapters"?: { "@_url": string; "@_type": string };
@@ -54,7 +54,7 @@ function buildItem(config: Config, ep: Episode): RssItem {
       "@_length": ep.fileSize,
       "@_type": "audio/mpeg",
     },
-    "itunes:duration": formatDuration(ep.duration),
+    "itunes:duration": ep.duration ? formatDuration(ep.duration) : undefined,
     ...(thumbUrl && {
       "itunes:image": { "@_href": thumbUrl },
       "media:content": {

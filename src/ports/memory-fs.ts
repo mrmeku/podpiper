@@ -1,3 +1,4 @@
+import { jsonParse } from "@podpiper/dag/helpers";
 import type { FileSystem } from "./types";
 
 export function createMemoryFs(initial?: Record<string, string | Uint8Array>): FileSystem {
@@ -14,7 +15,7 @@ export function createMemoryFs(initial?: Record<string, string | Uint8Array>): F
       const data = files.get(path);
       if (data === undefined) throw new Error(`ENOENT: ${path}`);
       const text = typeof data === "string" ? data : new TextDecoder().decode(data);
-      return JSON.parse(text) as T;
+      return jsonParse<T>(text, `readJson(${path})`);
     },
     readBinary: async (path) => {
       const data = files.get(path);
@@ -29,6 +30,12 @@ export function createMemoryFs(initial?: Record<string, string | Uint8Array>): F
       if (data === undefined) return null;
       const size = typeof data === "string" ? new TextEncoder().encode(data).length : data.length;
       return { size };
+    },
+    hashFile: async (path) => {
+      const data = files.get(path);
+      if (data === undefined) throw new Error(`ENOENT: ${path}`);
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+      return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
     },
     readdir: async (dirPath) => {
       const normalizedDir = dirPath.endsWith("/") ? dirPath : dirPath + "/";

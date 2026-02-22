@@ -1,10 +1,13 @@
+import type { FileSystem } from "@/ports/types";
+import type { JsonPath } from "@/typed-path";
+import { readJson } from "@/typed-path";
 import type { Episode, UploadEntry } from "@/types";
 import type { Graph } from "@podpiper/dag/graph";
 import { localRunner } from "@podpiper/dag/graph";
 import type { ExecResult, ExecuteOptions } from "@podpiper/dag/types";
-import { parseRef } from "@podpiper/dag/types";
 
 import type { PipelineRefs } from "@/pipeline/graph-builder";
+import type { RssEntryResult } from "@/pipeline/actions/rss-entry";
 
 export interface SyncResult {
   uploads: UploadEntry[];
@@ -15,23 +18,33 @@ export interface SyncResult {
 export async function sync(
   graph: Graph,
   refs: PipelineRefs,
+  fs: FileSystem,
   opts?: ExecuteOptions,
 ): Promise<SyncResult> {
-  const { publishRefs, entryRefs } = refs;
+  const { entryRefs, artworkRef } = refs;
   const results = await graph.execute(localRunner, opts);
   const resultsByName = new Map(results.map((r) => [r.name, r]));
   const uploads: UploadEntry[] = [];
-  for (const ref of publishRefs) {
+  const episodes: Episode[] = [];
+
+  for (const ref of entryRefs) {
     const r = resultsByName.get(ref.name);
-    if (!r || r.status !== "done") continue;
-    uploads.push(...parseRef(ref, r.result).uploads);
+    if (!r || (r.status !== "done" && r.status !== "cached")) continue;
+    const paths = r.outputs as RssEntryResult;
+    const episode = await readJson(fs, paths.episode);
+    const entryUploads = await readJson(fs, paths.uploads);
+    episodes.push(episode);
+    if (r.status === "done") {
+      uploads.push(...entryUploads);
+    }
   }
-  const episodes = entryRefs
-    .map((ref) => {
-      const r = resultsByName.get(ref.name);
-      if (!r || r.status === "fail" || r.status === "dep-failed") return null;
-      return parseRef(ref, r.result).episode;
-    })
-    .filter((ep) => ep !== null);
+
+  const artworkResult = resultsByName.get(artworkRef.name);
+  if (artworkResult && artworkResult.status === "done") {
+    const uploadsPath = artworkResult.outputs as JsonPath<UploadEntry[]>;
+    const artworkUploads = await readJson(fs, uploadsPath);
+    uploads.push(...artworkUploads);
+  }
+
   return { uploads, results, episodes };
 }

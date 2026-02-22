@@ -1,10 +1,10 @@
 import type { Ports } from "@/ports/types";
 import type { ActionDef, ActionSpec } from "@podpiper/dag/define-action";
 import { defineAction } from "@podpiper/dag/define-action";
-import type { BaseParams } from "@podpiper/dag/types";
+import type { BaseParams, Outputs } from "@podpiper/dag/types";
 
-export function defineActionWithPorts<P extends BaseParams, R>(
-  spec: ActionSpec<Ports, P, R>,
+export function defineActionWithPorts<P extends BaseParams, R extends Outputs, C = string>(
+  spec: ActionSpec<Ports, P, R, C>,
 ): ActionDef<Ports, P, R> {
   return defineAction(spec);
 }

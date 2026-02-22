@@ -187,9 +187,9 @@ export interface Chapter {
 export interface Episode {
   chapters: Chapter[];
   description: string;
-  duration: number;
+  duration: number | undefined;
   filename: string;
-  fileSize: number;
+  fileSize: number | undefined;
   id: string;
   thumbnail: string;
   title: string;
