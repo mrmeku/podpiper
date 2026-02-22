@@ -91,7 +91,7 @@ export function generateMermaid(graph: Graph): string {
   const publishDeps = [...rssEntryIds, ...(artworkId ? [toId(artworkId.name)] : [])];
   lines.push("");
   lines.push(`  subgraph publish_phase ["Publish"]`);
-  lines.push(`    publish["R2 Uploads + Feed"]`);
+  lines.push(`    publish["Upload + Feed"]`);
   lines.push(`  end`);
   if (publishDeps.length) {
     lines.push(`  ${publishDeps.join(" & ")} --> publish`);

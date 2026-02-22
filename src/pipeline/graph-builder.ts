@@ -3,7 +3,7 @@ import type { JsonPath } from "@/typed-path";
 import type { Chapter, Config, UploadEntry, VideoInfo } from "@/types";
 import type { ActionDef } from "@podpiper/dag/define-action";
 import { Graph } from "@podpiper/dag/graph";
-import type { Cache, NodeRef } from "@podpiper/dag/types";
+import type { KindEdge, NodeRef } from "@podpiper/dag/types";
 
 import { artwork, channelAvatar } from "./actions/artwork";
 import type { ChaptersParams } from "./actions/chapters";
@@ -20,6 +20,12 @@ import { transcribe } from "./actions/transcribe";
 interface VideoActions {
   chapters: ActionDef<Ports, ChaptersParams, JsonPath<Chapter[]>>;
   summary?: ActionDef<Ports, SummaryParams, string> | undefined;
+}
+
+export function buildVideoGraph(video: VideoInfo, ports: Ports, config: Config): Graph {
+  const graph = new Graph();
+  addVideoSubgraph(graph, video, ports, config, videoActions(config));
+  return graph;
 }
 
 function addVideoSubgraph(
@@ -79,17 +85,20 @@ export interface PipelineRefs {
   artworkRef: NodeRef<JsonPath<UploadEntry[]>>;
 }
 
+function videoActions(config: Config): VideoActions {
+  return {
+    chapters: chapters(config.chapterPrompt),
+    summary: config.summaryPrompt ? summary(config.summaryPrompt) : undefined,
+  };
+}
+
 export function buildPipelineGraph(
-  cache: Cache,
   videos: VideoInfo[],
   ports: Ports,
   config: Config,
 ): { graph: Graph; refs: PipelineRefs } {
-  const graph = new Graph(cache, ports.fs.hashFile);
-  const actions: VideoActions = {
-    chapters: chapters(config.chapterPrompt),
-    summary: config.summaryPrompt ? summary(config.summaryPrompt) : undefined,
-  };
+  const graph = new Graph();
+  const actions = videoActions(config);
   const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, config, actions));
   const avatarDir = `${config.outputDir}/artwork`;
   const artworkPath = `${config.outputDir}/artwork.jpg`;
@@ -108,4 +117,10 @@ export function buildPipelineGraph(
     graph,
     refs: { entryRefs, artworkRef },
   };
+}
+
+export function videoPipelineTopology(ports: Ports, config: Config): KindEdge[] {
+  const dummy: VideoInfo = { id: "_topo", uploadDate: "00000000", title: "" };
+  const graph = buildVideoGraph(dummy, ports, config);
+  return graph.kindTopology();
 }

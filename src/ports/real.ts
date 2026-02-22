@@ -4,7 +4,7 @@ import { CLAUDE_MODEL, WHISPER_MODEL_PATH } from "@/config";
 
 import { callClaude } from "./claude";
 import { createRealFfmpeg } from "./ffmpeg";
-import { downloadFromR2, listRemoteFiles, uploadFile } from "./s3";
+import { createS3Storage } from "./s3";
 import type { Ports } from "./types";
 import { createRealWhisper } from "./whisper";
 import { createRealYtdlp } from "./ytdlp";
@@ -47,10 +47,6 @@ export function createRealPorts(opts?: { force?: boolean; cookies?: boolean }): 
     ffmpeg: createRealFfmpeg(),
     whisper: createRealWhisper(WHISPER_MODEL_PATH),
     claude: { call: (prompt) => callClaude(prompt, CLAUDE_MODEL) },
-    storage: {
-      uploadFile,
-      getFile: downloadFromR2,
-      listFiles: listRemoteFiles,
-    },
+    storage: createS3Storage(),
   };
 }
