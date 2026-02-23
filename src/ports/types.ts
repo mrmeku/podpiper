@@ -10,6 +10,7 @@ export interface FileSystem {
   stat: (path: string) => Promise<{ size: number } | null>;
   readdir: (path: string) => Promise<{ name: string; isDirectory(): boolean }[]>;
   hashFile: (path: string) => Promise<string>;
+  ensureDir: (path: string) => Promise<void>;
 }
 
 export interface YouTubeDownloader {

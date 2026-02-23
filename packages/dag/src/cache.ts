@@ -1,4 +1,22 @@
-import type { Cache, CacheEntry } from "./types";
+import type { Cache, CacheEntry, DagFs } from "./types";
+
+export class FsCache implements Cache {
+  constructor(
+    private baseDir: string,
+    private fs: DagFs,
+  ) {}
+  async get(key: string): Promise<CacheEntry | undefined> {
+    try {
+      const raw = await this.fs.readText(`${this.baseDir}/${key}/manifest.json`);
+      return JSON.parse(raw) as CacheEntry;
+    } catch {
+      return undefined;
+    }
+  }
+  async put(key: string, entry: CacheEntry): Promise<void> {
+    await this.fs.writeText(`${this.baseDir}/${key}/manifest.json`, JSON.stringify(entry, null, 2));
+  }
+}
 
 export class MemCache implements Cache {
   private entries = new Map<string, CacheEntry>();
@@ -7,25 +25,6 @@ export class MemCache implements Cache {
   }
   async put(key: string, entry: CacheEntry): Promise<void> {
     this.entries.set(key, entry);
-  }
-}
-
-export class LocalCache implements Cache {
-  private entries: Record<string, CacheEntry>;
-  constructor(
-    initial: Record<string, CacheEntry>,
-    private onFlush?: (data: string) => void | Promise<void>,
-  ) {
-    this.entries = initial;
-  }
-  async get(key: string): Promise<CacheEntry | undefined> {
-    return this.entries[key];
-  }
-  async put(key: string, entry: CacheEntry): Promise<void> {
-    this.entries[key] = entry;
-  }
-  async flush(): Promise<void> {
-    await this.onFlush?.(JSON.stringify(this.entries, null, 2));
   }
 }
 

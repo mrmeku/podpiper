@@ -37,6 +37,7 @@ export function createMemoryFs(initial?: Record<string, string | Uint8Array>): F
       const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
       return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
     },
+    ensureDir: async () => {},
     readdir: async (dirPath) => {
       const normalizedDir = dirPath.endsWith("/") ? dirPath : dirPath + "/";
       const entries = new Map<string, boolean>();

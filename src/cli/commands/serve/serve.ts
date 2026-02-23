@@ -6,8 +6,7 @@ import { videoPipelineTopology } from "@/pipeline/graph-builder";
 import { createRealPorts } from "@/ports/real";
 import { toHatchetVideoWorkflow } from "./adapter";
 import { registerChannelWorkflow } from "./channel-workflow";
-import { LocalCache } from "@podpiper/dag/cache";
-import type { CacheEntry } from "@podpiper/dag/types";
+import { FsCache } from "@podpiper/dag/cache";
 
 export function registerServe(program: Command) {
   program
@@ -21,13 +20,9 @@ export function registerServe(program: Command) {
 
       for (const [name, def] of Object.entries(channels)) {
         const config = getConfig(name);
-        const cachePath = `${config.outputDir}/cache.json`;
-        let initial: Record<string, CacheEntry> = {};
-        try {
-          initial = await ports.fs.readJson(cachePath);
-        } catch {}
-        const cache = new LocalCache(initial, (data) => ports.fs.writeText(cachePath, data));
-        const executionCtx = { cache, hashFile: ports.fs.hashFile };
+        const casBaseDir = `${config.outputDir}/cas`;
+        const cache = new FsCache(casBaseDir, ports.fs);
+        const executionCtx = { cache, fs: ports.fs, casBaseDir };
 
         const topology = videoPipelineTopology(ports, config);
         const videoPipeline = toHatchetVideoWorkflow(

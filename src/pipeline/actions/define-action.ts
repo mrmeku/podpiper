@@ -23,7 +23,3 @@ export enum NodeKind {
 export function toVideoActionName<P extends { kind: NodeKind; videoId: string }>(p: P) {
   return `${p.kind}:${p.videoId}`;
 }
-
-export function toVideoDir(outputDir: string, videoId: string): string {
-  return `${outputDir}/videos/${videoId}`;
-}

@@ -45,7 +45,7 @@ Tests should exercise real logic: data transformations, parsing, merge semantics
 
 ### Coding Patterns
 
-**File paths**: Never use inline `Bun.file()` for artifact paths. Always define helper functions like `toXxxFile(outputDir, videoId)` in the relevant action module (e.g., `toChaptersFile` in `chapters.ts`, `toSummaryFile` in `summary.ts`, `toVideoDir` in `define-action.ts`). This keeps paths centralized and consistent.
+**File paths**: Actions receive an `outputDir` parameter (the CAS directory `{casBaseDir}/{actionKey}/`) and write all output files there. Use `${outputDir}/filename` for output paths. Never construct paths from `config.outputDir` + video ID — the executor manages output directories.
 
 ### Cache Constraints
 
