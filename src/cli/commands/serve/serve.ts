@@ -6,7 +6,7 @@ import { videoPipelineTopology } from "@/pipeline/graph-builder";
 import { createRealPorts } from "@/ports/real";
 import { toHatchetVideoWorkflow } from "./adapter";
 import { registerChannelWorkflow } from "./channel-workflow";
-import { FsCache } from "@podpiper/dag/cache";
+import { FsCache } from "@podpiper/dagraph";
 
 export function registerServe(program: Command) {
   program

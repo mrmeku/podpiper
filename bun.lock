@@ -23,8 +23,8 @@
         "typescript-eslint": "^8.54.0",
       },
     },
-    "packages/dag": {
-      "name": "@podpiper/dag",
+    "packages/dagraph": {
+      "name": "@podpiper/dagraph",
     },
   },
   "packages": {
@@ -144,7 +144,7 @@
 
     "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
 
-    "@podpiper/dag": ["@podpiper/dag@workspace:packages/dag"],
+    "@podpiper/dagraph": ["@podpiper/dagraph@workspace:packages/dagraph"],
 
     "@protobufjs/aspromise": ["@protobufjs/aspromise@1.1.2", "", {}, "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="],
 

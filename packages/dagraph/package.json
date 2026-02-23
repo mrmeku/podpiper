@@ -1,9 +1,9 @@
 {
-  "name": "@podpiper/dag",
+  "name": "@podpiper/dagraph",
   "private": true,
   "module": "src/index.ts",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts"
   }
 }

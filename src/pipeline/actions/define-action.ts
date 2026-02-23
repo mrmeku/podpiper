@@ -1,7 +1,5 @@
 import type { Ports } from "@/ports/types";
-import type { ActionDef, ActionSpec } from "@podpiper/dag/define-action";
-import { defineAction } from "@podpiper/dag/define-action";
-import type { BaseParams, Outputs } from "@podpiper/dag/types";
+import { defineAction, type ActionDef, type ActionSpec, type BaseParams, type Outputs } from "@podpiper/dagraph";
 
 export function defineActionWithPorts<P extends BaseParams, R extends Outputs, C = string>(
   spec: ActionSpec<Ports, P, R, C>,

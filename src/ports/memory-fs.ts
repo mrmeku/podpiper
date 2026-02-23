@@ -1,4 +1,4 @@
-import { jsonParse } from "@podpiper/dag/helpers";
+import { jsonParse } from "@podpiper/dagraph";
 import type { FileSystem } from "./types";
 
 export function createMemoryFs(initial?: Record<string, string | Uint8Array>): FileSystem {

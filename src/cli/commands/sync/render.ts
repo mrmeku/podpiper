@@ -4,8 +4,7 @@ import { join } from "node:path";
 import { MultiBar, type SingleBar } from "cli-progress";
 import pc from "picocolors";
 
-import type { ExecAction } from "@podpiper/dag/exec-state";
-import type { AnalysisResult, ExecResult } from "@podpiper/dag/types";
+import type { AnalysisResult, ExecAction, ExecResult } from "@podpiper/dagraph";
 
 type ProgressRenderer = { onAction: (action: ExecAction) => void; finish: () => void };
 

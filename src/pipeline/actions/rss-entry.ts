@@ -2,7 +2,7 @@ import type { TranscribeResult } from "@/ports/types";
 import type { JsonPath } from "@/typed-path";
 import { jsonPath, readJson } from "@/typed-path";
 import type { Chapter, Episode, UploadEntry } from "@/types";
-import type { NodeRef } from "@podpiper/dag/types";
+import type { NodeRef } from "@podpiper/dagraph";
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";
 
