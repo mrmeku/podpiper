@@ -3,7 +3,7 @@ import { readJson, readJsonIfExists } from "@/typed-path";
 import type { WhisperJson } from "@/types";
 import type { NodeRef } from "@podpiper/dag/types";
 
-import { NodeKind, defineActionWithPorts, toVideoActionName, toVideoDir } from "./define-action";
+import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";
 
 function formatTranscriptForLlm(whisper: WhisperJson): string {
@@ -13,12 +13,7 @@ function formatTranscriptForLlm(whisper: WhisperJson): string {
 export interface SummaryParams {
   kind: typeof NodeKind.Summary;
   videoId: string;
-  outputDir: string;
   deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
-}
-
-export function toSummaryFile(outputDir: string, videoId: string): string {
-  return `${toVideoDir(outputDir, videoId)}/summary.txt`;
 }
 
 interface SummaryConfig {
@@ -30,7 +25,7 @@ export const summary = (summaryPrompt: string) =>
   defineActionWithPorts<SummaryParams, string, SummaryConfig>({
     name: toVideoActionName,
     config: { version: 2, prompt: summaryPrompt },
-    action: (ports, config) => async (params, inputs) => {
+    action: (ports, config) => async (_params, inputs, outputDir) => {
       const info = await readJson(ports.fs, inputs.download.info);
       let text: string = info.description ?? "";
 
@@ -41,7 +36,7 @@ export const summary = (summaryPrompt: string) =>
         text = await ports.claude.call(prompt);
       }
 
-      const outputPath = toSummaryFile(params.outputDir, params.videoId);
+      const outputPath = `${outputDir}/summary.txt`;
       await ports.fs.writeText(outputPath, text);
       return outputPath;
     },

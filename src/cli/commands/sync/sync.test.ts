@@ -22,7 +22,11 @@ function buildAndSync(
   opts?: { maxParallelism?: number },
 ) {
   const { graph, refs } = buildPipelineGraph(videos, ports, config);
-  const executionCtx: ExecutionContext = { cache, hashFile: ports.fs.hashFile };
+  const executionCtx: ExecutionContext = {
+    cache,
+    fs: ports.fs,
+    casBaseDir: `${config.outputDir}/cas`,
+  };
   return sync(graph, refs, ports.fs, executionCtx, opts);
 }
 
@@ -112,8 +116,8 @@ describe("sync pipeline", () => {
       downloads: ports.ytdlp.downloadVideo.mock.calls.map((c: any) => c[1]).sort(),
       cropThumbnails: ports.ffmpeg.cropThumbnail.mock.calls
         .map((c: any) => [
-          (c[0] as string).split("/").slice(-2).join("/"),
-          (c[1] as string).split("/").slice(-2).join("/"),
+          (c[0] as string).split("/").pop(),
+          (c[1] as string).split("/").pop(),
         ])
         .sort((a, b) => a[0]!.localeCompare(b[0]!)),
       processChannelArtwork: ports.ffmpeg.processChannelArtwork.mock.calls.length,
@@ -123,8 +127,8 @@ describe("sync pipeline", () => {
     }).toEqual({
       downloads: ["vid_aaa", "vid_bbb"],
       cropThumbnails: [
-        ["vid_aaa/audio.jpg", "vid_aaa/thumbnail.jpg"],
-        ["vid_bbb/audio.jpg", "vid_bbb/thumbnail.jpg"],
+        ["audio.jpg", "thumbnail.jpg"],
+        ["audio.jpg", "thumbnail.jpg"],
       ],
       processChannelArtwork: 1,
       claudePrompts: [
@@ -272,8 +276,8 @@ describe("sync pipeline", () => {
     expect({
       downloads: p2.ytdlp.downloadVideo.mock.calls.map((c: any) => c[1]),
       cropThumbnails: p2.ffmpeg.cropThumbnail.mock.calls.map((c: any) => [
-        (c[0] as string).split("/").slice(-2).join("/"),
-        (c[1] as string).split("/").slice(-2).join("/"),
+        (c[0] as string).split("/").pop(),
+        (c[1] as string).split("/").pop(),
       ]),
       processChannelArtwork: p2.ffmpeg.processChannelArtwork.mock.calls.length,
       claudePrompts: p2.claude.call.mock.calls.map((c: any) => c[0] as string),
@@ -281,7 +285,7 @@ describe("sync pipeline", () => {
       uploads: getUploadCalls(p2).sort((a, b) => a.key.localeCompare(b.key)),
     }).toEqual({
       downloads: ["vid_ccc"],
-      cropThumbnails: [["vid_ccc/audio.jpg", "vid_ccc/thumbnail.jpg"]],
+      cropThumbnails: [["audio.jpg", "thumbnail.jpg"]],
       processChannelArtwork: 0,
       claudePrompts: [expect.stringContaining("Mock transcript")],
       storageGetFile: 1,

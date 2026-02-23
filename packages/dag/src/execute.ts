@@ -1,7 +1,7 @@
 import * as execState from "./exec-state";
 import { localRunner } from "./graph";
-import { type HashFileFn, computeHash, hashOutputFiles, verifyOutputs } from "./helpers";
-import type { Cache, ExecResult, ExecuteOptions, Node, NodeRunner } from "./types";
+import { computeHash, hashOutputFiles, verifyOutputs } from "./helpers";
+import type { Cache, DagFs, ExecResult, ExecuteOptions, Node, NodeRunner } from "./types";
 
 import type { Graph } from "./graph";
 
@@ -11,7 +11,8 @@ import type { Graph } from "./graph";
  * ActionExecutionContext — different selection mechanisms, different lifetimes). */
 export interface ExecutionContext {
   cache: Cache;
-  hashFile: HashFileFn;
+  fs: DagFs;
+  casBaseDir: string;
 }
 
 export async function execute(
@@ -41,9 +42,10 @@ export async function execute(
 
     const depContentHashes = new Map(node.deps.map((d) => [d, state.contentHashes.get(d)!]));
     const actionKey = computeHash(node, depContentHashes);
+    const casDir = `${ctx.casBaseDir}/${actionKey}`;
 
     const cached = await ctx.cache.get(actionKey);
-    if (cached && (await verifyOutputs(cached, ctx.hashFile))) {
+    if (cached && (await verifyOutputs(cached, ctx.fs.hashFile))) {
       dispatch({
         type: "cache-hit",
         node,
@@ -54,11 +56,12 @@ export async function execute(
       return;
     }
 
+    await ctx.fs.ensureDir(casDir);
     dispatch({ type: "start", node });
     const startTime = Date.now();
     try {
-      const outputs = await runner(node, execState.inputsFor(node, state));
-      const contentHash = await hashOutputFiles(outputs, ctx.hashFile);
+      const outputs = await runner(node, execState.inputsFor(node, state), casDir);
+      const contentHash = await hashOutputFiles(outputs, ctx.fs.hashFile);
       await ctx.cache.put(actionKey, { outputs, contentHash });
       dispatch({
         type: "success",

@@ -6,6 +6,11 @@ import { registerGraph } from "@/cli/commands/graph/graph";
 import { registerServe } from "@/cli/commands/serve/serve";
 import { registerSync } from "@/cli/commands/sync/sync";
 
+process.on("SIGINT", () => {
+  process.stdout.write("\x1B[?25h"); // restore cursor hidden by progress bars
+  process.exit(130);
+});
+
 const program = new Command();
 registerSync(program);
 registerCheck(program);
