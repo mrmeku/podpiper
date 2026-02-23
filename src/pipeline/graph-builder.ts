@@ -24,7 +24,7 @@ interface VideoActions {
 
 export function buildVideoGraph(video: VideoInfo, ports: Ports, config: Config): Graph {
   const graph = new Graph();
-  addVideoSubgraph(graph, video, ports, config, videoActions(config));
+  addVideoSubgraph(graph, video, ports, videoActions(config));
   return graph;
 }
 
@@ -32,30 +32,25 @@ function addVideoSubgraph(
   graph: Graph,
   video: VideoInfo,
   ports: Ports,
-  config: Config,
   actions: VideoActions,
 ): NodeRef<RssEntryResult> {
   const dl = download.addNode(graph, ports, {
     kind: NodeKind.Download,
     videoId: video.id,
-    outputDir: config.outputDir,
   });
   const tr = transcribe.addNode(graph, ports, {
     kind: NodeKind.Transcribe,
     videoId: video.id,
-    outputDir: config.outputDir,
     deps: { download: dl },
   });
   const th = thumbnail.addNode(graph, ports, {
     kind: NodeKind.Thumbnail,
     videoId: video.id,
-    outputDir: config.outputDir,
     deps: { download: dl },
   });
   const ch = actions.chapters.addNode(graph, ports, {
     kind: NodeKind.Chapters,
     videoId: video.id,
-    outputDir: config.outputDir,
     deps: { download: dl, transcribe: tr },
   });
   const deps: RssEntryParams["deps"] = {
@@ -68,14 +63,12 @@ function addVideoSubgraph(
     deps.summary = actions.summary.addNode(graph, ports, {
       kind: NodeKind.Summary,
       videoId: video.id,
-      outputDir: config.outputDir,
       deps: { download: dl, transcribe: tr },
     });
   }
   return rssEntry.addNode(graph, ports, {
     kind: NodeKind.RssEntry,
     videoId: video.id,
-    outputDir: config.outputDir,
     deps,
   });
 }
@@ -99,18 +92,13 @@ export function buildPipelineGraph(
 ): { graph: Graph; refs: PipelineRefs } {
   const graph = new Graph();
   const actions = videoActions(config);
-  const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, config, actions));
-  const avatarDir = `${config.outputDir}/artwork`;
-  const artworkPath = `${config.outputDir}/artwork.jpg`;
+  const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, actions));
   const avatarRef = channelAvatar.addNode(graph, ports, {
     kind: NodeKind.ChannelAvatar,
     channelUrl: config.channelUrl,
-    avatarDir,
   });
   const artworkRef = artwork.addNode(graph, ports, {
     kind: NodeKind.Artwork,
-    artworkPath,
-    outputDir: config.outputDir,
     deps: { channel_avatar: avatarRef },
   });
   return {

@@ -16,6 +16,7 @@ export function createStubPorts(): Ports {
       stat: async () => null,
       readdir: async () => [],
       hashFile: async () => "",
+      ensureDir: noop,
     },
     ytdlp: {
       fetchVideoList: async () => [],

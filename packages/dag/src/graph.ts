@@ -46,12 +46,12 @@ export function addNode<P extends BaseParams, R extends Outputs>({
     deps: depsFromParams(params),
     config,
     params,
-    action: (rawInputs) => action(params, resolveInputs<P>(params, rawInputs)),
+    action: (rawInputs, outputDir) => action(params, resolveInputs<P>(params, rawInputs), outputDir),
   });
   return { name };
 }
 
-export const localRunner: NodeRunner = (node, rawInputs) => node.action(rawInputs);
+export const localRunner: NodeRunner = (node, rawInputs, outputDir) => node.action(rawInputs, outputDir);
 
 export class Graph {
   private nodes = new Map<string, Node>();

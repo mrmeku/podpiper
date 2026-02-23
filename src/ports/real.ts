@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 
 import { CLAUDE_MODEL, WHISPER_MODEL_PATH } from "@/config";
 
@@ -34,6 +34,9 @@ export function createRealPorts(opts?: { force?: boolean; cookies?: boolean }): 
         const f = Bun.file(path);
         if (!(await f.exists())) return null;
         return { size: f.size };
+      },
+      ensureDir: async (path) => {
+        await mkdir(path, { recursive: true });
       },
       readdir: async (path) => {
         const entries = await readdir(path, { withFileTypes: true });

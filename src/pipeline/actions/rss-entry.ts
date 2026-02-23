@@ -3,7 +3,7 @@ import type { JsonPath } from "@/typed-path";
 import { jsonPath, readJson } from "@/typed-path";
 import type { Chapter, Episode, UploadEntry } from "@/types";
 import type { NodeRef } from "@podpiper/dag/types";
-import { NodeKind, defineActionWithPorts, toVideoActionName, toVideoDir } from "./define-action";
+import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";
 
 export type RssEntryResult = {
@@ -14,7 +14,6 @@ export type RssEntryResult = {
 export interface RssEntryParams {
   kind: typeof NodeKind.RssEntry;
   videoId: string;
-  outputDir: string;
   deps: {
     download: NodeRef<DownloadResult>;
     transcribe: NodeRef<TranscribeResult>;
@@ -28,22 +27,13 @@ function toObjectKey(videoId: string, key: string) {
   return `${videoId}/${key}`;
 }
 
-export function toEpisodeFile(outputDir: string, videoId: string): string {
-  return `${toVideoDir(outputDir, videoId)}/episode.json`;
-}
-
-export function toUploadsFile(outputDir: string, videoId: string): string {
-  return `${toVideoDir(outputDir, videoId)}/uploads.json`;
-}
-
 export const rssEntry = defineActionWithPorts<RssEntryParams, RssEntryResult>({
   name: toVideoActionName,
   config: "rss-v4",
   action:
     ({ fs }) =>
-    async (params, inputs) => {
-      const { videoId, outputDir } = params;
-      const dir = toVideoDir(outputDir, videoId);
+    async (params, inputs, outputDir) => {
+      const { videoId } = params;
       const objectKey = (key: string) => toObjectKey(videoId, key);
 
       const info = await readJson(fs, inputs.download.info);
@@ -78,13 +68,13 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, RssEntryResult>({
       }
       if (chapters.length > 0) {
         const chaptersJson = JSON.stringify({ version: "1.2.0", chapters }, null, 2);
-        const chaptersPath = `${dir}/chapters-upload.json`;
+        const chaptersPath = `${outputDir}/chapters-upload.json`;
         await fs.writeText(chaptersPath, chaptersJson);
         uploads.push({ localPath: chaptersPath, key: objectKey("chapters.json") });
       }
 
-      const episodePath = `${dir}/episode.json`;
-      const uploadsPath = `${dir}/uploads.json`;
+      const episodePath = `${outputDir}/episode.json`;
+      const uploadsPath = `${outputDir}/uploads.json`;
       await fs.writeText(episodePath, JSON.stringify(episode));
       await fs.writeText(uploadsPath, JSON.stringify(uploads));
       return { episode: jsonPath<Episode>(episodePath), uploads: jsonPath<UploadEntry[]>(uploadsPath) };
