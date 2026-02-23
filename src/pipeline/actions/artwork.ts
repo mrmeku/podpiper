@@ -1,6 +1,6 @@
 import { jsonPath, type JsonPath } from "@/typed-path";
 import type { UploadEntry } from "@/types";
-import type { NodeRef } from "@podpiper/dag/types";
+import type { NodeRef } from "@podpiper/dagraph";
 
 import { NodeKind, defineActionWithPorts } from "./define-action";
 

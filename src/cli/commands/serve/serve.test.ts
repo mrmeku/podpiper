@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { MemCache } from "@podpiper/dag/cache";
-import type { ExecutionContext } from "@podpiper/dag/execute";
+import { MemCache, type ExecutionContext } from "@podpiper/dagraph";
 
 import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph, videoPipelineTopology } from "@/pipeline/graph-builder";

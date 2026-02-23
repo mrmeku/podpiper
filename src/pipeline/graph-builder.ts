@@ -1,9 +1,7 @@
 import type { Ports } from "@/ports/types";
 import type { JsonPath } from "@/typed-path";
 import type { Chapter, Config, UploadEntry, VideoInfo } from "@/types";
-import type { ActionDef } from "@podpiper/dag/define-action";
-import { Graph } from "@podpiper/dag/graph";
-import type { KindEdge, NodeRef } from "@podpiper/dag/types";
+import { Graph, type ActionDef, type KindEdge, type NodeRef } from "@podpiper/dagraph";
 
 import { artwork, channelAvatar } from "./actions/artwork";
 import type { ChaptersParams } from "./actions/chapters";

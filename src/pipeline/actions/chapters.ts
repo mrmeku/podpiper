@@ -2,7 +2,7 @@ import type { TranscribeResult } from "@/ports/types";
 import type { JsonPath } from "@/typed-path";
 import { jsonPath, readJson, readJsonIfExists } from "@/typed-path";
 import type { Chapter, YtDlpChapter } from "@/types";
-import type { NodeRef } from "@podpiper/dag/types";
+import type { NodeRef } from "@podpiper/dagraph";
 
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
