@@ -38,7 +38,7 @@
     // Path aliases
     "paths": {
       "@/*": ["./src/*"],
-      "@podpiper/dag/*": ["./packages/dag/src/*"]
+      "@podpiper/dagraph": ["./packages/dagraph/src/index.ts"]
     }
   }
 }

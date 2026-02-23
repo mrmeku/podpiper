@@ -1,5 +1,5 @@
 import type { Chapter, WhisperSegment } from "@/types";
-import { jsonParse } from "@podpiper/dag/helpers";
+import { jsonParse } from "@podpiper/dagraph";
 
 const CHAPTER_PROMPT_TEMPLATE = `You are a podcast chapter generator. Given numbered transcript segments from a YouTube video, identify chapter breaks.
 

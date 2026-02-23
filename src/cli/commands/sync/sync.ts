@@ -6,7 +6,7 @@ import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
 import { createRealPorts } from "@/ports/real";
-import { FsCache } from "@podpiper/dag/cache";
+import { FsCache } from "@podpiper/dagraph";
 import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
 
 export function registerSync(program: Command) {
