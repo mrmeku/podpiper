@@ -90,7 +90,7 @@ interface Cache {
 }
 ```
 
-Three implementations: `MemCache` (in-memory Map), `LocalCache` (JSON file on disk), `TieredCache` (checks local first, promotes remote hits to local).
+Three implementations: `MemCache` (in-memory Map), `FsCache` (filesystem-backed, stores manifests as JSON), `TieredCache` (checks local first, promotes remote hits to local).
 
 ### Scheduler
 

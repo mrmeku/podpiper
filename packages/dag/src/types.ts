@@ -20,10 +20,11 @@ export type InputsFor<P> = P extends { deps: infer D }
     }
   : Record<string, never>;
 
-/** User-supplied function that implements a DAG node's work. Receives typed params and dep outputs. */
+/** User-supplied function that implements a DAG node's work. Receives typed params, dep outputs, and CAS output dir. */
 export type ActionFunc<P extends BaseParams, R extends Outputs> = (
   params: P,
   inputs: InputsFor<P>,
+  outputDir: string,
 ) => Promise<R>;
 
 /** A single unit of work in the DAG. All values are Outputs at the executor level. */
@@ -35,12 +36,12 @@ export interface Node {
   /** Serialized configuration — included in the action key so config changes invalidate cache. */
   config: string;
   params: BaseParams;
-  /** Raw executor-level action. Receives dep outputs as `Record<name, Outputs>`, returns Outputs. */
-  action: (rawInputs: Record<string, Outputs>) => Promise<Outputs>;
+  /** Raw executor-level action. Receives dep outputs as `Record<name, Outputs>` and CAS output dir, returns Outputs. */
+  action: (rawInputs: Record<string, Outputs>, outputDir: string) => Promise<Outputs>;
 }
 
 /** Pluggable execution strategy — the executor calls this instead of `node.action` directly. */
-export type NodeRunner = (node: Node, inputs: Record<string, Outputs>) => Promise<Outputs>;
+export type NodeRunner = (node: Node, inputs: Record<string, Outputs>, outputDir: string) => Promise<Outputs>;
 
 /** What gets stored per action key in the cache. */
 export interface CacheEntry {
@@ -57,6 +58,14 @@ export type ExecResult = { name: string; actionKey: string } & (
   | { status: "fail"; error: Error }
   | { status: "dep-failed"; error: Error }
 );
+
+/** Minimal filesystem contract the DAG executor needs. */
+export interface DagFs {
+  readText(path: string): Promise<string>;
+  writeText(path: string, content: string): Promise<void>;
+  hashFile(path: string): Promise<string>;
+  ensureDir(path: string): Promise<void>;
+}
 
 /** Content-addressed cache used by the executor to skip unchanged nodes. */
 export interface Cache {

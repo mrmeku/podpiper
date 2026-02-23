@@ -22,7 +22,7 @@ Everything operates on file paths. A node takes file paths in, produces file pat
 | `graph.ts`         | `Graph` class: node registration, analysis, execution loop                                 |
 | `exec-state.ts`    | Scheduler state machine: ready queue, inflight tracking, dependency fan-out                |
 | `define-action.ts` | `defineAction` factory: binds context, params, and config into a reusable action definition |
-| `cache.ts`         | `MemCache`, `LocalCache` (JSON file), `TieredCache` (local + remote with promotion)        |
+| `cache.ts`         | `MemCache`, `FsCache` (filesystem-backed), `TieredCache` (local + remote with promotion)   |
 | `helpers.ts`       | SHA256 hashing, output verification, cycle detection                                       |
 
 ## Nodes
@@ -59,7 +59,7 @@ On cache hit, the executor calls `verifyOutputs` to re-hash the cached file path
 Three cache implementations:
 
 - **`MemCache`** — in-memory `Map`. Gone when the process exits.
-- **`LocalCache`** — takes initial `Record<string, CacheEntry>` and an optional `onFlush` callback. Call `flush()` after execution to persist.
+- **`FsCache`** — filesystem-backed cache. Stores manifests as JSON files under a base directory.
 - **`TieredCache`** — checks local first, then remote. Promotes remote hits to local on read.
 
 Implement the `Cache` interface to add your own:

@@ -94,7 +94,7 @@ src/
 │   ├── graph.ts                    # DAG engine (addNode, analyze, execute)
 │   ├── exec-state.ts               # Execution state machine (ready queue, dispatch, transitions)
 │   ├── helpers.ts                  # computeHash, validateNoCycles, toCounts
-│   └── cache.ts                    # MemCache, LocalCache, TieredCache
+│   └── cache.ts                    # MemCache, FsCache, TieredCache
 ├── pipeline/
 │   ├── define-action.ts            # defineAction helper (declarative action definitions)
 │   ├── sync.ts                     # Execute graph, collect results

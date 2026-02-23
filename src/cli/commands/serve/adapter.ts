@@ -47,8 +47,8 @@ export function toHatchetVideoWorkflow(
         const graph = buildVideoGraph(video, ports, config);
         const targetName = toVideoActionName({ kind, videoId: input.videoId });
 
-        const runner: NodeRunner = (node, inputs) => {
-          if (node.name === targetName) return node.action(inputs);
+        const runner: NodeRunner = (node, inputs, outputDir) => {
+          if (node.name === targetName) return node.action(inputs, outputDir);
           const parentTask = taskRefs.get(node.kind);
           if (parentTask) return ctx.parentOutput(parentTask);
           throw new Error(`skip: ${node.name}`);

@@ -22,7 +22,11 @@ function getUploadCalls(ports: SpiedPorts) {
 function registerWorkflows(ports: ReturnType<typeof createTestPorts>["ports"]) {
   const { hatchet, getWorkflow, workflows } = createFakeHatchet();
   const topology = videoPipelineTopology(ports, TEST_CONFIG);
-  const executionCtx: ExecutionContext = { cache: new MemCache(), hashFile: ports.fs.hashFile };
+  const executionCtx: ExecutionContext = {
+    cache: new MemCache(),
+    fs: ports.fs,
+    casBaseDir: `${TEST_CONFIG.outputDir}/cas`,
+  };
   const videoPipeline = toHatchetVideoWorkflow(
     hatchet,
     "video",
@@ -41,7 +45,8 @@ describe("hatchet serve", () => {
     const { graph, refs } = buildPipelineGraph(TEST_VIDEOS, syncPorts, TEST_CONFIG);
     const executionCtx: ExecutionContext = {
       cache: new MemCache(),
-      hashFile: syncPorts.fs.hashFile,
+      fs: syncPorts.fs,
+      casBaseDir: `${TEST_CONFIG.outputDir}/cas`,
     };
     const sr = await sync(graph, refs, syncPorts.fs, executionCtx);
     await publish(sr, TEST_CONFIG, syncPorts.fs, syncPorts.storage);

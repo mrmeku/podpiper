@@ -120,7 +120,7 @@ function buildGraph(ids: string[], fs: FileSystem): Graph {
 }
 
 function ctx(cache: MemCache | TieredCache, fs: FileSystem): ExecutionContext {
-  return { cache, hashFile: fs.hashFile };
+  return { cache, fs, casBaseDir: "/cas" };
 }
 
 describe("Graph", () => {
@@ -399,7 +399,7 @@ describe("Graph", () => {
       action: async () => "should not be called",
     });
 
-    const mockRunner: NodeRunner = async (node) => {
+    const mockRunner: NodeRunner = async (node, _inputs, _outputDir) => {
       calls.push(node.name);
       return write(fs, `${node.name}.txt`, `result:${node.name}`);
     };
@@ -804,7 +804,8 @@ describe("Graph", () => {
         return new Bun.CryptoHasher("sha256").update(data).digest("hex");
       };
       const cache = new MemCache();
-      const executionCtx: ExecutionContext = { cache, hashFile };
+      const dagFs = { readText: async () => "", writeText: async () => {}, hashFile, ensureDir: async () => {} };
+      const executionCtx: ExecutionContext = { cache, fs: dagFs, casBaseDir: "/cas" };
       const makeGraph = () => {
         const g = new Graph();
         g.add({
@@ -854,6 +855,67 @@ describe("Graph", () => {
       const results = await execute(makeGraph(), ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
     });
+  });
+
+  test("interrupted execution resumes from where it left off", async () => {
+    const fs = createMemoryFs();
+    const cache = new MemCache();
+    let bShouldFail = true;
+
+    const makeGraph = () => {
+      const g = new Graph();
+      g.add({
+        name: "a",
+        kind: "root",
+        deps: [],
+        config: "1",
+        params: p("root"),
+        action: async () => write(fs, "a.txt", "a"),
+      });
+      g.add({
+        name: "b",
+        kind: "mid",
+        deps: ["a"],
+        config: "2",
+        params: p("mid", { a: "a" }),
+        action: async () => {
+          if (bShouldFail) throw new Error("transient failure");
+          return write(fs, "b.txt", "b");
+        },
+      });
+      g.add({
+        name: "c",
+        kind: "mid",
+        deps: ["b"],
+        config: "3",
+        params: p("mid", { b: "b" }),
+        action: async () => write(fs, "c.txt", "c"),
+      });
+      g.add({
+        name: "d",
+        kind: "leaf",
+        deps: ["c"],
+        config: "4",
+        params: p("leaf", { c: "c" }),
+        action: async () => write(fs, "d.txt", "d"),
+      });
+      return g;
+    };
+
+    const results1 = await execute(makeGraph(), ctx(cache, fs));
+    const byName1 = Object.fromEntries(results1.map((r) => [r.name, r.status]));
+    expect(byName1).toEqual({ a: "done", b: "fail", c: "dep-failed", d: "dep-failed" });
+
+    bShouldFail = false;
+    const actions: ExecAction[] = [];
+    const results2 = await execute(makeGraph(), ctx(cache, fs), localRunner, {
+      onAction: (a) => actions.push(a),
+    });
+    const byName2 = Object.fromEntries(results2.map((r) => [r.name, r.status]));
+    expect(byName2).toEqual({ a: "cached", b: "done", c: "done", d: "done" });
+
+    const executed = actions.filter((a) => a.type === "start").map((a) => a.node.name);
+    expect(executed).toEqual(["b", "c", "d"]);
   });
 
   describe("structured config via defineAction", () => {

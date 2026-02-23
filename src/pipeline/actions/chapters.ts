@@ -5,7 +5,7 @@ import type { Chapter, YtDlpChapter } from "@/types";
 import type { NodeRef } from "@podpiper/dag/types";
 
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
-import { NodeKind, defineActionWithPorts, toVideoActionName, toVideoDir } from "./define-action";
+import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";
 
 const UNTITLED_PATTERN = /^<Untitled Chapter \d+>$/;
@@ -26,12 +26,7 @@ function convertYtDlpChapters(chapters?: YtDlpChapter[]): Chapter[] {
 export interface ChaptersParams {
   kind: typeof NodeKind.Chapters;
   videoId: string;
-  outputDir: string;
   deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
-}
-
-export function toChaptersFile(outputDir: string, videoId: string): string {
-  return `${toVideoDir(outputDir, videoId)}/chapters.json`;
 }
 
 interface ChaptersConfig {
@@ -43,7 +38,7 @@ export const chapters = (chapterPrompt: string | undefined) =>
   defineActionWithPorts<ChaptersParams, JsonPath<Chapter[]>, ChaptersConfig>({
     name: toVideoActionName,
     config: { version: 1, prompt: chapterPrompt },
-    action: (ports, config) => async (params, inputs) => {
+    action: (ports, config) => async (_params, inputs, outputDir) => {
       const info = await readJson(ports.fs, inputs.download.info);
       let result = convertYtDlpChapters(info.chapters);
       if (result.length === 0 && config.prompt) {
@@ -54,7 +49,7 @@ export const chapters = (chapterPrompt: string | undefined) =>
           result = parseChapterResponse(llmResult, whisper.transcription);
         }
       }
-      const outputPath = toChaptersFile(params.outputDir, params.videoId);
+      const outputPath = `${outputDir}/chapters.json`;
       await ports.fs.writeText(outputPath, JSON.stringify(result));
       return jsonPath<Chapter[]>(outputPath);
     },
