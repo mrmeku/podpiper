@@ -1,4 +1,4 @@
-import type { NodeRef } from "@podpiper/dag/types";
+import type { NodeRef } from "@podpiper/dagraph";
 
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { DownloadResult } from "./download";

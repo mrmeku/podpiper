@@ -1,6 +1,5 @@
 import { NodeKind } from "@/pipeline/actions/define-action";
-import type { Graph } from "@podpiper/dag/graph";
-import type { Node } from "@podpiper/dag/types";
+import type { Graph, Node } from "@podpiper/dagraph";
 
 const NODE_LABELS: Record<NodeKind, string> = {
   download: "yt-dlp: download",

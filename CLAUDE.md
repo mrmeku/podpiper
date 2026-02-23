@@ -23,7 +23,7 @@ General programming principles:
 - **Config**: `src/config.ts` - channel definitions with YouTube URL, R2 config, podcast metadata, optional LLM prompts
 - **Execution**: DAG-based pipeline with automatic caching and parallel execution
 - **Ports**: All external tools (yt-dlp, ffmpeg, whisper-cli, claude, S3, filesystem) are behind interfaces in `src/ports/types.ts`, with real/mock/stub implementations
-- **DAG engine**: `packages/dag/` is a **reusable, generic workspace package** — it must stay free of podcast-specific concerns (intended for use outside podpiper). The bridge: `src/pipeline/actions/define-action.ts` wraps the generic `defineAction` with a `Ports`-typed context via `defineActionWithPorts`.
+- **DAG engine**: `packages/dagraph/` is a **reusable, generic workspace package** — it must stay free of podcast-specific concerns (intended for use outside podpiper). The bridge: `src/pipeline/actions/define-action.ts` wraps the generic `defineAction` with a `Ports`-typed context via `defineActionWithPorts`.
 
 ### Data Flow
 
