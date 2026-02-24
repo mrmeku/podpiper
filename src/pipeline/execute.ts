@@ -1,5 +1,4 @@
 import type { FileSystem } from "@/ports/types";
-import type { JsonPath } from "@/typed-path";
 import { readJson } from "@/typed-path";
 import type { Episode, UploadEntry } from "@/types";
 import {
@@ -9,10 +8,12 @@ import {
   type ExecuteOptions,
   type ExecutionContext,
   type Graph,
+  type OutputOf,
 } from "@podpiper/dagraph";
 
 import type { PipelineRefs } from "@/pipeline/graph-builder";
-import type { RssEntryResult } from "@/pipeline/actions/rss-entry";
+import type { artwork } from "@/pipeline/actions/artwork";
+import type { rssEntry } from "@/pipeline/actions/rss-entry";
 
 export interface SyncResult {
   uploads: UploadEntry[];
@@ -36,7 +37,7 @@ export async function sync(
   for (const ref of entryRefs) {
     const r = resultsByName.get(ref.name);
     if (!r || (r.status !== "done" && r.status !== "cached")) continue;
-    const paths = r.outputs as RssEntryResult;
+    const paths = r.outputs as OutputOf<rssEntry>;
     const episode = await readJson(fs, paths.episode);
     const entryUploads = await readJson(fs, paths.uploads);
     episodes.push(episode);
@@ -47,7 +48,7 @@ export async function sync(
 
   const artworkResult = resultsByName.get(artworkRef.name);
   if (artworkResult && artworkResult.status === "done") {
-    const uploadsPath = artworkResult.outputs as JsonPath<UploadEntry[]>;
+    const uploadsPath = artworkResult.outputs as OutputOf<artwork>;
     const artworkUploads = await readJson(fs, uploadsPath);
     uploads.push(...artworkUploads);
   }

@@ -31,18 +31,22 @@ export function parseChapterResponse(response: string, segments: WhisperSegment[
       .trim();
     const parsed = jsonParse<ChapterEntry[]>(cleaned, "chapter LLM response");
     if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (e) =>
-          typeof e.segment === "number" &&
-          typeof e.title === "string" &&
-          e.segment >= 0 &&
-          e.segment < segments.length,
-      )
-      .map((e) => ({
-        startTime: segments[e.segment]!.offsets.from / 1000,
-        title: e.title,
-      }));
+    const valid = parsed.filter(
+      (e) =>
+        typeof e.segment === "number" &&
+        typeof e.title === "string" &&
+        e.segment >= 0 &&
+        e.segment < segments.length,
+    );
+    const lastSegmentEndS = segments[segments.length - 1]!.offsets.to / 1000;
+    return valid.map((e, i) => ({
+      startTime: segments[e.segment]!.offsets.from / 1000,
+      endTime:
+        i + 1 < valid.length
+          ? segments[valid[i + 1]!.segment]!.offsets.from / 1000
+          : lastSegmentEndS,
+      title: e.title,
+    }));
   } catch {
     return [];
   }

@@ -2,16 +2,47 @@
 
 Directed Acyclic Action Graph — _da graph._
 
-Listen up. We got jobs to do. Jobs depend on other jobs. You wire 'em into a graph, and it runs the whole thing — parallel, cached, no wasted effort. A job that already got done? We don't do it again. We check the outputs, verify the goods are still there, and move on.
+Jobs depend on other jobs. You wire them into a graph, and the engine runs everything — parallel, cached, no wasted effort. If a job already produced the right output, it gets skipped. The engine checks the files, verifies they haven't changed, and moves on.
 
-## Core Concept
+## What it does
 
-Everything operates on file paths. A node takes file paths in, produces file paths out. The engine doesn't care what's in them — it doesn't care if you're processing images, transcribing audio, or laundering copyrighted data into training sets. If it produces files, it fits.
+dagraph is a scheduler for file-producing work. Every job takes file paths in and writes file paths out. The engine doesn't care what's in them — images, transcripts, whatever. If the work produces files, it fits.
 
-- **Parallel** — independent nodes run concurrently, up to a configurable limit
-- **Cached** — Merkle-based content hashing skips nodes whose inputs haven't changed
-- **Type-safe** — `NodeRef<T>` prevents miswired dependencies at graph-construction time
-- **Pluggable** — swap the `NodeRunner` to dispatch work locally or to remote workers
+You describe your work as a directed acyclic graph. Edges encode "this job needs that job's output." The engine figures out what can run in parallel, what needs to wait, and what can be skipped entirely because the answer is already on disk.
+
+## How it schedules
+
+The scheduler is a readiness-loop state machine. It starts by identifying all jobs with no dependencies — these are immediately eligible to run. As each job finishes, the scheduler checks whether any of its dependents now have all their inputs satisfied. Newly-ready jobs get priority: they jump to the front of the queue rather than waiting behind unrelated work from other branches of the graph. This keeps the working set tight. A fetch finishes, and its dependent transform starts immediately instead of sitting behind queued fetches from other subgraphs.
+
+The engine dispatches up to a configurable number of concurrent jobs. When all slots are full, it waits for something to finish before starting anything new. When a job fails, everything downstream is marked as a dependency failure and skipped — no wasted compute on doomed work.
+
+## How it caches
+
+Caching is content-addressed. Each job's cache key is a hash of its name, its configuration, and the content hashes of everything it depends on. This forms a Merkle tree: changes ripple downstream automatically. If you change a job's input, its cache key changes, and so do the keys of everything that depends on it.
+
+Configuration is part of the cache key. If you change an ffmpeg filter, a prompt template, or any parameter that affects output quality, you need to reflect that in the configuration string. Otherwise the engine will keep serving stale cached results. This is deliberate — it makes policy changes explicit rather than silent.
+
+Three cache backends ship with the library: in-memory (gone when the process exits), filesystem-backed (survives between runs), and tiered (checks a local cache first, falls back to a remote one, and promotes remote hits to local on read). You can implement your own — the interface is just get and put.
+
+## How actions are defined
+
+An action is a reusable template for a kind of work. You define it once with a naming rule, a configuration version, and an implementation function. The implementation receives whatever external dependencies it needs (HTTP clients, CLI tools, database connections) through a context object bound at definition time. The serializable parameters — IDs, paths, prompts, dependency references — stay separate. This split matters for remote execution: parameters can be shipped to a worker that has its own context.
+
+Dependencies between actions are type-safe. When you declare that a resize action depends on a fetch action's output, the type system enforces that the resize action receives the right kind of input. Miswired dependencies are caught at compile time, not at runtime.
+
+## How it validates
+
+The graph validates eagerly. Adding a job with a duplicate name throws immediately. Referencing a dependency that doesn't exist throws immediately. Cycle detection runs during analysis using depth-first traversal — if the graph has a cycle, you find out before any work starts.
+
+## How execution is dispatched
+
+Execution goes through a pluggable runner. The default runner calls the action function directly in the current process. Swap in your own to dispatch work to remote workers, container orchestrators, or anything else. The runner receives the node, its resolved inputs, and an output directory; how it executes is its business.
+
+Every state transition during execution — job started, succeeded, failed, hit cache, skipped due to dependency failure — is reported to an observer callback. This is how you build progress bars, logging, or monitoring without coupling any of that into the engine itself.
+
+## What it produces
+
+Each job produces one of three outcomes: it ran and succeeded (with outputs and a content hash), it was served from cache (same shape, different status), or it failed (with an error, either its own or inherited from an upstream failure). These results are available per-job after execution completes.
 
 ## Modules
 
@@ -46,38 +77,6 @@ interface Node {
 
 `config` is a version tag plus any parameters that should invalidate cache when changed (e.g., `"v1"` or `"v2,model=gpt4"`). Included in the action key hash.
 
-## Caching
-
-Each node's **action key** is a SHA256 of:
-
-- Its name
-- Its config string
-- Its dependencies' names and **content hashes** (sorted)
-
-Content hashes come from hashing actual file contents at the output paths. This builds a Merkle tree — changes ripple downstream. The clever bit: **early cutoff**. If a node re-runs but produces identical output, the content hash doesn't change. Downstream nodes stay cached even though their action key shifted.
-
-On a cache hit, `verifyOutputs` re-hashes the cached file paths. If any file is missing or corrupted, the node runs again. Trust, but verify.
-
-Three implementations:
-
-- **`MemCache`** — in-memory `Map`. Gone when the process sleeps with the fishes.
-- **`FsCache`** — filesystem-backed. Stores manifests as JSON under a base directory. Survives between runs.
-- **`TieredCache`** — checks local first, then remote. Promotes remote hits to local on read.
-
-Implement the `Cache` interface to bring your own:
-
-```typescript
-interface Cache {
-  get(key: string): Promise<CacheEntry | undefined>;
-  put(key: string, entry: CacheEntry): Promise<void>;
-}
-
-interface CacheEntry {
-  outputs: Outputs;
-  contentHash: string;
-}
-```
-
 ## Defining Actions
 
 `defineAction` separates naming, cache config, and execution into one spec:
@@ -95,79 +94,6 @@ const resize = defineAction<Ctx, ResizeParams, string>({
 ```
 
 First type parameter (`Ctx`) is the context type — whatever external dependencies your actions need. The `config` field can be a string or an object (objects get JSON-stringified). Change the config, the cache is dead for that action.
-
-Params declare dependencies with `NodeRef<T>`:
-
-```typescript
-interface ResizeParams {
-  kind: "resize";
-  imageId: string;
-  deps: { source: NodeRef<string> };
-}
-```
-
-`InputsFor<P>` derives typed inputs from the `deps` record. Inside the action, `inputs.source` is the output type of the referenced node. The framework rekeys from node names (`"fetch:img_001"`) to role names (`"source"`) automatically.
-
-The returned `ActionDef` has an `addNode` method:
-
-```typescript
-resize.addNode(graph, ctx, params); // returns NodeRef<string>
-```
-
-## Analysis
-
-`graph.analyze()` validates da graph (cycle detection) and returns the layout:
-
-```typescript
-const analysis = graph.analyze();
-// analysis.total   → 14
-// analysis.byKind  → Map { "fetch" => 2, "transform" => 5, ... }
-// analysis.nodes   → Node[]
-```
-
-## Execution
-
-```typescript
-import { execute } from "@podpiper/dagraph";
-
-const results = await execute(graph, executionCtx, localRunner, {
-  maxParallelism: 4,
-  onAction: (action) => {
-    /* progress reporting */
-  },
-});
-```
-
-The executor is a readiness-loop state machine:
-
-1. `createExecState` seeds the ready queue with zero-dep leaf nodes
-2. The loop pops nodes via `takeNext`, checks cache (with output verification), runs the action or skips on cache hit / dep failure
-3. On completion, newly-ready children get pushed to the **front** of the queue (`unshift`) — a fetch finishes, its dependent transform starts immediately instead of waiting behind queued fetches from other subgraphs
-4. Continues while work remains (ready > 0 or inflight > 0), dispatching up to `maxParallelism` concurrent nodes
-
-Execution goes through a pluggable `NodeRunner`. The default `localRunner` calls `node.action(inputs, outputDir)` directly. Swap in your own to dispatch work to remote workers.
-
-Every state transition emits an `ExecAction` to the `onAction` callback:
-
-| Action        | When                                                                         |
-| ------------- | ---------------------------------------------------------------------------- |
-| `start`       | Node begins executing                                                        |
-| `success`     | Node completed successfully (includes outputs, contentHash, elapsed time)    |
-| `failure`     | Node threw an error                                                          |
-| `cache-hit`   | Node skipped — cached outputs verified intact                                |
-| `dep-failure` | Node skipped because an upstream dependency failed                           |
-| `complete`    | Node fully done (after success/failure/cache-hit) — triggers child promotion |
-
-Results are a discriminated union per node:
-
-```typescript
-type ExecResult = { name: string; actionKey: string } & (
-  | { status: "done"; outputs: Outputs; contentHash: string }
-  | { status: "cached"; outputs: Outputs; contentHash: string }
-  | { status: "fail"; error: Error }
-  | { status: "dep-failed"; error: Error }
-);
-```
 
 ## Full Example
 

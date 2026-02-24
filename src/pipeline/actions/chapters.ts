@@ -1,12 +1,12 @@
-import type { TranscribeResult } from "@/ports/types";
 import type { JsonPath } from "@/typed-path";
 import { jsonPath, readJson, readJsonIfExists } from "@/typed-path";
 import type { Chapter, YtDlpChapter } from "@/types";
-import type { NodeRef } from "@podpiper/dagraph";
+import type { NodeRefOf } from "@podpiper/dagraph";
 
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
-import type { DownloadResult } from "./download";
+import type { download } from "./download";
+import type { transcribe } from "./transcribe";
 
 const UNTITLED_PATTERN = /^<Untitled Chapter \d+>$/;
 
@@ -19,6 +19,7 @@ function convertYtDlpChapters(chapters?: YtDlpChapter[]): Chapter[] {
   if (!chapters?.length) return [];
   return chapters.map((c, i) => ({
     startTime: c.start_time,
+    endTime: c.end_time,
     title: cleanChapterTitle(c.title, i, c.start_time),
   }));
 }
@@ -26,7 +27,7 @@ function convertYtDlpChapters(chapters?: YtDlpChapter[]): Chapter[] {
 export interface ChaptersParams {
   kind: typeof NodeKind.Chapters;
   videoId: string;
-  deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
+  deps: { download: NodeRefOf<download>; transcribe: NodeRefOf<transcribe> };
 }
 
 interface ChaptersConfig {
@@ -54,3 +55,4 @@ export const chapters = (chapterPrompt: string | undefined) =>
       return jsonPath<Chapter[]>(outputPath);
     },
   });
+export type chapters = typeof chapters;

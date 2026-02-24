@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Graph } from "./graph";
 import { addNode as graphAddNode } from "./graph";
 import type { ActionFunc, BaseParams, NodeRef, Outputs } from "./types";
@@ -12,6 +13,17 @@ export interface ActionDef<Ctx, P extends BaseParams, R extends Outputs> {
   addNode: (graph: Graph, ctx: Ctx, params: P) => NodeRef<R>;
   createAction: (ctx: Ctx) => ActionFunc<P, R>;
 }
+
+/** Extract output type R from an ActionDef or a factory function that returns one. */
+export type OutputOf<T> =
+  T extends ActionDef<any, any, infer R>
+    ? R
+    : T extends (...args: any[]) => ActionDef<any, any, infer R>
+      ? R
+      : never;
+
+/** Extract NodeRef<R> from an ActionDef or a factory function that returns one. */
+export type NodeRefOf<T> = NodeRef<OutputOf<T>>;
 
 function stableStringify(obj: unknown) {
   return JSON.stringify(obj, (_, v) =>

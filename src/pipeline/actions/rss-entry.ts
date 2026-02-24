@@ -1,24 +1,21 @@
-import type { TranscribeResult } from "@/ports/types";
 import type { JsonPath } from "@/typed-path";
 import { jsonPath, readJson } from "@/typed-path";
-import type { Chapter, Episode, UploadEntry } from "@/types";
-import type { NodeRef } from "@podpiper/dagraph";
+import type { Episode, UploadEntry } from "@/types";
+import type { NodeRef, NodeRefOf } from "@podpiper/dagraph";
+import type { chapters } from "./chapters";
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
-import type { DownloadResult } from "./download";
-
-export type RssEntryResult = {
-  episode: JsonPath<Episode>;
-  uploads: JsonPath<UploadEntry[]>;
-};
+import type { download } from "./download";
+import type { transcribe } from "./transcribe";
 
 export interface RssEntryParams {
   kind: typeof NodeKind.RssEntry;
   videoId: string;
   deps: {
-    download: NodeRef<DownloadResult>;
-    transcribe: NodeRef<TranscribeResult>;
+    download: NodeRefOf<download>;
+    transcribe: NodeRefOf<transcribe>;
     thumbnail: NodeRef<string>;
-    chapters: NodeRef<JsonPath<Chapter[]>>;
+    chapters: NodeRefOf<chapters>;
+    embedChapters?: NodeRef<string>;
     summary?: NodeRef<string>;
   };
 }
@@ -27,7 +24,10 @@ function toObjectKey(videoId: string, key: string) {
   return `${videoId}/${key}`;
 }
 
-export const rssEntry = defineActionWithPorts<RssEntryParams, RssEntryResult>({
+export const rssEntry = defineActionWithPorts<RssEntryParams, {
+  episode: JsonPath<Episode>;
+  uploads: JsonPath<UploadEntry[]>;
+}>({
   name: toVideoActionName,
   config: "rss-v4",
   action:
@@ -80,3 +80,4 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, RssEntryResult>({
       return { episode: jsonPath<Episode>(episodePath), uploads: jsonPath<UploadEntry[]>(uploadsPath) };
     },
 });
+export type rssEntry = typeof rssEntry;

@@ -6,7 +6,8 @@ import type { SpiedPorts } from "@/ports/mock";
 import type { Config, Episode, VideoInfo } from "@/types";
 import { MemCache, TieredCache, type Cache, type CacheEntry, type ExecResult } from "@podpiper/dagraph";
 
-import type { RssEntryResult } from "@/pipeline/actions/rss-entry";
+import type { rssEntry } from "@/pipeline/actions/rss-entry";
+import type { OutputOf } from "@podpiper/dagraph";
 import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
@@ -57,7 +58,7 @@ async function readEpisodeFromResult(
   fs: ReturnType<typeof createMemoryFs>,
 ): Promise<Episode> {
   if (result.status !== "done" && result.status !== "cached") throw new Error("expected done/cached");
-  const paths = result.outputs as RssEntryResult;
+  const paths = result.outputs as OutputOf<rssEntry>;
   return JSON.parse(await fs.readText(paths.episode)) as Episode;
 }
 
@@ -70,7 +71,7 @@ describe("sync pipeline", () => {
     const { exec, skip, fail } = countExec(sr.results);
     expect(fail).toBe(0);
     expect(skip).toBe(0);
-    expect(exec).toBe(14);
+    expect(exec).toBe(16);
 
     await publish(sr, TEST_CONFIG, ports.fs, ports.storage);
 
@@ -168,7 +169,7 @@ describe("sync pipeline", () => {
       downloads: ports.ytdlp.downloadVideo.mock.calls.length,
       uploads: ports.storage.uploadFile.mock.calls.length,
     }).toEqual({
-      dag: { exec: 14, skip: 0, fail: 0 },
+      dag: { exec: 16, skip: 0, fail: 0 },
       downloads: 2,
       uploads: 9,
     });
@@ -183,7 +184,7 @@ describe("sync pipeline", () => {
       downloads: ports.ytdlp.downloadVideo.mock.calls.length,
       uploads: ports.storage.uploadFile.mock.calls.length,
     }).toEqual({
-      dag: { exec: 0, skip: 14, fail: 0 },
+      dag: { exec: 0, skip: 16, fail: 0 },
       downloads: 0,
       uploads: 1,
     });
@@ -206,7 +207,7 @@ describe("sync pipeline", () => {
       downloads: ports.ytdlp.downloadVideo.mock.calls.length,
       uploads: ports.storage.uploadFile.mock.calls.length,
     }).toEqual({
-      dag: { exec: 14, skip: 0, fail: 0 },
+      dag: { exec: 16, skip: 0, fail: 0 },
       downloads: 2,
       uploads: 9,
     });
@@ -226,7 +227,7 @@ describe("sync pipeline", () => {
       downloads: ports.ytdlp.downloadVideo.mock.calls.length,
       uploads: ports.storage.uploadFile.mock.calls.length,
     }).toEqual({
-      dag: { exec: 0, skip: 14, fail: 0 },
+      dag: { exec: 0, skip: 16, fail: 0 },
       downloads: 0,
       uploads: 1,
     });
@@ -250,7 +251,7 @@ describe("sync pipeline", () => {
     await publish(r2, TEST_CONFIG, p2.fs, p2.storage);
 
     // DAG execution: 6 new nodes for vid_ccc, 14 cached (no feed node)
-    expect(countExec(r2.results)).toEqual({ exec: 6, skip: 14, fail: 0 });
+    expect(countExec(r2.results)).toEqual({ exec: 7, skip: 16, fail: 0 });
 
     // All 3 episodes available (including cached ones)
     expect(r2.episodes.length).toBe(3);
@@ -305,7 +306,7 @@ describe("sync pipeline", () => {
       downloadCalls: p3.ytdlp.downloadVideo.mock.calls.length,
       uploadCalls: p3.storage.uploadFile.mock.calls.length,
     }).toEqual({
-      run3: { exec: 0, skip: 20, fail: 0 },
+      run3: { exec: 0, skip: 23, fail: 0 },
       downloadCalls: 0,
       uploadCalls: 1,
     });
@@ -335,7 +336,7 @@ describe("sync pipeline", () => {
 
     const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     await publish(r1, TEST_CONFIG, ports.fs, ports.storage);
-    expect(countExec(r1.results)).toEqual({ exec: 14, skip: 0, fail: 0 });
+    expect(countExec(r1.results)).toEqual({ exec: 16, skip: 0, fail: 0 });
 
     for (const r of r1.results) {
       if (r.name === "rss_entry:vid_aaa" || r.name === "artwork") {
@@ -346,7 +347,7 @@ describe("sync pipeline", () => {
 
     const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     await publish(r2, TEST_CONFIG, ports.fs, ports.storage);
-    expect(countExec(r2.results)).toEqual({ exec: 2, skip: 12, fail: 0 });
+    expect(countExec(r2.results)).toEqual({ exec: 2, skip: 14, fail: 0 });
     expect(getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key))).toEqual([
       { key: "artwork.jpg", cacheControl: "max-age=86400" },
       { key: "feed.xml", cacheControl: "max-age=300" },
@@ -390,7 +391,7 @@ describe("sync pipeline", () => {
         .sort(),
       uploads: getUploadCalls(p2).sort((a, b) => a.key.localeCompare(b.key)),
     }).toEqual({
-      dag: { exec: 14, skip: 0, fail: 0 },
+      dag: { exec: 16, skip: 0, fail: 0 },
       syncEpisodes: 2,
       feedEpisodes: ["vid_aaa", "vid_bbb", "vid_ccc"],
       uploads: [
@@ -412,19 +413,19 @@ describe("sync pipeline", () => {
     const remote = new MemCache();
     const { ports: p1 } = createTestPorts(sharedFs);
     const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p1, remote);
-    expect(countExec(r1.results).exec).toBe(14);
+    expect(countExec(r1.results).exec).toBe(16);
 
     const local = new MemCache();
     const tiered = new TieredCache({ local, remote });
     const { ports: p2 } = createTestPorts(sharedFs);
     const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p2, tiered);
-    expect(countExec(r2.results).skip).toBe(14);
+    expect(countExec(r2.results).skip).toBe(16);
     expect(countExec(r2.results).exec).toBe(0);
 
     // Local is now warm from remote promotion
     const { ports: p3 } = createTestPorts(sharedFs);
     const r3 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p3, local);
-    expect(countExec(r3.results).skip).toBe(14);
+    expect(countExec(r3.results).skip).toBe(16);
     expect(countExec(r3.results).exec).toBe(0);
   });
 });

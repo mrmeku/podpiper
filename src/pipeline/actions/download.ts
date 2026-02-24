@@ -4,18 +4,16 @@ import type { YtDlpInfo } from "@/types";
 
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 
-export type DownloadResult = {
-  audio: string;
-  info: JsonPath<YtDlpInfo>;
-  thumb: string;
-};
-
 export interface DownloadParams {
   kind: typeof NodeKind.Download;
   videoId: string;
 }
 
-export const download = defineActionWithPorts<DownloadParams, DownloadResult>({
+export const download = defineActionWithPorts<DownloadParams, {
+  audio: string;
+  info: JsonPath<YtDlpInfo>;
+  thumb: string;
+}>({
   name: toVideoActionName,
   config: "ytdlp-v1,quality=0,embed-thumb,embed-chapters",
   action: (ports) => async (params, _inputs, outputDir) => {
@@ -27,3 +25,4 @@ export const download = defineActionWithPorts<DownloadParams, DownloadResult>({
     };
   },
 });
+export type download = typeof download;

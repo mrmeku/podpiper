@@ -1,6 +1,6 @@
 import { artwork, channelAvatar } from "@/pipeline/actions/artwork";
 import { NodeKind } from "@/pipeline/actions/define-action";
-import type { RssEntryResult } from "@/pipeline/actions/rss-entry";
+import type { rssEntry } from "@/pipeline/actions/rss-entry";
 import { discoverVideos } from "@/pipeline/discovery";
 import { publish } from "@/pipeline/publish";
 import { parseExistingFeed } from "@/pipeline/rss/parse";
@@ -8,6 +8,7 @@ import type { Ports } from "@/ports/types";
 import type { JsonPath } from "@/typed-path";
 import { readJson } from "@/typed-path";
 import type { Config, Episode, UploadEntry, VideoInfo } from "@/types";
+import type { OutputOf } from "@podpiper/dagraph";
 import type { HatchetClient, BaseWorkflowDeclaration } from "@hatchet-dev/typescript-sdk/v1";
 import type { VideoInput } from "./adapter";
 
@@ -54,7 +55,7 @@ export function registerChannelWorkflow(
             uploadDate: v.uploadDate,
             title: v.title,
           });
-          return { videoId: v.id, result: result as RssEntryResult };
+          return { videoId: v.id, result: result as OutputOf<rssEntry> };
         }),
       );
       return { childResults };
@@ -104,7 +105,7 @@ export function registerChannelWorkflow(
     executionTimeout: "5m",
     fn: async (_input, ctx) => {
       const { childResults } = (await ctx.parentOutput(processVideos)) as {
-        childResults: { videoId: string; result: RssEntryResult }[];
+        childResults: { videoId: string; result: OutputOf<rssEntry> }[];
       };
       const uploads: UploadEntry[] = [];
       const episodes: Episode[] = [];

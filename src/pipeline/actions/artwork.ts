@@ -37,3 +37,4 @@ export const artwork = defineActionWithPorts<ArtworkParams, JsonPath<UploadEntry
     return jsonPath<UploadEntry[]>(uploadsPath);
   },
 });
+export type artwork = typeof artwork;

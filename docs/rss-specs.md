@@ -8,8 +8,11 @@ Reference specifications for feed generation:
 
 XML namespaces needed:
 
+- `xmlns:atom="http://www.w3.org/2005/Atom"`
+- `xmlns:content="http://purl.org/rss/1.0/modules/content/"`
 - `xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"`
 - `xmlns:media="http://search.yahoo.com/mrss/"`
+- `xmlns:podcast="https://podcastindex.org/namespace/1.0"`
 
 Channel-level image (need BOTH):
 

@@ -2,25 +2,32 @@
 
 exports[`sync pipeline fresh run executes full pipeline and publishes correct artifacts 1`] = `
 "<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:media="http://search.yahoo.com/mrss/" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:media="http://search.yahoo.com/mrss/" xmlns:podcast="https://podcastindex.org/namespace/1.0">
   <channel>
     <title>Test Podcast</title>
     <description>A test podcast</description>
     <link>https://www.youtube.com/@testchannel</link>
+    <atom:link href="https://cdn.test.com/feed.xml" rel="self" type="application/rss+xml"/>
     <language>en</language>
+    <copyright>Test Author</copyright>
     <pubDate>Fri, 15 Mar 2024 00:00:00 GMT</pubDate>
     <lastBuildDate>STABLE</lastBuildDate>
     <ttl>60</ttl>
+    <generator>podpiper</generator>
     <image>
       <url>https://cdn.test.com/artwork.jpg</url>
       <title>Test Podcast</title>
       <link>https://www.youtube.com/@testchannel</link>
     </image>
     <itunes:author>Test Author</itunes:author>
+    <itunes:summary>A test podcast</itunes:summary>
     <itunes:image href="https://cdn.test.com/artwork.jpg"/>
     <itunes:category text="Technology"/>
-    <itunes:explicit>false</itunes:explicit>
     <itunes:type>episodic</itunes:type>
+    <itunes:owner>
+      <itunes:name>Test Author</itunes:name>
+      <itunes:email>test@example.com</itunes:email>
+    </itunes:owner>
     <podcast:medium>podcast</podcast:medium>
     <podcast:person role="host">Test Author</podcast:person>
     <item>
@@ -30,10 +37,28 @@ exports[`sync pipeline fresh run executes full pipeline and publishes correct ar
 — Generated Summary —
 
 Mock summary of the episode content.</description>
+      <content:encoded>
+        <__cdata>&lt;p&gt;A video about deep learning.
+
+— Generated Summary —
+
+Mock summary of the episode content.&lt;/p&gt;</__cdata>
+      </content:encoded>
       <pubDate>Fri, 15 Mar 2024 00:00:00 GMT</pubDate>
       <guid isPermaLink="false">vid_aaa</guid>
+      <link>https://www.youtube.com/watch?v=vid_aaa</link>
       <enclosure url="https://cdn.test.com/vid_aaa/audio.mp3" length="16" type="audio/mpeg"/>
       <itunes:duration>30:00</itunes:duration>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:summary>
+        <__cdata>A video about deep learning.
+
+— Generated Summary —
+
+Mock summary of the episode content.</__cdata>
+      </itunes:summary>
+      <itunes:author>Test Author</itunes:author>
+      <itunes:title>Understanding Deep Learning</itunes:title>
       <itunes:image href="https://cdn.test.com/vid_aaa/thumbnail.jpg"/>
       <media:content url="https://cdn.test.com/vid_aaa/thumbnail.jpg" medium="image" type="image/jpeg"/>
       <podcast:chapters url="https://cdn.test.com/vid_aaa/chapters.json" type="application/json+chapters"/>
@@ -47,10 +72,28 @@ Mock summary of the episode content.</description>
 — Generated Summary —
 
 Mock summary of the episode content.</description>
+      <content:encoded>
+        <__cdata>&lt;p&gt;A video about growth mindset.
+
+— Generated Summary —
+
+Mock summary of the episode content.&lt;/p&gt;</__cdata>
+      </content:encoded>
       <pubDate>Sun, 10 Mar 2024 00:00:00 GMT</pubDate>
       <guid isPermaLink="false">vid_bbb</guid>
+      <link>https://www.youtube.com/watch?v=vid_bbb</link>
       <enclosure url="https://cdn.test.com/vid_bbb/audio.mp3" length="16" type="audio/mpeg"/>
       <itunes:duration>40:00</itunes:duration>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:summary>
+        <__cdata>A video about growth mindset.
+
+— Generated Summary —
+
+Mock summary of the episode content.</__cdata>
+      </itunes:summary>
+      <itunes:author>Test Author</itunes:author>
+      <itunes:title>Growth Mindset Tips</itunes:title>
       <itunes:image href="https://cdn.test.com/vid_bbb/thumbnail.jpg"/>
       <media:content url="https://cdn.test.com/vid_bbb/thumbnail.jpg" medium="image" type="image/jpeg"/>
       <podcast:transcript url="https://cdn.test.com/vid_bbb/transcript.srt" type="application/srt"/>
