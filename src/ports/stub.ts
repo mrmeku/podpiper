@@ -20,10 +20,11 @@ export function createStubPorts(): Ports {
     },
     ytdlp: {
       fetchVideoList: async () => [],
+      fetchVideoTitle: async () => "",
       downloadVideo: noop,
       downloadChannelArtwork: noop,
     },
-    ffmpeg: { cropThumbnail: noop, processChannelArtwork: noop },
+    ffmpeg: { cropThumbnail: noop, processChannelArtwork: noop, embedChapters: noop },
     whisper: { transcribe: async () => ({ srt: "", json: jsonPath<WhisperJson>("") }) },
     claude: { call: async () => "" },
     storage: {

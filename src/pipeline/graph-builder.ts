@@ -1,14 +1,14 @@
 import type { Ports } from "@/ports/types";
-import type { JsonPath } from "@/typed-path";
-import type { Chapter, Config, UploadEntry, VideoInfo } from "@/types";
-import { Graph, type ActionDef, type KindEdge, type NodeRef } from "@podpiper/dagraph";
+import type { Config, VideoInfo } from "@/types";
+import { Graph, type ActionDef, type KindEdge, type NodeRefOf, type OutputOf } from "@podpiper/dagraph";
 
 import { artwork, channelAvatar } from "./actions/artwork";
 import type { ChaptersParams } from "./actions/chapters";
 import { chapters } from "./actions/chapters";
 import { NodeKind } from "./actions/define-action";
 import { download } from "./actions/download";
-import type { RssEntryParams, RssEntryResult } from "./actions/rss-entry";
+import { embedChapters } from "./actions/embed-chapters";
+import type { RssEntryParams } from "./actions/rss-entry";
 import { rssEntry } from "./actions/rss-entry";
 import type { SummaryParams } from "./actions/summary";
 import { summary } from "./actions/summary";
@@ -16,7 +16,7 @@ import { thumbnail } from "./actions/thumbnail";
 import { transcribe } from "./actions/transcribe";
 
 interface VideoActions {
-  chapters: ActionDef<Ports, ChaptersParams, JsonPath<Chapter[]>>;
+  chapters: ActionDef<Ports, ChaptersParams, OutputOf<chapters>>;
   summary?: ActionDef<Ports, SummaryParams, string> | undefined;
 }
 
@@ -31,7 +31,7 @@ function addVideoSubgraph(
   video: VideoInfo,
   ports: Ports,
   actions: VideoActions,
-): NodeRef<RssEntryResult> {
+): NodeRefOf<rssEntry> {
   const dl = download.addNode(graph, ports, {
     kind: NodeKind.Download,
     videoId: video.id,
@@ -51,11 +51,17 @@ function addVideoSubgraph(
     videoId: video.id,
     deps: { download: dl, transcribe: tr },
   });
+  const ec = embedChapters.addNode(graph, ports, {
+    kind: NodeKind.EmbedChapters,
+    videoId: video.id,
+    deps: { download: dl, chapters: ch },
+  });
   const deps: RssEntryParams["deps"] = {
     download: dl,
     transcribe: tr,
     thumbnail: th,
     chapters: ch,
+    embedChapters: ec,
   };
   if (actions.summary) {
     deps.summary = actions.summary.addNode(graph, ports, {
@@ -72,8 +78,8 @@ function addVideoSubgraph(
 }
 
 export interface PipelineRefs {
-  entryRefs: NodeRef<RssEntryResult>[];
-  artworkRef: NodeRef<JsonPath<UploadEntry[]>>;
+  entryRefs: NodeRefOf<rssEntry>[];
+  artworkRef: NodeRefOf<artwork>;
 }
 
 function videoActions(config: Config): VideoActions {

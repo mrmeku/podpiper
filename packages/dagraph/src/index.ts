@@ -1,5 +1,5 @@
 export { FsCache, MemCache, TieredCache } from "./cache";
-export { defineAction, type ActionDef, type ActionSpec } from "./define-action";
+export { defineAction, type ActionDef, type ActionSpec, type NodeRefOf, type OutputOf } from "./define-action";
 export type { ExecAction } from "./exec-state";
 export { execute, type ExecutionContext } from "./execute";
 export { Graph, addNode, localRunner } from "./graph";

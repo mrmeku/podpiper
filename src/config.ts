@@ -45,6 +45,7 @@ CHANNEL-SPECIFIC RULES:
       description: "Audio from Heidi Priebe's YouTube channel",
       category: "Education",
       subcategory: "Self-Improvement",
+      copyright: "Heidi Priebe",
     },
   },
   asianometry: {
@@ -58,6 +59,7 @@ CHANNEL-SPECIFIC RULES:
       author: "Asianometry",
       description: "Audio from Asianometry's YouTube channel",
       category: "Education",
+      copyright: "Asianometry",
     },
   },
 };

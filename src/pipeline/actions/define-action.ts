@@ -1,5 +1,11 @@
 import type { Ports } from "@/ports/types";
-import { defineAction, type ActionDef, type ActionSpec, type BaseParams, type Outputs } from "@podpiper/dagraph";
+import {
+  defineAction,
+  type ActionDef,
+  type ActionSpec,
+  type BaseParams,
+  type Outputs,
+} from "@podpiper/dagraph";
 
 export function defineActionWithPorts<P extends BaseParams, R extends Outputs, C = string>(
   spec: ActionSpec<Ports, P, R, C>,
@@ -12,6 +18,7 @@ export enum NodeKind {
   Transcribe = "transcribe",
   Thumbnail = "thumbnail",
   Chapters = "chapters",
+  EmbedChapters = "embed_chapters",
   Summary = "summary",
   RssEntry = "rss_entry",
   ChannelAvatar = "channel_avatar",

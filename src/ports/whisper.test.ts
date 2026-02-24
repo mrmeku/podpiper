@@ -35,24 +35,26 @@ describe("formatSegmentsForLlm", () => {
 });
 
 describe("parseChapterResponse", () => {
-  test("maps segment indices to startTime in seconds", () => {
+  test("maps segment indices to startTime/endTime in seconds", () => {
     const response = `[{"segment": 0, "title": "Introduction"}, {"segment": 2, "title": "Transformers"}]`;
     expect(parseChapterResponse(response, segments)).toEqual([
-      { startTime: 0, title: "Introduction" },
-      { startTime: 25, title: "Transformers" },
+      { startTime: 0, endTime: 25, title: "Introduction" },
+      { startTime: 25, endTime: 90, title: "Transformers" },
     ]);
   });
 
   test("strips markdown fences", () => {
     const response = '```json\n[{"segment": 1, "title": "AI Discussion"}]\n```';
     expect(parseChapterResponse(response, segments)).toEqual([
-      { startTime: 10, title: "AI Discussion" },
+      { startTime: 10, endTime: 90, title: "AI Discussion" },
     ]);
   });
 
   test("filters out-of-bounds segment indices", () => {
     const response = `[{"segment": 0, "title": "OK"}, {"segment": 99, "title": "Bad"}, {"segment": -1, "title": "Negative"}]`;
-    expect(parseChapterResponse(response, segments)).toEqual([{ startTime: 0, title: "OK" }]);
+    expect(parseChapterResponse(response, segments)).toEqual([
+      { startTime: 0, endTime: 90, title: "OK" },
+    ]);
   });
 
   test("returns empty array for invalid JSON", () => {
@@ -83,9 +85,9 @@ describe("parseChapterResponse", () => {
     ];
     const response = `[{"segment": 0, "title": "Start"}, {"segment": 1, "title": "Middle"}, {"segment": 2, "title": "Late"}]`;
     expect(parseChapterResponse(response, longSegments)).toEqual([
-      { startTime: 0, title: "Start" },
-      { startTime: 300, title: "Middle" },
-      { startTime: 3600, title: "Late" },
+      { startTime: 0, endTime: 300, title: "Start" },
+      { startTime: 300, endTime: 3600, title: "Middle" },
+      { startTime: 3600, endTime: 3630, title: "Late" },
     ]);
   });
 });

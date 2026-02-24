@@ -11,6 +11,8 @@ export const TEST_CONFIG: Config = {
     author: "Test Author",
     description: "A test podcast",
     category: "Technology",
+    ownerEmail: "test@example.com",
+    copyright: "Test Author",
   },
   summaryPrompt: "Summarize this episode concisely.",
 };
@@ -54,6 +56,7 @@ export function createTestPorts(existingFs?: ReturnType<typeof createMemoryFs>) 
   const ports = createSpyPorts(fs, {
     ytdlp: {
       fetchVideoList: async () => [],
+      fetchVideoTitle: async () => "Mock Video Title",
       downloadVideo: async (outputDir: string, videoId: string) => {
         const infoMap: Record<string, YtDlpInfo> = {
           vid_aaa: VID_AAA_INFO,

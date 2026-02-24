@@ -1,12 +1,12 @@
-import type { NodeRef } from "@podpiper/dagraph";
+import type { NodeRefOf } from "@podpiper/dagraph";
 
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
-import type { DownloadResult } from "./download";
+import type { download } from "./download";
 
 export interface ThumbnailParams {
   kind: typeof NodeKind.Thumbnail;
   videoId: string;
-  deps: { download: NodeRef<DownloadResult> };
+  deps: { download: NodeRefOf<download> };
 }
 
 export const thumbnail = defineActionWithPorts<ThumbnailParams, string>({

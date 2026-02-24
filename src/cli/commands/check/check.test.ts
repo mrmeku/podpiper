@@ -15,6 +15,8 @@ const TEST_CONFIG: Config = {
     author: "Test Author",
     description: "A test podcast",
     category: "Technology",
+    ownerEmail: "test@example.com",
+    copyright: "Test Author",
   },
 };
 

@@ -1,13 +1,13 @@
 import type { TranscribeResult } from "@/ports/types";
-import type { NodeRef } from "@podpiper/dagraph";
+import type { NodeRefOf } from "@podpiper/dagraph";
 
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
-import type { DownloadResult } from "./download";
+import type { download } from "./download";
 
 export interface TranscribeParams {
   kind: typeof NodeKind.Transcribe;
   videoId: string;
-  deps: { download: NodeRef<DownloadResult> };
+  deps: { download: NodeRefOf<download> };
 }
 
 export const transcribe = defineActionWithPorts<TranscribeParams, TranscribeResult>({
@@ -17,3 +17,4 @@ export const transcribe = defineActionWithPorts<TranscribeParams, TranscribeResu
     return ports.whisper.transcribe(inputs.download.audio, outputDir);
   },
 });
+export type transcribe = typeof transcribe;

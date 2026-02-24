@@ -142,6 +142,8 @@ export type PodcastConfig = {
   title: string;
   author: string;
   description: string;
+  ownerEmail?: string;
+  copyright?: string;
 } & ApplePodcastCategory;
 
 export interface StorageConfig {
@@ -181,6 +183,7 @@ export interface YtDlpInfo {
 
 export interface Chapter {
   startTime: number;
+  endTime: number;
   title: string;
 }
 

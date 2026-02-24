@@ -12,27 +12,31 @@ exports[`graph command mermaid output 1`] = `
       download_vid_aaa["yt-dlp: download"]
       transcribe_vid_aaa["whisper: transcribe"]
       thumbnail_vid_aaa["ffmpeg: thumbnail"]
-      chapters_vid_aaa["claude: chapters"]
+      chapters_vid_aaa["claude: generate chapters"]
+      embed_chapters_vid_aaa["id3: embed chapters"]
       summary_vid_aaa["claude: summary"]
       rss_entry_vid_aaa["rss entry"]
       download_vid_aaa --> transcribe_vid_aaa
       download_vid_aaa --> thumbnail_vid_aaa
       download_vid_aaa & transcribe_vid_aaa --> chapters_vid_aaa
+      download_vid_aaa & chapters_vid_aaa --> embed_chapters_vid_aaa
       download_vid_aaa & transcribe_vid_aaa --> summary_vid_aaa
-      download_vid_aaa & transcribe_vid_aaa & thumbnail_vid_aaa & chapters_vid_aaa & summary_vid_aaa --> rss_entry_vid_aaa
+      download_vid_aaa & transcribe_vid_aaa & thumbnail_vid_aaa & chapters_vid_aaa & embed_chapters_vid_aaa & summary_vid_aaa --> rss_entry_vid_aaa
     end
     subgraph video_2 ["Video 2"]
       download_vid_bbb["yt-dlp: download"]
       transcribe_vid_bbb["whisper: transcribe"]
       thumbnail_vid_bbb["ffmpeg: thumbnail"]
-      chapters_vid_bbb["claude: chapters"]
+      chapters_vid_bbb["claude: generate chapters"]
+      embed_chapters_vid_bbb["id3: embed chapters"]
       summary_vid_bbb["claude: summary"]
       rss_entry_vid_bbb["rss entry"]
       download_vid_bbb --> transcribe_vid_bbb
       download_vid_bbb --> thumbnail_vid_bbb
       download_vid_bbb & transcribe_vid_bbb --> chapters_vid_bbb
+      download_vid_bbb & chapters_vid_bbb --> embed_chapters_vid_bbb
       download_vid_bbb & transcribe_vid_bbb --> summary_vid_bbb
-      download_vid_bbb & transcribe_vid_bbb & thumbnail_vid_bbb & chapters_vid_bbb & summary_vid_bbb --> rss_entry_vid_bbb
+      download_vid_bbb & transcribe_vid_bbb & thumbnail_vid_bbb & chapters_vid_bbb & embed_chapters_vid_bbb & summary_vid_bbb --> rss_entry_vid_bbb
     end
     channel_avatar["yt-dlp: avatar"]
     artwork["ffmpeg: artwork"]
@@ -54,12 +58,14 @@ exports[`graph command mermaid output 1`] = `
   style transcribe_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style thumbnail_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style chapters_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style embed_chapters_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style summary_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style rss_entry_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style download_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style transcribe_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style thumbnail_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style chapters_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style embed_chapters_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style summary_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style rss_entry_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style channel_avatar fill:#cbd5e1,stroke:#64748b,color:#0f172a

@@ -1,10 +1,10 @@
-import type { TranscribeResult } from "@/ports/types";
 import { readJson, readJsonIfExists } from "@/typed-path";
 import type { WhisperJson } from "@/types";
-import type { NodeRef } from "@podpiper/dagraph";
+import type { NodeRefOf } from "@podpiper/dagraph";
 
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
-import type { DownloadResult } from "./download";
+import type { download } from "./download";
+import type { transcribe } from "./transcribe";
 
 function formatTranscriptForLlm(whisper: WhisperJson): string {
   return whisper.transcription.map((s) => s.text.trim()).join("\n");
@@ -13,7 +13,7 @@ function formatTranscriptForLlm(whisper: WhisperJson): string {
 export interface SummaryParams {
   kind: typeof NodeKind.Summary;
   videoId: string;
-  deps: { download: NodeRef<DownloadResult>; transcribe: NodeRef<TranscribeResult> };
+  deps: { download: NodeRefOf<download>; transcribe: NodeRefOf<transcribe> };
 }
 
 interface SummaryConfig {

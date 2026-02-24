@@ -30,6 +30,7 @@ export function createMockPorts(
     fs,
     ytdlp: {
       ...stub.ytdlp,
+      fetchVideoTitle: async () => "Mock Video Title",
       downloadChannelArtwork: async (outputDir) => {
         await fs.writeText(`${outputDir}/channel_avatar.jpg`, "fake-avatar");
       },
@@ -41,6 +42,9 @@ export function createMockPorts(
       },
       processChannelArtwork: async (_raw, output) => {
         await fs.writeText(output, "fake-artwork");
+      },
+      embedChapters: async (_audio, _chapters, output) => {
+        await fs.writeText(output, "fake-embedded-audio");
       },
       ...overrides?.ffmpeg,
     },

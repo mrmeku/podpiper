@@ -1,5 +1,5 @@
 import type { JsonPath } from "@/typed-path";
-import type { VideoInfo, WhisperJson } from "@/types";
+import type { Chapter, VideoInfo, WhisperJson } from "@/types";
 
 export interface FileSystem {
   exists: (path: string) => Promise<boolean>;
@@ -15,6 +15,7 @@ export interface FileSystem {
 
 export interface YouTubeDownloader {
   fetchVideoList: (channelUrl: string) => Promise<VideoInfo[]>;
+  fetchVideoTitle: (url: string) => Promise<string>;
   downloadVideo: (outputDir: string, videoId: string) => Promise<void>;
   downloadChannelArtwork: (outputDir: string, channelUrl: string) => Promise<void>;
 }
@@ -22,6 +23,7 @@ export interface YouTubeDownloader {
 export interface MediaProcessor {
   cropThumbnail: (input: string, output: string) => Promise<void>;
   processChannelArtwork: (rawPath: string, outputPath: string) => Promise<void>;
+  embedChapters: (audioPath: string, chapters: Chapter[], outputPath: string) => Promise<void>;
 }
 
 export type TranscribeResult = {

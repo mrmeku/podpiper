@@ -30,10 +30,16 @@ function encodeUrl(path: string): string {
 interface RssItem {
   title: string;
   description: string;
+  "content:encoded": { __cdata: string };
   pubDate: string;
   guid: { "#text": string; "@_isPermaLink": string };
+  link: string;
   enclosure: { "@_url": string; "@_length": number | undefined; "@_type": string };
   "itunes:duration": string | undefined;
+  "itunes:episodeType": string;
+  "itunes:summary": { __cdata: string };
+  "itunes:author": string;
+  "itunes:title": string;
   "itunes:image"?: { "@_href": string };
   "media:content"?: { "@_url": string; "@_medium": string; "@_type": string };
   "podcast:chapters"?: { "@_url": string; "@_type": string };
@@ -47,14 +53,20 @@ function buildItem(config: Config, ep: Episode): RssItem {
   return {
     title: ep.title,
     description: ep.description,
+    "content:encoded": { __cdata: `<p>${ep.description}</p>` },
     pubDate: formatPubDate(ep.uploadDate),
     guid: { "#text": ep.id, "@_isPermaLink": "false" },
+    link: `https://www.youtube.com/watch?v=${ep.id}`,
     enclosure: {
       "@_url": `${config.storage.publicUrl}/${encodeUrl(ep.filename)}`,
       "@_length": ep.fileSize,
       "@_type": "audio/mpeg",
     },
     "itunes:duration": ep.duration ? formatDuration(ep.duration) : undefined,
+    "itunes:episodeType": "full",
+    "itunes:summary": { __cdata: ep.description },
+    "itunes:author": config.podcast.author,
+    "itunes:title": ep.title,
     ...(thumbUrl && {
       "itunes:image": { "@_href": thumbUrl },
       "media:content": {
@@ -98,6 +110,8 @@ export function buildFeedXml(config: Config, episodes: Episode[]): string {
     "?xml": { "@_version": "1.0", "@_encoding": "UTF-8" },
     rss: {
       "@_version": "2.0",
+      "@_xmlns:atom": "http://www.w3.org/2005/Atom",
+      "@_xmlns:content": "http://purl.org/rss/1.0/modules/content/",
       "@_xmlns:itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd",
       "@_xmlns:media": "http://search.yahoo.com/mrss/",
       "@_xmlns:podcast": "https://podcastindex.org/namespace/1.0",
@@ -105,20 +119,33 @@ export function buildFeedXml(config: Config, episodes: Episode[]): string {
         title: podcast.title,
         description: podcast.description,
         link: config.channelUrl,
+        "atom:link": {
+          "@_href": `${config.storage.publicUrl}/feed.xml`,
+          "@_rel": "self",
+          "@_type": "application/rss+xml",
+        },
         language: "en",
+        ...(podcast.copyright && { copyright: podcast.copyright }),
         pubDate: newestEpisode ? formatPubDate(newestEpisode.uploadDate) : undefined,
         lastBuildDate: new Date().toUTCString(),
         ttl: 60,
+        generator: "podpiper",
         image: {
           url: artworkUrl,
           title: podcast.title,
           link: config.channelUrl,
         },
         "itunes:author": podcast.author,
+        "itunes:summary": podcast.description,
         "itunes:image": { "@_href": artworkUrl },
         "itunes:category": categoryObj,
-        "itunes:explicit": "false",
         "itunes:type": "episodic",
+        ...(podcast.ownerEmail && {
+          "itunes:owner": {
+            "itunes:name": podcast.author,
+            "itunes:email": podcast.ownerEmail,
+          },
+        }),
         "podcast:medium": "podcast",
         "podcast:person": { "#text": podcast.author, "@_role": "host" },
         item: items,
