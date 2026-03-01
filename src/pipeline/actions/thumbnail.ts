@@ -1,6 +1,6 @@
 import type { NodeRefOf } from "@podpiper/dagraph";
 
-import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
+import { NodeKind, defineActionWithPorts } from "./define-action";
 import type { download } from "./download";
 
 export interface ThumbnailParams {
@@ -10,7 +10,6 @@ export interface ThumbnailParams {
 }
 
 export const thumbnail = defineActionWithPorts<ThumbnailParams, string>({
-  name: toVideoActionName,
   config: "crop-v1",
   action: (ports) => async (_params, inputs, outputDir) => {
     const outputPath = `${outputDir}/thumbnail.jpg`;

@@ -5,38 +5,38 @@ exports[`graph command mermaid output 1`] = `
   subgraph discovery_phase ["Discovery"]
     discovery["Discover Videos"]
   end
-  discovery --> download_vid_aaa & download_vid_bbb
+  discovery --> vid_aaa_download & vid_bbb_download
 
   subgraph pipeline_phase ["Execution"]
     subgraph video_1 ["Video 1"]
-      download_vid_aaa["Download Audio"]
-      transcribe_vid_aaa["Transcribe"]
-      thumbnail_vid_aaa["Crop Thumbnail"]
-      chapters_vid_aaa["Generate Chapters"]
-      embed_chapters_vid_aaa["Embed Chapters"]
-      summary_vid_aaa["Summarize"]
-      rss_entry_vid_aaa["RSS Entry"]
-      download_vid_aaa --> transcribe_vid_aaa
-      download_vid_aaa --> thumbnail_vid_aaa
-      download_vid_aaa & transcribe_vid_aaa --> chapters_vid_aaa
-      download_vid_aaa & chapters_vid_aaa --> embed_chapters_vid_aaa
-      download_vid_aaa & transcribe_vid_aaa --> summary_vid_aaa
-      download_vid_aaa & transcribe_vid_aaa & thumbnail_vid_aaa & chapters_vid_aaa & embed_chapters_vid_aaa & summary_vid_aaa --> rss_entry_vid_aaa
+      vid_aaa_download["Download Audio"]
+      vid_aaa_transcribe["Transcribe"]
+      vid_aaa_thumbnail["Crop Thumbnail"]
+      vid_aaa_chapters["Generate Chapters"]
+      vid_aaa_embed_chapters["Embed Chapters"]
+      vid_aaa_summary["Summarize"]
+      vid_aaa_rss_entry["RSS Entry"]
+      vid_aaa_download --> vid_aaa_transcribe
+      vid_aaa_download --> vid_aaa_thumbnail
+      vid_aaa_download & vid_aaa_transcribe --> vid_aaa_chapters
+      vid_aaa_download & vid_aaa_chapters --> vid_aaa_embed_chapters
+      vid_aaa_download & vid_aaa_transcribe --> vid_aaa_summary
+      vid_aaa_download & vid_aaa_transcribe & vid_aaa_thumbnail & vid_aaa_chapters & vid_aaa_embed_chapters & vid_aaa_summary --> vid_aaa_rss_entry
     end
     subgraph video_2 ["Video 2"]
-      download_vid_bbb["Download Audio"]
-      transcribe_vid_bbb["Transcribe"]
-      thumbnail_vid_bbb["Crop Thumbnail"]
-      chapters_vid_bbb["Generate Chapters"]
-      embed_chapters_vid_bbb["Embed Chapters"]
-      summary_vid_bbb["Summarize"]
-      rss_entry_vid_bbb["RSS Entry"]
-      download_vid_bbb --> transcribe_vid_bbb
-      download_vid_bbb --> thumbnail_vid_bbb
-      download_vid_bbb & transcribe_vid_bbb --> chapters_vid_bbb
-      download_vid_bbb & chapters_vid_bbb --> embed_chapters_vid_bbb
-      download_vid_bbb & transcribe_vid_bbb --> summary_vid_bbb
-      download_vid_bbb & transcribe_vid_bbb & thumbnail_vid_bbb & chapters_vid_bbb & embed_chapters_vid_bbb & summary_vid_bbb --> rss_entry_vid_bbb
+      vid_bbb_download["Download Audio"]
+      vid_bbb_transcribe["Transcribe"]
+      vid_bbb_thumbnail["Crop Thumbnail"]
+      vid_bbb_chapters["Generate Chapters"]
+      vid_bbb_embed_chapters["Embed Chapters"]
+      vid_bbb_summary["Summarize"]
+      vid_bbb_rss_entry["RSS Entry"]
+      vid_bbb_download --> vid_bbb_transcribe
+      vid_bbb_download --> vid_bbb_thumbnail
+      vid_bbb_download & vid_bbb_transcribe --> vid_bbb_chapters
+      vid_bbb_download & vid_bbb_chapters --> vid_bbb_embed_chapters
+      vid_bbb_download & vid_bbb_transcribe --> vid_bbb_summary
+      vid_bbb_download & vid_bbb_transcribe & vid_bbb_thumbnail & vid_bbb_chapters & vid_bbb_embed_chapters & vid_bbb_summary --> vid_bbb_rss_entry
     end
     channel_avatar["Fetch Avatar"]
     artwork["Process Artwork"]
@@ -46,7 +46,7 @@ exports[`graph command mermaid output 1`] = `
   subgraph publish_phase ["Publish"]
     publish["Upload + Feed"]
   end
-  rss_entry_vid_aaa & rss_entry_vid_bbb & artwork --> publish
+  vid_aaa_rss_entry & vid_bbb_rss_entry & artwork --> publish
 
   style discovery_phase fill:#fef7ed,stroke:#e8a95b,color:#7c4d1a
   style pipeline_phase fill:#f1f5f9,stroke:#94a3b8,color:#334155
@@ -54,20 +54,20 @@ exports[`graph command mermaid output 1`] = `
   style video_1 fill:#f5f3ff,stroke:#a78bfa,color:#4c1d95
   style video_2 fill:#f5f3ff,stroke:#a78bfa,color:#4c1d95
   style discovery fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style download_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style transcribe_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style thumbnail_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style chapters_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style embed_chapters_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style summary_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style rss_entry_vid_aaa fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style download_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style transcribe_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style thumbnail_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style chapters_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style embed_chapters_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style summary_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
-  style rss_entry_vid_bbb fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_aaa_download fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_aaa_transcribe fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_aaa_thumbnail fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_aaa_chapters fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_aaa_embed_chapters fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_aaa_summary fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_aaa_rss_entry fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_bbb_download fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_bbb_transcribe fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_bbb_thumbnail fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_bbb_chapters fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_bbb_embed_chapters fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_bbb_summary fill:#cbd5e1,stroke:#64748b,color:#0f172a
+  style vid_bbb_rss_entry fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style channel_avatar fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style artwork fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style publish fill:#fbbf24,stroke:#b45309,color:#451a03

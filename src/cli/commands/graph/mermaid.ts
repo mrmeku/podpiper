@@ -30,7 +30,7 @@ export function generateMermaid(graph: Graph): string {
     if (colon === -1) {
       topLevel.push(node);
     } else {
-      const vid = node.name.slice(colon + 1);
+      const vid = node.name.slice(0, colon);
       if (!videoGroups.has(vid)) videoGroups.set(vid, []);
       videoGroups.get(vid)!.push(node);
     }
@@ -39,7 +39,7 @@ export function generateMermaid(graph: Graph): string {
   const downloadIds: string[] = [];
   for (const group of videoGroups.values()) {
     for (const n of group) {
-      if (n.name.startsWith("download:")) downloadIds.push(toId(n.name));
+      if (n.kind === NodeKind.Download) downloadIds.push(toId(n.name));
     }
   }
 
@@ -64,7 +64,7 @@ export function generateMermaid(graph: Graph): string {
       lines.push(`      ${toId(n.name)}["${toLabel(n.kind)}"]`);
     }
     for (const n of group) {
-      const localDeps = n.deps.filter((d) => d.includes(":") && d.endsWith(vid));
+      const localDeps = n.deps.filter((d) => d.includes(":") && d.startsWith(vid + ":"));
       if (localDeps.length) {
         lines.push(`      ${localDeps.map(toId).join(" & ")} --> ${toId(n.name)}`);
       }
@@ -83,9 +83,9 @@ export function generateMermaid(graph: Graph): string {
 
   // publish phase
   const rssEntryIds = [...videoGroups.values()]
-    .flatMap((group) => group.filter((n) => n.name.startsWith("rss_entry:")))
+    .flatMap((group) => group.filter((n) => n.kind === NodeKind.RssEntry))
     .map((n) => toId(n.name));
-  const artworkId = topLevel.find((n) => n.name === "artwork");
+  const artworkId = topLevel.find((n) => n.kind === NodeKind.Artwork);
   const publishDeps = [...rssEntryIds, ...(artworkId ? [toId(artworkId.name)] : [])];
   lines.push("");
   lines.push(`  subgraph publish_phase ["Publish"]`);

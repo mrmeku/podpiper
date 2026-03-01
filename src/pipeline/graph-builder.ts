@@ -25,45 +25,46 @@ function addVideoSubgraph(
   ports: Ports,
   config: Config,
 ): NodeRefOf<rssEntry> {
-  const dl = download.addNode(graph, ports, {
+  const scope = graph.scope(video.id);
+  const downloadRef = download.addNode(scope, ports, {
     kind: NodeKind.Download,
     videoId: video.id,
   });
-  const tr = transcribe.addNode(graph, ports, {
+  const transcribeRef = transcribe.addNode(scope, ports, {
     kind: NodeKind.Transcribe,
     videoId: video.id,
-    deps: { download: dl },
+    deps: { download: downloadRef },
   });
-  const th = thumbnail.addNode(graph, ports, {
+  const thumbnailRef = thumbnail.addNode(scope, ports, {
     kind: NodeKind.Thumbnail,
     videoId: video.id,
-    deps: { download: dl },
+    deps: { download: downloadRef },
   });
-  const ch = chapters(config.chapterPrompt).addNode(graph, ports, {
+  const chaptersRef = chapters(config.chapterPrompt).addNode(scope, ports, {
     kind: NodeKind.Chapters,
     videoId: video.id,
-    deps: { download: dl, transcribe: tr },
+    deps: { download: downloadRef, transcribe: transcribeRef },
   });
-  const ec = embedChapters.addNode(graph, ports, {
+  const embedChaptersRef = embedChapters.addNode(scope, ports, {
     kind: NodeKind.EmbedChapters,
     videoId: video.id,
-    deps: { download: dl, chapters: ch },
+    deps: { download: downloadRef, chapters: chaptersRef },
   });
   const deps: RssEntryParams["deps"] = {
-    download: dl,
-    transcribe: tr,
-    thumbnail: th,
-    chapters: ch,
-    embedChapters: ec,
+    download: downloadRef,
+    transcribe: transcribeRef,
+    thumbnail: thumbnailRef,
+    chapters: chaptersRef,
+    embedChapters: embedChaptersRef,
   };
   if (config.summaryPrompt) {
-    deps.summary = summary(config.summaryPrompt).addNode(graph, ports, {
+    deps.summary = summary(config.summaryPrompt).addNode(scope, ports, {
       kind: NodeKind.Summary,
       videoId: video.id,
-      deps: { download: dl, transcribe: tr },
+      deps: { download: downloadRef, transcribe: transcribeRef },
     });
   }
-  return rssEntry.addNode(graph, ports, {
+  return rssEntry.addNode(scope, ports, {
     kind: NodeKind.RssEntry,
     videoId: video.id,
     deps,

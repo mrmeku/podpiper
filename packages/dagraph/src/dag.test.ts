@@ -55,57 +55,58 @@ const p = (kind: string, deps?: Record<string, string>): BaseParams =>
     : { kind };
 
 function addItemNodes(g: Graph, id: string, fs: DagFs): void {
-  const n = (kind: string) => `${kind}:${id}`;
-  g.add({
-    name: n("fetch"),
+  const sg = g.scope(id);
+  const n = (kind: string) => `${id}:${kind}`;
+  sg.add({
+    name: "fetch",
     kind: "fetch",
     deps: [],
     config: id,
     params: p("fetch"),
     action: async () => write(fs, `${id}-fetch.json`, `{"id":"${id}"}`),
   });
-  g.add({
-    name: n("extract"),
+  sg.add({
+    name: "extract",
     kind: "extract",
     deps: [n("fetch")],
     config: "extract-v1",
     params: p("extract", { fetch: n("fetch") }),
     action: async () => write(fs, `${id}-raw.bin`, `raw-${id}`),
   });
-  g.add({
-    name: n("parse"),
+  sg.add({
+    name: "parse",
     kind: "parse",
     deps: [n("extract")],
     config: "parse-v1",
     params: p("parse", { extract: n("extract") }),
     action: async () => write(fs, `${id}-parsed.txt`, `Parsed ${id}`),
   });
-  g.add({
-    name: n("summarize"),
+  sg.add({
+    name: "summarize",
     kind: "summarize",
     deps: [n("parse")],
     config: "summarize-v2",
     params: p("summarize", { parse: n("parse") }),
     action: async () => write(fs, `${id}-summary.txt`, `Summary of ${id}`),
   });
-  g.add({
-    name: n("classify"),
+  sg.add({
+    name: "classify",
     kind: "classify",
     deps: [n("parse")],
     config: "classify-v1",
     params: p("classify", { parse: n("parse") }),
     action: async () => write(fs, `${id}-classify.json`, `["tag_a","tag_b"]`),
   });
-  g.add({
-    name: n("resize"),
+  sg.add({
+    name: "resize",
     kind: "resize",
     deps: [n("fetch")],
     config: "resize-v1",
     params: p("resize", { fetch: n("fetch") }),
     action: async () => write(fs, `${id}-thumb.jpg`, `thumb-${id}`),
   });
-  g.add({
-    name: n("entry"),
+  sg.add({
+    name: "entry",
     kind: "entry",
     deps: [n("summarize"), n("classify"), n("extract"), n("resize")],
     config: "entry-v1",
@@ -120,7 +121,7 @@ function addItemNodes(g: Graph, id: string, fs: DagFs): void {
 }
 
 function addAggregateNode(g: Graph, ids: string[], fs: DagFs): void {
-  const deps = ids.map((id) => `entry:${id}`);
+  const deps = ids.map((id) => `${id}:entry`);
   const depsRecord = Object.fromEntries(deps.map((d) => [d, d]));
   g.add({
     name: "aggregate",
@@ -232,7 +233,7 @@ describe("Graph", () => {
       const fs = createMemoryDagFs();
       const { nodes } = buildGraph(["aaa"], fs).analyze();
       expect(nodes.length).toBe(8);
-      const fetchNode = nodes.find((n) => n.name === "fetch:aaa")!;
+      const fetchNode = nodes.find((n) => n.name === "aaa:fetch")!;
       expect(fetchNode.kind).toBe("fetch");
       expect(fetchNode.deps).toEqual([]);
     });
@@ -1112,7 +1113,6 @@ describe("Graph", () => {
       const cache = new MemCache();
 
       const action = defineAction<null, BaseParams, string, { version: number; flag: boolean }>({
-        name: (params) => params.kind,
         config: { version: 1, flag: true },
         action: (_ctx, _config) => async () => write(fs, "out.txt", "result"),
       });
@@ -1134,7 +1134,6 @@ describe("Graph", () => {
       let receivedConfig: unknown;
 
       const action = defineAction<null, BaseParams, string, { model: string }>({
-        name: (params) => params.kind,
         config: { model: "gpt-4" },
         action: (_ctx, config) => async () => {
           receivedConfig = config;
@@ -1154,7 +1153,6 @@ describe("Graph", () => {
 
       const makeAction = (version: number) =>
         defineAction<null, BaseParams, string, { version: number }>({
-          name: (p) => p.kind,
           config: { version },
           action: (_ctx, _config) => async () => write(fs, "out.txt", "result"),
         });

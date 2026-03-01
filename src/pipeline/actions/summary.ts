@@ -2,7 +2,7 @@ import { readJson, readJsonIfExists } from "@/typed-path";
 import type { WhisperJson } from "@/types";
 import type { NodeRefOf } from "@podpiper/dagraph";
 
-import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
+import { NodeKind, defineActionWithPorts } from "./define-action";
 import type { download } from "./download";
 import type { transcribe } from "./transcribe";
 
@@ -23,7 +23,6 @@ interface SummaryConfig {
 
 export const summary = (summaryPrompt: string) =>
   defineActionWithPorts<SummaryParams, string, SummaryConfig>({
-    name: toVideoActionName,
     config: { version: 2, prompt: summaryPrompt },
     action: (ports, config) => async (_params, inputs, outputDir) => {
       const info = await readJson(ports.fs, inputs.download.info);

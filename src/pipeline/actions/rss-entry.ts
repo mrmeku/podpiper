@@ -3,7 +3,7 @@ import { jsonPath, readJson } from "@/typed-path";
 import type { Episode, UploadEntry } from "@/types";
 import type { NodeRef, NodeRefOf } from "@podpiper/dagraph";
 import type { chapters } from "./chapters";
-import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
+import { NodeKind, defineActionWithPorts } from "./define-action";
 import type { download } from "./download";
 import type { embedChapters } from "./embed-chapters";
 import type { thumbnail } from "./thumbnail";
@@ -30,7 +30,6 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, {
   episode: JsonPath<Episode>;
   uploads: JsonPath<UploadEntry[]>;
 }>({
-  name: toVideoActionName,
   config: "rss-v4",
   action:
     ({ fs }) =>

@@ -42,7 +42,7 @@ export function addNode<P extends BaseParams, R extends Outputs>({
   params: P;
   action: ActionFunc<P, R>;
 }): NodeRef<R> {
-  graph.add({
+  const registeredName = graph.add({
     name,
     kind: params.kind,
     deps: depsFromParams(params),
@@ -51,20 +51,58 @@ export function addNode<P extends BaseParams, R extends Outputs>({
     params,
     action: (rawInputs, outputDir) => action(params, resolveInputs<P>(params, rawInputs), outputDir),
   });
-  return { name };
+  return { name: registeredName };
 }
 
 export const localRunner: NodeRunner = (node, rawInputs, outputDir) => node.action(rawInputs, outputDir);
 
 export class Graph {
-  private nodes = new Map<string, Node>();
+  private nodes: Map<string, Node>;
+  private prefix: string;
 
-  add(def: Node): void {
-    if (this.nodes.has(def.name)) throw new Error(`duplicate node name: "${def.name}"`);
-    for (const d of def.deps) {
-      if (!this.nodes.has(d)) throw new Error(`node "${def.name}" depends on unknown node "${d}"`);
+  constructor(prefix = "", nodes?: Map<string, Node>) {
+    this.prefix = prefix;
+    this.nodes = nodes ?? new Map();
+  }
+
+  add(def: Node): string {
+    const name = this.prefix ? `${this.prefix}:${def.name}` : def.name;
+    const prefixed = this.prefix ? { ...def, name } : def;
+    if (this.nodes.has(name)) {
+      const colon = name.indexOf(":");
+      if (colon === -1) {
+        throw new Error(
+          `Duplicate node name "${name}". A node with this name already exists.\n` +
+            `  Hint: If you're adding multiple instances of the same action, wrap each group\n` +
+            `  in graph.scope(id) to namespace them — e.g. graph.scope("abc123").`,
+        );
+      }
+      const scope = name.slice(0, colon);
+      const kind = name.slice(colon + 1);
+      const existingNode = this.nodes.get(name)!;
+      const existingColon = existingNode.name.indexOf(":");
+      if (existingColon !== -1 && existingNode.name.slice(0, existingColon) === scope) {
+        throw new Error(
+          `Duplicate node name "${name}". A node with this name already exists in scope "${scope}".\n` +
+            `  Hint: If you need multiple "${kind}" nodes in the same scope, use distinct kind values.`,
+        );
+      }
+      throw new Error(
+        `Duplicate node name "${name}". A node with this name already exists.\n` +
+          `  Hint: This may be a conflict between a scoped node (via graph.scope("${scope}"))\n` +
+          `  and a manually-named node. Check for hardcoded names that match the scope:kind pattern.`,
+      );
     }
-    this.nodes.set(def.name, def);
+    for (const d of prefixed.deps) {
+      if (!this.nodes.has(d)) throw new Error(`node "${name}" depends on unknown node "${d}"`);
+    }
+    this.nodes.set(name, prefixed);
+    return name;
+  }
+
+  scope(prefix: string): Graph {
+    const fullPrefix = this.prefix ? `${this.prefix}:${prefix}` : prefix;
+    return new Graph(fullPrefix, this.nodes);
   }
 
   getNodes(): ReadonlyMap<string, Node> {

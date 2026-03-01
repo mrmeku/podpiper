@@ -2,7 +2,6 @@ import type { CreateWorkflowTaskOpts, HatchetClient } from "@hatchet-dev/typescr
 import { execute, type ExecutionContext, type KindEdge, type NodeRunner } from "@podpiper/dagraph";
 
 import type { NodeKind } from "@/pipeline/actions/define-action";
-import { toVideoActionName } from "@/pipeline/actions/define-action";
 import { buildVideoGraph } from "@/pipeline/graph-builder";
 import type { Ports } from "@/ports/types";
 import type { Config, VideoInfo } from "@/types";
@@ -43,7 +42,7 @@ export function toHatchetVideoWorkflow(
           title: input.title,
         };
         const graph = buildVideoGraph(video, ports, config);
-        const targetName = toVideoActionName({ kind, videoId: input.videoId });
+        const targetName = `${input.videoId}:${kind}`;
 
         const runner: NodeRunner = (node, inputs, outputDir) => {
           if (node.name === targetName) return node.action(inputs, outputDir);

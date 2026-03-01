@@ -1,7 +1,7 @@
 import { readJson } from "@/typed-path";
 import type { NodeRefOf } from "@podpiper/dagraph";
 import type { chapters } from "./chapters";
-import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
+import { NodeKind, defineActionWithPorts } from "./define-action";
 import type { download } from "./download";
 
 export interface EmbedChaptersParams {
@@ -14,7 +14,6 @@ export interface EmbedChaptersParams {
 }
 
 export const embedChapters = defineActionWithPorts<EmbedChaptersParams, string>({
-  name: toVideoActionName,
   config: "id3-chap-v1",
   action: (ports) => async (_params, inputs, outputDir) => {
     const chapters = await readJson(ports.fs, inputs.chapters);

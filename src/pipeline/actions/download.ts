@@ -2,7 +2,7 @@ import type { JsonPath } from "@/typed-path";
 import { jsonPath } from "@/typed-path";
 import type { YtDlpInfo } from "@/types";
 
-import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
+import { NodeKind, defineActionWithPorts } from "./define-action";
 
 export interface DownloadParams {
   kind: typeof NodeKind.Download;
@@ -14,7 +14,6 @@ export const download = defineActionWithPorts<DownloadParams, {
   info: JsonPath<YtDlpInfo>;
   thumb: string;
 }>({
-  name: toVideoActionName,
   config: "ytdlp-v1,quality=0,embed-thumb,embed-chapters",
   action: (ports) => async (params, _inputs, outputDir) => {
     await ports.ytdlp.downloadVideo(outputDir, params.videoId);

@@ -10,7 +10,6 @@ export interface ChannelAvatarParams {
 }
 
 export const channelAvatar = defineActionWithPorts<ChannelAvatarParams, string>({
-  name: (p) => p.kind,
   // Date in config acts as a daily TTL — forces re-fetch since the avatar URL is
   // stable but the image behind it can change when the channel updates their profile.
   config: `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`,
@@ -27,7 +26,6 @@ export interface ArtworkParams {
 }
 
 export const artwork = defineActionWithPorts<ArtworkParams, JsonPath<UploadEntry[]>>({
-  name: (p) => p.kind,
   config: "artwork-v1",
   action: (ports) => async (_params, inputs, outputDir) => {
     const artworkPath = `${outputDir}/artwork.jpg`;

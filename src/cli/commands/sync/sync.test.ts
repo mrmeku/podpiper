@@ -77,8 +77,8 @@ describe("sync pipeline", () => {
     await publish(sr, TEST_CONFIG, ports.fs, ports.storage);
 
     // Episode data
-    const aaaResult = sr.results.find((r) => r.name === "rss_entry:vid_aaa")!;
-    const bbbResult = sr.results.find((r) => r.name === "rss_entry:vid_bbb")!;
+    const aaaResult = sr.results.find((r) => r.name === "vid_aaa:rss_entry")!;
+    const bbbResult = sr.results.find((r) => r.name === "vid_bbb:rss_entry")!;
     const aaaEp = await readEpisodeFromResult(aaaResult, fs);
     const bbbEp = await readEpisodeFromResult(bbbResult, fs);
 
@@ -258,7 +258,7 @@ describe("sync pipeline", () => {
     expect(r2.episodes.length).toBe(3);
 
     // New episode data
-    const cccResult = r2.results.find((r) => r.name === "rss_entry:vid_ccc")!;
+    const cccResult = r2.results.find((r) => r.name === "vid_ccc:rss_entry")!;
     const cccEp = await readEpisodeFromResult(cccResult, fs2);
     expect({
       description: cccEp.description,
@@ -340,7 +340,7 @@ describe("sync pipeline", () => {
     expect(countExec(r1.results)).toEqual({ exec: 16, skip: 0, fail: 0 });
 
     for (const r of r1.results) {
-      if (r.name === "rss_entry:vid_aaa" || r.name === "artwork") {
+      if (r.name === "vid_aaa:rss_entry" || r.name === "artwork") {
         cache.evict(r.actionKey);
       }
     }

@@ -4,7 +4,7 @@ import type { Chapter, YtDlpChapter } from "@/types";
 import type { NodeRefOf } from "@podpiper/dagraph";
 
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
-import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
+import { NodeKind, defineActionWithPorts } from "./define-action";
 import type { download } from "./download";
 import type { transcribe } from "./transcribe";
 
@@ -37,7 +37,6 @@ interface ChaptersConfig {
 
 export const chapters = (chapterPrompt: string | undefined) =>
   defineActionWithPorts<ChaptersParams, JsonPath<Chapter[]>, ChaptersConfig>({
-    name: toVideoActionName,
     config: { version: 1, prompt: chapterPrompt },
     action: (ports, config) => async (_params, inputs, outputDir) => {
       const info = await readJson(ports.fs, inputs.download.info);
