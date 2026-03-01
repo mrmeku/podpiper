@@ -50,11 +50,11 @@ export function registerChannelWorkflow(
       const { videos } = (await ctx.parentOutput(discover)) as { videos: VideoInfo[] };
       const childResults = await Promise.all(
         videos.map(async (v) => {
-          const result = await ctx.runChild(videoPipeline, {
-            videoId: v.id,
-            uploadDate: v.uploadDate,
-            title: v.title,
-          });
+          const result = await ctx.runChild(
+            videoPipeline,
+            { videoId: v.id, uploadDate: v.uploadDate, title: v.title },
+            { additionalMetadata: { title: v.title } },
+          );
           return { videoId: v.id, result: result as OutputOf<rssEntry> };
         }),
       );

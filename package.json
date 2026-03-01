@@ -15,7 +15,8 @@
     "format": "prettier --write .",
     "lint": "eslint .",
     "env": "op inject -i .env.tpl -o .env",
-    "check-deps": "bun scripts/check-deps.ts"
+    "check-deps": "bun scripts/check-deps.ts",
+    "install-plist": "launchctl unload ~/Library/LaunchAgents/com.podpiper.serve.plist 2>/dev/null; cp com.podpiper.serve.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.podpiper.serve.plist"
   },
   "devDependencies": {
     "@types/bun": "latest",

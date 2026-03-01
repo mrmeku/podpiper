@@ -39,6 +39,7 @@ export const TASK_CONFIG: Record<NodeKind, TaskConfig> = {
   [NodeKind.Transcribe]: {
     executionTimeout: "15m",
     retries: 1,
+    concurrency: { expression: "'whisper'", maxRuns: 1 },
   },
   [NodeKind.Thumbnail]: {
     executionTimeout: "30s",
