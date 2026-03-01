@@ -31,7 +31,7 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
     },
     downloadVideo: async (outputDir, videoId) => {
       const url = `https://www.youtube.com/watch?v=${videoId}`;
-      const result = await ytdlp([
+      const dlArgs = [
         "-x",
         "--audio-format",
         "mp3",
@@ -46,9 +46,18 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
         "--output",
         `${outputDir}/audio.%(ext)s`,
         url,
-      ]).nothrow();
+      ];
+      const result = await ytdlp(dlArgs).nothrow();
       if (result.exitCode !== 0) {
         const stderr = result.stderr.toString().trim();
+        if (!opts?.cookies && stderr.includes("Sign in to confirm your age")) {
+          const retry = await $`yt-dlp --cookies-from-browser chrome ${[...baseArgs, ...dlArgs]}`.quiet().nothrow();
+          if (retry.exitCode !== 0) {
+            const retryStderr = retry.stderr.toString().trim();
+            throw new Error(retryStderr || `yt-dlp exited with code ${retry.exitCode}`);
+          }
+          return;
+        }
         throw new Error(stderr || `yt-dlp exited with code ${result.exitCode}`);
       }
     },
