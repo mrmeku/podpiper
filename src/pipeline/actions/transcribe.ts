@@ -12,7 +12,8 @@ export interface TranscribeParams {
 
 export const transcribe = defineActionWithPorts<TranscribeParams, TranscribeResult>({
   name: toVideoActionName,
-  config: "whisper-v1,model=medium",
+  config: "whisper-v1,model=large-v3-turbo",
+  concurrencyGroup: "whisper",
   action: (ports) => async (_params, inputs, outputDir) => {
     return ports.whisper.transcribe(inputs.download.audio, outputDir);
   },

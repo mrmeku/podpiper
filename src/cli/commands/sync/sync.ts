@@ -16,6 +16,16 @@ export function registerSync(program: Command) {
     .argument("<channel>", "Channel name (e.g. heidi, asianometry)")
     .option("-n, --limit <n>", "Max videos to process", (v: string) => parseInt(v))
     .option("-p, --parallel <n>", "Max parallelism", (v: string) => parseInt(v), 4)
+    .option(
+      "--concurrency <limits...>",
+      "Per-group concurrency limits (e.g. whisper=1)",
+      (v: string, acc: Record<string, number>) => {
+        const [key, val] = v.split("=") as [string, string];
+        acc[key] = parseInt(val);
+        return acc;
+      },
+      { whisper: 1 } as Record<string, number>,
+    )
     .option("-c, --cookies", "Use browser cookies for yt-dlp")
     .option("-f, --force", "Skip cache and reupload everything")
     .option("-d, --dry-run", "Show plan and exit without executing")
@@ -25,6 +35,7 @@ export function registerSync(program: Command) {
         opts: {
           limit?: number;
           parallel: number;
+          concurrency: Record<string, number>;
           cookies?: boolean;
           force?: boolean;
           dryRun?: boolean;
@@ -54,6 +65,7 @@ export function registerSync(program: Command) {
         const progress = createProgressRenderer(analysis, opts.parallel);
         const syncResult = await sync(graph, refs, ports.fs, executionCtx, {
           maxParallelism: opts.parallel,
+          concurrencyLimits: opts.concurrency,
           onAction: progress.onAction,
         });
         progress.finish();

@@ -21,7 +21,7 @@ export async function execute(
   runner: NodeRunner = localRunner,
   opts?: ExecuteOptions,
 ): Promise<ExecResult[]> {
-  const { maxParallelism, onAction } = opts ?? {};
+  const { maxParallelism, concurrencyLimits, onAction } = opts ?? {};
   const nodes = graph.getNodes();
   const state = execState.createExecState(nodes.values());
   const dispatch = (action: execState.ExecAction) => {
@@ -78,10 +78,11 @@ export async function execute(
 
   let resumeLoop: () => void = () => {};
   while (execState.hasWork(state)) {
-    while (execState.hasCapacity(state, maxParallelism)) {
-      const node = execState.takeNext(state);
-      processNode(node).finally(() => {
-        dispatch({ type: "complete", node });
+    let node: Node | null;
+    while ((node = execState.tryTakeNext(state, maxParallelism, concurrencyLimits))) {
+      const captured = node;
+      processNode(captured).finally(() => {
+        dispatch({ type: "complete", node: captured });
         resumeLoop();
       });
     }

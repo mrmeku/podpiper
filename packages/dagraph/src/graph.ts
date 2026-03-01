@@ -29,6 +29,7 @@ function resolveInputs<P>(params: BaseParams, rawInputs: Record<string, Outputs>
 
 export function addNode<P extends BaseParams, R extends Outputs>({
   action,
+  concurrencyGroup,
   config,
   graph,
   name,
@@ -37,6 +38,7 @@ export function addNode<P extends BaseParams, R extends Outputs>({
   graph: Graph;
   name: string;
   config: string;
+  concurrencyGroup?: string;
   params: P;
   action: ActionFunc<P, R>;
 }): NodeRef<R> {
@@ -45,6 +47,7 @@ export function addNode<P extends BaseParams, R extends Outputs>({
     kind: params.kind,
     deps: depsFromParams(params),
     config,
+    ...(concurrencyGroup && { concurrencyGroup }),
     params,
     action: (rawInputs, outputDir) => action(params, resolveInputs<P>(params, rawInputs), outputDir),
   });

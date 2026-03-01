@@ -8,7 +8,7 @@ import type { ExecAction } from "./exec-state";
 import { execute } from "./execute";
 import type { ExecutionContext } from "./execute";
 import { Graph, localRunner } from "./graph";
-import type { BaseParams, ExecResult, NodeRunner } from "./types";
+import type { BaseParams, ExecResult, Node, NodeRunner } from "./types";
 
 async function write(fs: FileSystem, name: string, content: string): Promise<string> {
   await fs.writeText(name, content);
@@ -916,6 +916,174 @@ describe("Graph", () => {
 
     const executed = actions.filter((a) => a.type === "start").map((a) => a.node.name);
     expect(executed).toEqual(["b", "c", "d"]);
+  });
+
+  describe("concurrencyLimits", () => {
+    test("caps per-group concurrent execution", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+      const g = new Graph();
+      let peak = 0;
+      let inflight = 0;
+
+      for (let i = 0; i < 6; i++) {
+        g.add({
+          name: `heavy_${i}`,
+          kind: "heavy",
+          deps: [],
+          config: `${i}`,
+          concurrencyGroup: "heavy",
+          params: p("heavy"),
+          action: async () => {
+            inflight++;
+            peak = Math.max(peak, inflight);
+            await Bun.sleep(20);
+            inflight--;
+            return write(fs, `heavy_${i}.txt`, `${i}`);
+          },
+        });
+      }
+
+      const results = await execute(g, ctx(cache, fs), localRunner, {
+        maxParallelism: 4,
+        concurrencyLimits: { heavy: 2 },
+      });
+      expect(peak).toBe(2);
+      expect(results.filter((r) => r.status === "done").length).toBe(6);
+    });
+
+    test("ungrouped nodes run at full parallelism alongside group-limited nodes", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+      const g = new Graph();
+      let groupPeak = 0;
+      let groupInflight = 0;
+      let totalPeak = 0;
+      let totalInflight = 0;
+
+      for (let i = 0; i < 3; i++) {
+        g.add({
+          name: `heavy_${i}`,
+          kind: "heavy",
+          deps: [],
+          config: `h${i}`,
+          concurrencyGroup: "heavy",
+          params: p("heavy"),
+          action: async () => {
+            groupInflight++;
+            totalInflight++;
+            groupPeak = Math.max(groupPeak, groupInflight);
+            totalPeak = Math.max(totalPeak, totalInflight);
+            await Bun.sleep(30);
+            groupInflight--;
+            totalInflight--;
+            return write(fs, `heavy_${i}.txt`, `${i}`);
+          },
+        });
+        g.add({
+          name: `light_${i}`,
+          kind: "light",
+          deps: [],
+          config: `l${i}`,
+          params: p("light"),
+          action: async () => {
+            totalInflight++;
+            totalPeak = Math.max(totalPeak, totalInflight);
+            await Bun.sleep(30);
+            totalInflight--;
+            return write(fs, `light_${i}.txt`, `${i}`);
+          },
+        });
+      }
+
+      const results = await execute(g, ctx(cache, fs), localRunner, {
+        maxParallelism: 6,
+        concurrencyLimits: { heavy: 1 },
+      });
+      expect(groupPeak).toBe(1);
+      expect(totalPeak).toBeGreaterThan(1);
+      expect(results.filter((r) => r.status === "done").length).toBe(6);
+    });
+
+    test("does not affect cache keys", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+
+      const makeGraph = (group?: string) => {
+        const g = new Graph();
+        const node: Node = {
+          name: "a",
+          kind: "task",
+          deps: [],
+          config: "cfg",
+          params: p("task"),
+          action: async () => write(fs, "a.txt", "content"),
+        };
+        if (group) node.concurrencyGroup = group;
+        g.add(node);
+        return g;
+      };
+
+      let results = await execute(makeGraph("heavy"), ctx(cache, fs));
+      expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
+
+      results = await execute(makeGraph("other"), ctx(cache, fs));
+      expect(countExec(results)).toEqual({ exec: 0, skip: 1 });
+
+      results = await execute(makeGraph(), ctx(cache, fs));
+      expect(countExec(results)).toEqual({ exec: 0, skip: 1 });
+    });
+
+    test("multiple groups are enforced independently", async () => {
+      const fs = createMemoryFs();
+      const cache = new MemCache();
+      const g = new Graph();
+      let aPeak = 0;
+      let aInflight = 0;
+      let bPeak = 0;
+      let bInflight = 0;
+
+      for (let i = 0; i < 4; i++) {
+        g.add({
+          name: `a_${i}`,
+          kind: "a",
+          deps: [],
+          config: `a${i}`,
+          concurrencyGroup: "group_a",
+          params: p("a"),
+          action: async () => {
+            aInflight++;
+            aPeak = Math.max(aPeak, aInflight);
+            await Bun.sleep(20);
+            aInflight--;
+            return write(fs, `a_${i}.txt`, `${i}`);
+          },
+        });
+        g.add({
+          name: `b_${i}`,
+          kind: "b",
+          deps: [],
+          config: `b${i}`,
+          concurrencyGroup: "group_b",
+          params: p("b"),
+          action: async () => {
+            bInflight++;
+            bPeak = Math.max(bPeak, bInflight);
+            await Bun.sleep(20);
+            bInflight--;
+            return write(fs, `b_${i}.txt`, `${i}`);
+          },
+        });
+      }
+
+      const results = await execute(g, ctx(cache, fs), localRunner, {
+        maxParallelism: 8,
+        concurrencyLimits: { group_a: 1, group_b: 2 },
+      });
+      expect(aPeak).toBe(1);
+      expect(bPeak).toBe(2);
+      expect(results.filter((r) => r.status === "done").length).toBe(8);
+    });
   });
 
   describe("structured config via defineAction", () => {

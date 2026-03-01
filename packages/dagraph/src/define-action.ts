@@ -6,6 +6,7 @@ import type { ActionFunc, BaseParams, NodeRef, Outputs } from "./types";
 export interface ActionSpec<Ctx, P extends BaseParams, R extends Outputs, C = string> {
   name: (params: P) => string;
   config: C;
+  concurrencyGroup?: string;
   action: (ctx: Ctx, config: C) => ActionFunc<P, R>;
 }
 
@@ -43,6 +44,7 @@ export function defineAction<Ctx, P extends BaseParams, R extends Outputs, C = s
         graph,
         name: spec.name(params),
         config: configStr,
+        ...(spec.concurrencyGroup && { concurrencyGroup: spec.concurrencyGroup }),
         params,
         action: spec.action(ctx, spec.config),
       }),

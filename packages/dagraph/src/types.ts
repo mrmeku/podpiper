@@ -36,6 +36,8 @@ export interface Node {
   /** Serialized configuration — included in the action key so config changes invalidate cache. */
   config: string;
   params: BaseParams;
+  /** Optional concurrency group. Nodes sharing a group are subject to a per-group parallelism limit. */
+  concurrencyGroup?: string;
   /** Raw executor-level action. Receives dep outputs as `Record<name, Outputs>` and CAS output dir, returns Outputs. */
   action: (rawInputs: Record<string, Outputs>, outputDir: string) => Promise<Outputs>;
 }
@@ -75,6 +77,8 @@ export interface Cache {
 
 export interface ExecuteOptions {
   maxParallelism?: number;
+  /** Per-group concurrency limits. Keys are group names, values are max inflight for that group. */
+  concurrencyLimits?: Record<string, number>;
   /** Observer callback — receives every ExecAction dispatched during execution. */
   onAction?: (action: ExecAction) => void;
 }
