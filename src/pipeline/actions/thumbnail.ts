@@ -18,3 +18,4 @@ export const thumbnail = defineActionWithPorts<ThumbnailParams, string>({
     return outputPath;
   },
 });
+export type thumbnail = typeof thumbnail;

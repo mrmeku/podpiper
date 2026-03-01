@@ -1,7 +1,6 @@
 import { artwork, channelAvatar } from "@/pipeline/actions/artwork";
 import { NodeKind } from "@/pipeline/actions/define-action";
 import type { rssEntry } from "@/pipeline/actions/rss-entry";
-import { discoverVideos } from "@/pipeline/discovery";
 import { publish } from "@/pipeline/publish";
 import { parseExistingFeed } from "@/pipeline/rss/parse";
 import type { Ports } from "@/ports/types";
@@ -29,7 +28,7 @@ export function registerChannelWorkflow(
   const discover = workflow.task({
     name: "discover",
     fn: async () => {
-      const allVideos = await discoverVideos(config.channelUrl, ports.ytdlp);
+      const allVideos = await ports.ytdlp.fetchVideoList(config.channelUrl);
       const feedData = await ports.storage.getFile(config.storage.bucket, "feed.xml");
       const existing = new Set<string>();
       if (feedData) {

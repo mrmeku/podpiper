@@ -1,4 +1,4 @@
-import { mkdir, readdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 
 import { CLAUDE_MODEL, WHISPER_MODEL_PATH } from "@/config";
 
@@ -21,7 +21,6 @@ export function createRealPorts(opts?: { force?: boolean; cookies?: boolean }): 
           throw new Error(`Failed to parse JSON from ${path}`, { cause: e });
         }
       },
-      readBinary: async (path) => new Uint8Array(await Bun.file(path).arrayBuffer()),
       hashFile: async (path) => {
         const hasher = new Bun.CryptoHasher("sha256");
         for await (const chunk of Bun.file(path).stream()) hasher.update(chunk);
@@ -37,13 +36,6 @@ export function createRealPorts(opts?: { force?: boolean; cookies?: boolean }): 
       },
       ensureDir: async (path) => {
         await mkdir(path, { recursive: true });
-      },
-      readdir: async (path) => {
-        const entries = await readdir(path, { withFileTypes: true });
-        return entries.map((e) => ({
-          name: e.name,
-          isDirectory: () => e.isDirectory(),
-        }));
       },
     },
     ytdlp: createRealYtdlp({ force: Boolean(opts?.force), cookies: Boolean(opts?.cookies) }),

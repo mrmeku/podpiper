@@ -1,7 +1,6 @@
 import type { Command } from "commander";
 
 import { getConfig } from "@/config";
-import { discoverVideos } from "@/pipeline/discovery";
 import { parseExistingFeed } from "@/pipeline/rss/parse";
 import { createRealPorts } from "@/ports/real";
 import type { ObjectStore } from "@/ports/types";
@@ -16,7 +15,7 @@ export function registerCheck(program: Command) {
       const config = getConfig(channel);
       const ports = createRealPorts();
 
-      const videos = await discoverVideos(config.channelUrl, ports.ytdlp);
+      const videos = await ports.ytdlp.fetchVideoList(config.channelUrl);
       const missing = await checkMissing(videos, config, ports.storage);
       console.log(`${missing.length} videos not in feed:`);
       for (const v of missing) {

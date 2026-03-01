@@ -1,9 +1,4 @@
-import {
-  GetObjectCommand,
-  ListObjectsV2Command,
-  PutObjectCommand,
-  S3Client,
-} from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 import type { ObjectStore } from "./types";
 
@@ -13,7 +8,7 @@ function getContentType(filename: string): string {
   if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
   if (filename.endsWith(".json")) return "application/json";
   if (filename.endsWith(".txt")) return "text/plain";
-  if (filename.endsWith(".srt")) return "application/srt";
+  if (filename.endsWith(".srt")) return "text/srt";
   return "application/octet-stream";
 }
 
@@ -47,27 +42,10 @@ export function createS3Storage(): ObjectStore {
         const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
         if (!result.Body) return null;
         return new Uint8Array(await result.Body.transformToByteArray());
-      } catch {
-        return null;
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "NoSuchKey") return null;
+        throw err;
       }
-    },
-
-    async listFiles(bucket) {
-      const keys = new Set<string>();
-      let continuationToken: string | undefined;
-      do {
-        const result = await client.send(
-          new ListObjectsV2Command({
-            Bucket: bucket,
-            ContinuationToken: continuationToken,
-          }),
-        );
-        for (const obj of result.Contents || []) {
-          if (obj.Key) keys.add(obj.Key);
-        }
-        continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
-      } while (continuationToken);
-      return keys;
     },
   };
 }

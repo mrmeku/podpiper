@@ -8,6 +8,7 @@ import type { ExecAction } from "./exec-state";
 import { execute } from "./execute";
 import type { ExecutionContext } from "./execute";
 import { Graph, localRunner } from "./graph";
+import { validateNoCycles } from "./helpers";
 import type { BaseParams, ExecResult, Node, NodeRunner } from "./types";
 
 async function write(fs: FileSystem, name: string, content: string): Promise<string> {
@@ -1148,6 +1149,80 @@ describe("Graph", () => {
       makeAction(2).addNode(g2, null, { kind: "test" });
       results = await execute(g2, ctx(cache, fs));
       expect(countExec(results)).toEqual({ exec: 1, skip: 0 });
+    });
+  });
+
+  test("diamond-with-failure: D dep-fails when B fails but C succeeds", async () => {
+    const fs = createMemoryFs();
+    const cache = new MemCache();
+    const g = new Graph();
+    g.add({
+      name: "a",
+      kind: "root",
+      deps: [],
+      config: "1",
+      params: p("root"),
+      action: async () => write(fs, "a.txt", "a"),
+    });
+    g.add({
+      name: "b",
+      kind: "mid",
+      deps: ["a"],
+      config: "2",
+      params: p("mid", { a: "a" }),
+      action: async () => {
+        throw new Error("b failed");
+      },
+    });
+    g.add({
+      name: "c",
+      kind: "mid",
+      deps: ["a"],
+      config: "3",
+      params: p("mid", { a: "a" }),
+      action: async () => write(fs, "c.txt", "c"),
+    });
+    g.add({
+      name: "d",
+      kind: "leaf",
+      deps: ["b", "c"],
+      config: "4",
+      params: p("leaf", { b: "b", c: "c" }),
+      action: async () => write(fs, "d.txt", "d"),
+    });
+
+    const results = await execute(g, ctx(cache, fs));
+    const byName = Object.fromEntries(results.map((r) => [r.name, r.status]));
+    expect(byName).toEqual({
+      a: "done",
+      b: "fail",
+      c: "done",
+      d: "dep-failed",
+    });
+  });
+
+  describe("cycle prevention", () => {
+    test("Graph.add() rejects deps on unknown nodes, preventing cycles", () => {
+      const g = new Graph();
+      expect(() =>
+        g.add({
+          name: "a",
+          kind: "root",
+          deps: ["b"],
+          config: "1",
+          params: p("root"),
+          action: async () => "a",
+        }),
+      ).toThrow('node "a" depends on unknown node "b"');
+    });
+
+    test("validateNoCycles detects cycles in manually constructed maps", () => {
+      const nodes = new Map<string, { deps: string[] }>([
+        ["a", { deps: ["c"] }],
+        ["b", { deps: ["a"] }],
+        ["c", { deps: ["b"] }],
+      ]);
+      expect(() => validateNoCycles(nodes)).toThrow("cycle detected");
     });
   });
 });

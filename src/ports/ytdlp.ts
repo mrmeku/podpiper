@@ -1,8 +1,21 @@
 import { $ } from "bun";
 
+import type { VideoInfo } from "@/types";
 import type { YouTubeDownloader } from "./types";
 
 const PRINT_FMT = "%(id)s|%(upload_date)s|%(title)s";
+
+export function parseVideoList(output: string): VideoInfo[] {
+  return output
+    .trim()
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const parts = line.split("|");
+      if (parts.length < 3) throw new Error(`Malformed yt-dlp output: ${line}`);
+      return { id: parts[0]!, uploadDate: parts[1]!, title: parts.slice(2).join("|") };
+    });
+}
 
 export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): YouTubeDownloader {
   const baseArgs: string[] = [
@@ -12,21 +25,9 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
   const ytdlp = (args: string[]) => $`yt-dlp ${[...baseArgs, ...args]}`.quiet();
 
   return {
-    fetchVideoTitle: async (url) => {
-      const result = await ytdlp(["--print", "title", url]).text();
-      return result.trim();
-    },
     fetchVideoList: async (channelUrl) => {
       const output = await ytdlp(["--flat-playlist", "--print", PRINT_FMT, channelUrl]).text();
-      return output
-        .trim()
-        .split("\n")
-        .filter((line) => line.length > 0)
-        .map((line) => {
-          const parts = line.split("|");
-          if (parts.length < 3) throw new Error(`Malformed yt-dlp output: ${line}`);
-          return { id: parts[0]!, uploadDate: parts[1]!, title: parts[2]! };
-        });
+      return parseVideoList(output);
     },
     downloadVideo: async (outputDir, videoId) => {
       const url = `https://www.youtube.com/watch?v=${videoId}`;

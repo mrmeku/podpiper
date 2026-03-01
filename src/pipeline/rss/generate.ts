@@ -5,22 +5,38 @@ import type { Config, Episode } from "@/types";
 const xmlBuilderOptions = {
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
+  cdataPropName: "__cdata",
   format: true,
   indentBy: "  ",
   suppressEmptyNode: true,
 };
 
 function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+function formatRfc2822(d: Date): string {
+  const day = DAYS[d.getUTCDay()];
+  const dd = d.getUTCDate().toString().padStart(2, "0");
+  const mon = MONTHS[d.getUTCMonth()];
+  const yyyy = d.getUTCFullYear();
+  const hh = d.getUTCHours().toString().padStart(2, "0");
+  const mm = d.getUTCMinutes().toString().padStart(2, "0");
+  const ss = d.getUTCSeconds().toString().padStart(2, "0");
+  return `${day}, ${dd} ${mon} ${yyyy} ${hh}:${mm}:${ss} GMT`;
 }
 
 function formatPubDate(uploadDate: string): string {
   const d = new Date(
     `${uploadDate.slice(0, 4)}-${uploadDate.slice(4, 6)}-${uploadDate.slice(6, 8)}`,
   );
-  return d.toUTCString();
+  return formatRfc2822(d);
 }
 
 function encodeUrl(path: string): string {
@@ -37,7 +53,7 @@ interface RssItem {
   enclosure: { "@_url": string; "@_length": number | undefined; "@_type": string };
   "itunes:duration": string | undefined;
   "itunes:episodeType": string;
-  "itunes:summary": { __cdata: string };
+  "itunes:explicit": string;
   "itunes:author": string;
   "itunes:title": string;
   "itunes:image"?: { "@_href": string };
@@ -64,7 +80,7 @@ function buildItem(config: Config, ep: Episode): RssItem {
     },
     "itunes:duration": ep.duration ? formatDuration(ep.duration) : undefined,
     "itunes:episodeType": "full",
-    "itunes:summary": { __cdata: ep.description },
+    "itunes:explicit": config.podcast.explicit ? "true" : "false",
     "itunes:author": config.podcast.author,
     "itunes:title": ep.title,
     ...(thumbUrl && {
@@ -77,14 +93,14 @@ function buildItem(config: Config, ep: Episode): RssItem {
     }),
     ...(hasChapters && {
       "podcast:chapters": {
-        "@_url": `${config.storage.publicUrl}/${ep.id}/chapters.json`,
+        "@_url": `${config.storage.publicUrl}/${encodeUrl(`${ep.id}/chapters.json`)}`,
         "@_type": "application/json+chapters",
       },
     }),
     ...(ep.transcript && {
       "podcast:transcript": {
         "@_url": `${config.storage.publicUrl}/${encodeUrl(ep.transcript)}`,
-        "@_type": "application/srt",
+        "@_type": "text/srt",
       },
     }),
     "podcast:contentLink": {
@@ -124,10 +140,10 @@ export function buildFeedXml(config: Config, episodes: Episode[]): string {
           "@_rel": "self",
           "@_type": "application/rss+xml",
         },
-        language: "en",
+        language: podcast.language ?? "en",
         ...(podcast.copyright && { copyright: podcast.copyright }),
         pubDate: newestEpisode ? formatPubDate(newestEpisode.uploadDate) : undefined,
-        lastBuildDate: new Date().toUTCString(),
+        lastBuildDate: formatRfc2822(new Date()),
         ttl: 60,
         generator: "podpiper",
         image: {
@@ -136,7 +152,7 @@ export function buildFeedXml(config: Config, episodes: Episode[]): string {
           link: config.channelUrl,
         },
         "itunes:author": podcast.author,
-        "itunes:summary": podcast.description,
+        "itunes:explicit": podcast.explicit ? "true" : "false",
         "itunes:image": { "@_href": artworkUrl },
         "itunes:category": categoryObj,
         "itunes:type": "episodic",

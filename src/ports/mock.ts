@@ -30,7 +30,6 @@ export function createMockPorts(
     fs,
     ytdlp: {
       ...stub.ytdlp,
-      fetchVideoTitle: async () => "Mock Video Title",
       downloadChannelArtwork: async (outputDir) => {
         await fs.writeText(`${outputDir}/channel_avatar.jpg`, "fake-avatar");
       },

@@ -11,12 +11,15 @@ export interface ChannelAvatarParams {
 
 export const channelAvatar = defineActionWithPorts<ChannelAvatarParams, string>({
   name: (p) => p.kind,
+  // Date in config acts as a daily TTL — forces re-fetch since the avatar URL is
+  // stable but the image behind it can change when the channel updates their profile.
   config: `avatar-v1,date=${new Date().toISOString().slice(0, 10)}`,
   action: (ports) => async (params, _inputs, outputDir) => {
     await ports.ytdlp.downloadChannelArtwork(outputDir, params.channelUrl);
     return `${outputDir}/channel_avatar.jpg`;
   },
 });
+export type channelAvatar = typeof channelAvatar;
 
 export interface ArtworkParams {
   kind: typeof NodeKind.Artwork;

@@ -11,16 +11,13 @@ export function createStubPorts(): Ports {
       exists: async () => false,
       readText: async () => "",
       readJson: async () => ({}) as never,
-      readBinary: async () => new Uint8Array(),
       writeText: noop,
       stat: async () => null,
-      readdir: async () => [],
       hashFile: async () => "",
       ensureDir: noop,
     },
     ytdlp: {
       fetchVideoList: async () => [],
-      fetchVideoTitle: async () => "",
       downloadVideo: noop,
       downloadChannelArtwork: noop,
     },
@@ -30,7 +27,6 @@ export function createStubPorts(): Ports {
     storage: {
       uploadFile: noop,
       getFile: async () => null,
-      listFiles: async () => new Set(),
     },
   };
 }

@@ -5,6 +5,8 @@ import type { NodeRef, NodeRefOf } from "@podpiper/dagraph";
 import type { chapters } from "./chapters";
 import { NodeKind, defineActionWithPorts, toVideoActionName } from "./define-action";
 import type { download } from "./download";
+import type { embedChapters } from "./embed-chapters";
+import type { thumbnail } from "./thumbnail";
 import type { transcribe } from "./transcribe";
 
 export interface RssEntryParams {
@@ -13,9 +15,9 @@ export interface RssEntryParams {
   deps: {
     download: NodeRefOf<download>;
     transcribe: NodeRefOf<transcribe>;
-    thumbnail: NodeRef<string>;
+    thumbnail: NodeRefOf<thumbnail>;
     chapters: NodeRefOf<chapters>;
-    embedChapters?: NodeRef<string>;
+    embedChapters?: NodeRefOf<embedChapters>;
     summary?: NodeRef<string>;
   };
 }
@@ -46,6 +48,8 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, {
 
       const srtExists = await fs.exists(inputs.transcribe.srt);
 
+      const audioPath = inputs.embedChapters ?? inputs.download.audio;
+
       const episode: Episode = {
         id: videoId,
         title: info.title,
@@ -53,14 +57,14 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, {
         uploadDate: info.upload_date,
         duration: info.duration,
         filename: objectKey("audio.mp3"),
-        fileSize: (await fs.stat(inputs.download.audio))?.size,
+        fileSize: (await fs.stat(audioPath))?.size,
         thumbnail: objectKey("thumbnail.jpg"),
         chapters,
         transcript: srtExists ? objectKey("transcript.srt") : null,
       };
 
       const uploads: UploadEntry[] = [
-        { localPath: inputs.download.audio, key: episode.filename },
+        { localPath: audioPath, key: episode.filename },
         { localPath: inputs.thumbnail, key: episode.thumbnail! },
       ];
       if (srtExists) {

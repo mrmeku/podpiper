@@ -71,6 +71,7 @@ describe("sync pipeline", () => {
     const { exec, skip, fail } = countExec(sr.results);
     expect(fail).toBe(0);
     expect(skip).toBe(0);
+    // 2 videos × 7 nodes/video (download, transcribe, thumbnail, chapters, embed_chapters, summary, rss_entry) + 2 global (channel_avatar, artwork)
     expect(exec).toBe(16);
 
     await publish(sr, TEST_CONFIG, ports.fs, ports.storage);

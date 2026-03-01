@@ -5,17 +5,14 @@ export interface FileSystem {
   exists: (path: string) => Promise<boolean>;
   readText: (path: string) => Promise<string>;
   readJson: <T = unknown>(path: string) => Promise<T>;
-  readBinary: (path: string) => Promise<Uint8Array>;
   writeText: (path: string, content: string) => Promise<void>;
   stat: (path: string) => Promise<{ size: number } | null>;
-  readdir: (path: string) => Promise<{ name: string; isDirectory(): boolean }[]>;
   hashFile: (path: string) => Promise<string>;
   ensureDir: (path: string) => Promise<void>;
 }
 
 export interface YouTubeDownloader {
   fetchVideoList: (channelUrl: string) => Promise<VideoInfo[]>;
-  fetchVideoTitle: (url: string) => Promise<string>;
   downloadVideo: (outputDir: string, videoId: string) => Promise<void>;
   downloadChannelArtwork: (outputDir: string, channelUrl: string) => Promise<void>;
 }
@@ -47,7 +44,6 @@ export interface ObjectStore {
     cacheControl?: string,
   ) => Promise<void>;
   getFile: (bucket: string, key: string) => Promise<Uint8Array | null>;
-  listFiles: (bucket: string) => Promise<Set<string>>;
 }
 
 export interface Ports {

@@ -23,3 +23,4 @@ export const embedChapters = defineActionWithPorts<EmbedChaptersParams, string>(
     return outputPath;
   },
 });
+export type embedChapters = typeof embedChapters;

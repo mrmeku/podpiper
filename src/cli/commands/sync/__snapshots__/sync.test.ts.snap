@@ -20,7 +20,7 @@ exports[`sync pipeline fresh run executes full pipeline and publishes correct ar
       <link>https://www.youtube.com/@testchannel</link>
     </image>
     <itunes:author>Test Author</itunes:author>
-    <itunes:summary>A test podcast</itunes:summary>
+    <itunes:explicit>false</itunes:explicit>
     <itunes:image href="https://cdn.test.com/artwork.jpg"/>
     <itunes:category text="Technology"/>
     <itunes:type>episodic</itunes:type>
@@ -38,31 +38,25 @@ exports[`sync pipeline fresh run executes full pipeline and publishes correct ar
 
 Mock summary of the episode content.</description>
       <content:encoded>
-        <__cdata>&lt;p&gt;A video about deep learning.
+        <![CDATA[<p>A video about deep learning.
 
 — Generated Summary —
 
-Mock summary of the episode content.&lt;/p&gt;</__cdata>
+Mock summary of the episode content.</p>]]>
       </content:encoded>
       <pubDate>Fri, 15 Mar 2024 00:00:00 GMT</pubDate>
       <guid isPermaLink="false">vid_aaa</guid>
       <link>https://www.youtube.com/watch?v=vid_aaa</link>
-      <enclosure url="https://cdn.test.com/vid_aaa/audio.mp3" length="16" type="audio/mpeg"/>
-      <itunes:duration>30:00</itunes:duration>
+      <enclosure url="https://cdn.test.com/vid_aaa/audio.mp3" length="19" type="audio/mpeg"/>
+      <itunes:duration>0:30:00</itunes:duration>
       <itunes:episodeType>full</itunes:episodeType>
-      <itunes:summary>
-        <__cdata>A video about deep learning.
-
-— Generated Summary —
-
-Mock summary of the episode content.</__cdata>
-      </itunes:summary>
+      <itunes:explicit>false</itunes:explicit>
       <itunes:author>Test Author</itunes:author>
       <itunes:title>Understanding Deep Learning</itunes:title>
       <itunes:image href="https://cdn.test.com/vid_aaa/thumbnail.jpg"/>
       <media:content url="https://cdn.test.com/vid_aaa/thumbnail.jpg" medium="image" type="image/jpeg"/>
       <podcast:chapters url="https://cdn.test.com/vid_aaa/chapters.json" type="application/json+chapters"/>
-      <podcast:transcript url="https://cdn.test.com/vid_aaa/transcript.srt" type="application/srt"/>
+      <podcast:transcript url="https://cdn.test.com/vid_aaa/transcript.srt" type="text/srt"/>
       <podcast:contentLink href="https://www.youtube.com/watch?v=vid_aaa">Watch on YouTube</podcast:contentLink>
     </item>
     <item>
@@ -73,30 +67,24 @@ Mock summary of the episode content.</__cdata>
 
 Mock summary of the episode content.</description>
       <content:encoded>
-        <__cdata>&lt;p&gt;A video about growth mindset.
+        <![CDATA[<p>A video about growth mindset.
 
 — Generated Summary —
 
-Mock summary of the episode content.&lt;/p&gt;</__cdata>
+Mock summary of the episode content.</p>]]>
       </content:encoded>
       <pubDate>Sun, 10 Mar 2024 00:00:00 GMT</pubDate>
       <guid isPermaLink="false">vid_bbb</guid>
       <link>https://www.youtube.com/watch?v=vid_bbb</link>
-      <enclosure url="https://cdn.test.com/vid_bbb/audio.mp3" length="16" type="audio/mpeg"/>
-      <itunes:duration>40:00</itunes:duration>
+      <enclosure url="https://cdn.test.com/vid_bbb/audio.mp3" length="19" type="audio/mpeg"/>
+      <itunes:duration>0:40:00</itunes:duration>
       <itunes:episodeType>full</itunes:episodeType>
-      <itunes:summary>
-        <__cdata>A video about growth mindset.
-
-— Generated Summary —
-
-Mock summary of the episode content.</__cdata>
-      </itunes:summary>
+      <itunes:explicit>false</itunes:explicit>
       <itunes:author>Test Author</itunes:author>
       <itunes:title>Growth Mindset Tips</itunes:title>
       <itunes:image href="https://cdn.test.com/vid_bbb/thumbnail.jpg"/>
       <media:content url="https://cdn.test.com/vid_bbb/thumbnail.jpg" medium="image" type="image/jpeg"/>
-      <podcast:transcript url="https://cdn.test.com/vid_bbb/transcript.srt" type="application/srt"/>
+      <podcast:transcript url="https://cdn.test.com/vid_bbb/transcript.srt" type="text/srt"/>
       <podcast:contentLink href="https://www.youtube.com/watch?v=vid_bbb">Watch on YouTube</podcast:contentLink>
     </item>
   </channel>

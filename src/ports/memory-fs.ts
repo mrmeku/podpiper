@@ -17,11 +17,6 @@ export function createMemoryFs(initial?: Record<string, string | Uint8Array>): F
       const text = typeof data === "string" ? data : new TextDecoder().decode(data);
       return jsonParse<T>(text, `readJson(${path})`);
     },
-    readBinary: async (path) => {
-      const data = files.get(path);
-      if (data === undefined) throw new Error(`ENOENT: ${path}`);
-      return typeof data === "string" ? new TextEncoder().encode(data) : data;
-    },
     writeText: async (path, content) => {
       files.set(path, content);
     },
@@ -38,23 +33,5 @@ export function createMemoryFs(initial?: Record<string, string | Uint8Array>): F
       return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
     },
     ensureDir: async () => {},
-    readdir: async (dirPath) => {
-      const normalizedDir = dirPath.endsWith("/") ? dirPath : dirPath + "/";
-      const entries = new Map<string, boolean>();
-      for (const key of files.keys()) {
-        if (!key.startsWith(normalizedDir)) continue;
-        const relative = key.slice(normalizedDir.length);
-        const firstSegment = relative.split("/")[0]!;
-        const isDir = relative.includes("/");
-        const existing = entries.get(firstSegment);
-        if (existing === undefined || isDir) {
-          entries.set(firstSegment, isDir);
-        }
-      }
-      return Array.from(entries.entries()).map(([name, isDir]) => ({
-        name,
-        isDirectory: () => isDir,
-      }));
-    },
   };
 }

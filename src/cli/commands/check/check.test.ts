@@ -39,7 +39,6 @@ function mockStorage(feedXml: string | null): ObjectStore {
   return {
     uploadFile: async () => {},
     getFile: async () => (feedXml ? new TextEncoder().encode(feedXml) : null),
-    listFiles: async () => new Set<string>(),
   };
 }
 

@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 
-import type { Episode } from "@/types";
+import type { Chapter, Episode } from "@/types";
 
 const xmlParserOptions = {
   ignoreAttributes: false,
@@ -14,6 +14,7 @@ function parseUploadDate(pubDateStr: string): string {
 
 function parseDuration(durationStr: string): number {
   const parts = durationStr.split(":");
+  if (parts.length === 3) return parseInt(parts[0]!, 10) * 3600 + parseInt(parts[1]!, 10) * 60 + parseInt(parts[2]!, 10);
   if (parts.length === 2) return parseInt(parts[0]!, 10) * 60 + parseInt(parts[1]!, 10);
   return 0;
 }
@@ -55,7 +56,9 @@ export function parseExistingFeed(baseUrl: string, xml: string): Episode[] {
       filename,
       fileSize,
       thumbnail,
-      chapters: [],
+      chapters: item["podcast:chapters"]
+        ? [{ startTime: 0, endTime: 0, title: "" } satisfies Chapter]
+        : [],
       transcript,
     });
   }

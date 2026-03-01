@@ -144,6 +144,8 @@ export type PodcastConfig = {
   description: string;
   ownerEmail?: string;
   copyright?: string;
+  language?: string;
+  explicit?: boolean;
 } & ApplePodcastCategory;
 
 export interface StorageConfig {

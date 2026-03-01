@@ -1,7 +1,6 @@
 import type { Command } from "commander";
 
 import { getConfig } from "@/config";
-import { discoverVideos } from "@/pipeline/discovery";
 import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
@@ -45,7 +44,7 @@ export function registerSync(program: Command) {
         const ports = createRealPorts(opts);
 
         console.log(`Discovering videos for ${channel}...`);
-        let videos = await discoverVideos(config.channelUrl, ports.ytdlp);
+        let videos = await ports.ytdlp.fetchVideoList(config.channelUrl);
         console.log(`Found ${videos.length} videos`);
 
         if (opts.limit) {
