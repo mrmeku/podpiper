@@ -49,7 +49,7 @@ function countExec(results: ExecResult[]): {
 function getUploadCalls(ports: SpiedPorts): { key: string; cacheControl?: string }[] {
   return ports.storage.uploadFile.mock.calls.map((c: any) => ({
     key: c[1] as string,
-    ...(c[3] ? { cacheControl: c[3] as string } : {}),
+    ...(c[3]?.cacheControl ? { cacheControl: c[3].cacheControl as string } : {}),
   }));
 }
 

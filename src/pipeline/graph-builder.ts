@@ -1,6 +1,6 @@
 import type { Ports } from "@/ports/types";
 import type { Config, VideoInfo } from "@/types";
-import { Graph, type KindEdge, type NodeRefOf } from "@podpiper/dagraph";
+import { Graph, type KindEdge, type NodeRefOf, type ScopeOpts } from "@podpiper/dagraph";
 
 import { artwork, channelAvatar } from "./actions/artwork";
 import { chapters } from "./actions/chapters";
@@ -24,8 +24,9 @@ function addVideoSubgraph(
   video: VideoInfo,
   ports: Ports,
   config: Config,
+  scopeOpts?: ScopeOpts,
 ): NodeRefOf<rssEntry> {
-  const scope = graph.scope(video.id);
+  const scope = graph.scope(video.id, scopeOpts);
   const downloadRef = download.addNode(scope, ports, {
     kind: NodeKind.Download,
     videoId: video.id,
@@ -82,7 +83,11 @@ export function buildPipelineGraph(
   config: Config,
 ): { graph: Graph; refs: PipelineRefs } {
   const graph = new Graph();
-  const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, config));
+  const sorted = [...videos].sort((a, b) => b.uploadDate.localeCompare(a.uploadDate));
+  const entryRefs = sorted.map((video, i) =>
+    addVideoSubgraph(graph, video, ports, config, { priority: sorted.length - i }),
+  );
+
   const avatarRef = channelAvatar.addNode(graph, ports, {
     kind: NodeKind.ChannelAvatar,
     channelUrl: config.channelUrl,

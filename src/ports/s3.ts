@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 import type { ObjectStore } from "./types";
 
@@ -23,14 +23,15 @@ export function createS3Storage(): ObjectStore {
   });
 
   return {
-    async uploadFile(data, key, bucket, cacheControl) {
+    async uploadFile(data, key, bucket, options) {
       await client.send(
         new PutObjectCommand({
           Bucket: bucket,
           Key: key,
           Body: data,
           ContentType: getContentType(key),
-          CacheControl: cacheControl,
+          CacheControl: options?.cacheControl,
+          Metadata: options?.metadata,
         }),
       );
     },
@@ -42,6 +43,18 @@ export function createS3Storage(): ObjectStore {
         return new Uint8Array(await result.Body.transformToByteArray());
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "NoSuchKey") return null;
+        throw err;
+      }
+    },
+
+    async headObject(bucket, key) {
+      try {
+        const result = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return { exists: true, ...(result.Metadata && { metadata: result.Metadata }) };
+      } catch (err: unknown) {
+        if (err instanceof Error && (err.name === "NotFound" || err.name === "NoSuchKey")) {
+          return { exists: false };
+        }
         throw err;
       }
     },
