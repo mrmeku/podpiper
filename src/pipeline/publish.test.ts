@@ -47,8 +47,8 @@ describe("publish", () => {
     const uploadedFiles: { key: string; cacheControl?: string }[] = [];
     const storage = {
       ...createStubPorts().storage,
-      uploadFile: async (_data: Uint8Array, key: string, _bucket: string, cacheControl?: string) => {
-        uploadedFiles.push({ key, ...(cacheControl && { cacheControl }) });
+      uploadFile: async (_data: Uint8Array, key: string, _bucket: string, options?: { cacheControl?: string }) => {
+        uploadedFiles.push({ key, ...(options?.cacheControl && { cacheControl: options.cacheControl }) });
       },
       getFile: async () => null,
     };

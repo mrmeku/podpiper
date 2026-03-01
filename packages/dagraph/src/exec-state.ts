@@ -6,6 +6,9 @@ export interface ExecState {
   contentHashes: Map<string, string>;
   execResults: Map<string, ExecResult>;
   failed: Set<string>;
+  // Plain array, not a priority queue: tryTakeNext must skip nodes blocked by
+  // concurrency groups, so we can't blindly pop the top. The O(n) linear scan
+  // is fine given the ready set is bounded by DAG width (typically tens of nodes).
   ready: Node[];
   enqueued: Set<string>;
   inflight: number;
@@ -41,6 +44,14 @@ export function createExecState(nodes: Iterable<Node>): ExecState {
 
 // --- actions ---
 
+function canRun(node: Node, concurrencyLimits?: Record<string, number>, groupInflight?: Map<string, number>): boolean {
+  const group = node.concurrencyGroup;
+  if (!group || !concurrencyLimits) return true;
+  const limit = concurrencyLimits[group];
+  if (limit == null) return true;
+  return (groupInflight?.get(group) ?? 0) < limit;
+}
+
 export function tryTakeNext(
   state: ExecState,
   maxParallelism?: number,
@@ -48,17 +59,19 @@ export function tryTakeNext(
 ): Node | null {
   if (state.ready.length === 0) return null;
   if (maxParallelism != null && state.inflight >= maxParallelism) return null;
-  const idx = concurrencyLimits
-    ? state.ready.findIndex((node) => {
-        const group = node.concurrencyGroup;
-        if (!group) return true;
-        const limit = concurrencyLimits[group];
-        if (limit == null) return true;
-        return (state.groupInflight.get(group) ?? 0) < limit;
-      })
-    : 0;
-  if (idx === -1) return null;
-  const node = state.ready.splice(idx, 1)[0]!;
+  let bestIdx = -1;
+  let bestPriority = -Infinity;
+  for (let i = 0; i < state.ready.length; i++) {
+    const node = state.ready[i]!;
+    if (!canRun(node, concurrencyLimits, state.groupInflight)) continue;
+    const p = node.priority ?? 0;
+    if (p > bestPriority) {
+      bestPriority = p;
+      bestIdx = i;
+    }
+  }
+  if (bestIdx === -1) return null;
+  const node = state.ready.splice(bestIdx, 1)[0]!;
   state.inflight++;
   const group = node.concurrencyGroup;
   if (group) {

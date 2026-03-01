@@ -3,7 +3,7 @@ import type { Command } from "commander";
 import { getConfig } from "@/config";
 import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
-import { publish } from "@/pipeline/publish";
+import { createIncrementalPublisher } from "@/pipeline/incremental-publisher";
 import { createRealPorts } from "@/ports/real";
 import { FsCache } from "@podpiper/dagraph";
 import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
@@ -62,16 +62,20 @@ export function registerSync(program: Command) {
 
         const executionCtx = { cache, fs: ports.fs, casBaseDir };
         const progress = createProgressRenderer(analysis, opts.parallel);
+        const publisher = createIncrementalPublisher(config, ports.fs, ports.storage);
         const syncResult = await sync(graph, refs, ports.fs, executionCtx, {
           maxParallelism: opts.parallel,
           concurrencyLimits: opts.concurrency,
-          onAction: progress.onAction,
+          onAction: (action) => {
+            progress.onAction(action);
+            publisher.onAction(action);
+          },
         });
         progress.finish();
         renderFinalSummary(syncResult.results);
 
         console.log("Publishing...");
-        await publish(syncResult, config, ports.fs, ports.storage);
+        await publisher.flush(syncResult);
         console.log("Done.");
       },
     );

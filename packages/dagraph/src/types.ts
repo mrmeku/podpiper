@@ -38,6 +38,8 @@ export interface Node {
   params: BaseParams;
   /** Optional concurrency group. Nodes sharing a group are subject to a per-group parallelism limit. */
   concurrencyGroup?: string;
+  /** Optional scheduling priority. Higher values are scheduled first. Defaults to 0. */
+  priority?: number;
   /** Raw executor-level action. Receives dep outputs as `Record<name, Outputs>` and CAS output dir, returns Outputs. */
   action: (rawInputs: Record<string, Outputs>, outputDir: string) => Promise<Outputs>;
 }
