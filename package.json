@@ -12,7 +12,9 @@
   "scripts": {
     "typecheck": "tsgo --noEmit",
     "format": "prettier --write .",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "env": "op inject -i .env.tpl -o .env",
+    "check-deps": "bun scripts/check-deps.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
