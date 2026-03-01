@@ -13,9 +13,9 @@
 Minimal interface that `addNode`/`defineAction` work against:
 
 ```typescript
-// packages/dag/src/types.ts
+// packages/dagraph/src/types.ts
 interface GraphTarget {
-  add(def: NodeDef): string; // returns the registered node name
+  add(def: Node): string; // returns the registered node name
 }
 ```
 
@@ -28,7 +28,7 @@ Change return type from `void` to `string`. When called directly on Graph, retur
 Returns a `GraphTarget` that auto-prefixes the node's name:
 
 ```typescript
-// packages/dag/src/graph.ts
+// packages/dagraph/src/graph.ts
 scope(prefix: string): GraphTarget {
   return {
     add: (def) => this.add({ ...def, name: `${prefix}:${def.name}` }),
@@ -41,12 +41,28 @@ scope(prefix: string): GraphTarget {
 ### `addNode()` uses `GraphTarget` and return value of `add()`
 
 ```typescript
-// packages/dag/src/graph.ts
-export function addNode<P extends BaseParams, R>(
-  target: GraphTarget,  // was: Graph
-  name: string, config: string, params: P, action: ActionFunc<P, R>,
-): NodeRef<R> {
-  const registeredName = target.add({ name, kind: params.kind, deps: ..., config, params, action: ... });
+// packages/dagraph/src/graph.ts
+export function addNode<P extends BaseParams, R extends Outputs>({
+  action,
+  concurrencyGroup,
+  config,
+  target,  // was: graph
+  name,
+  params,
+}: {
+  target: GraphTarget;  // was: graph: Graph
+  name: string;
+  config: string;
+  concurrencyGroup?: string;
+  params: P;
+  action: ActionFunc<P, R>;
+}): NodeRef<R> {
+  const registeredName = target.add({
+    name, kind: params.kind, deps: depsFromParams(params), config,
+    ...(concurrencyGroup && { concurrencyGroup }),
+    params,
+    action: (rawInputs, outputDir) => action(params, resolveInputs<P>(params, rawInputs), outputDir),
+  });
   return { name: registeredName };  // was: { name }
 }
 ```
@@ -54,11 +70,12 @@ export function addNode<P extends BaseParams, R>(
 ### `ActionSpec.name` becomes optional
 
 ```typescript
-// packages/dag/src/define-action.ts
-interface ActionSpec<Ctx, P extends BaseParams, R> {
+// packages/dagraph/src/define-action.ts
+interface ActionSpec<Ctx, P extends BaseParams, R extends Outputs, C = string> {
   name?: (params: P) => string;  // defaults to (p) => p.kind
-  config: string | ((params: P) => string);
-  action: (ctx: Ctx) => ActionFunc<P, R>;
+  config: C;
+  concurrencyGroup?: string;
+  action: (ctx: Ctx, config: C) => ActionFunc<P, R>;
 }
 ```
 
@@ -94,21 +111,21 @@ Implementation: `Graph.add()` inspects `def.name` to determine whether it contai
 ### `ActionDef.addNode` takes `GraphTarget`
 
 ```typescript
-interface ActionDef<Ctx, P extends BaseParams, R> {
-  action: (ctx: Ctx) => ActionFunc<P, R>;
-  addNode: (target: GraphTarget, ctx: Ctx, params: P) => NodeRef<R>;  // was: Graph
+interface ActionDef<Ctx, P extends BaseParams, R extends Outputs> {
+  addNode: (target: GraphTarget, ctx: Ctx, params: P) => NodeRef<R>;  // was: graph: Graph
+  createAction: (ctx: Ctx) => ActionFunc<P, R>;
 }
 ```
 
 ### `analyze()` gains `byScope`
 
 ```typescript
-// packages/dag/src/types.ts — extend AnalysisResult
+// packages/dagraph/src/types.ts — extend AnalysisResult
 interface AnalysisResult {
-  nodes: AnalyzedNode[];
-  totalCounts: NodeCounts;
-  byKind: Map<string, NodeCounts>;
-  byScope: Map<string, NodeCounts>;  // NEW: scope prefix → counts (unscoped nodes under "" key)
+  nodes: Node[];
+  total: number;
+  byKind: Map<string, number>;
+  byScope: Map<string, number>;  // NEW: scope prefix → count (unscoped nodes under "" key)
 }
 ```
 
@@ -116,7 +133,7 @@ Scope is derived from node names: `name.includes(":") ? name.slice(0, name.index
 
 ### Naming format change
 
-Node names change from `download:videoId` to `videoId:download` (prefix:kind). This is the standard namespacing convention. Existing caches will invalidate (one-time, not a problem).
+Node names change from `download:videoId` to `videoId:download` (scope:kind). This is the standard namespacing convention. Existing caches will invalidate (one-time, not a problem).
 
 ## Consumer changes
 
@@ -153,11 +170,18 @@ function addVideoSubgraph(graph: Graph, video, ports, config) {
 
 ### `mermaid.ts` — adapt grouping
 
-Change from parsing `name.slice(colon + 1)` (kind:vid → vid) to `name.slice(0, colon)` (vid:kind → vid).
+Current code parses `kind:videoId` names. After this change, names are `videoId:kind`. All name-parsing logic needs to flip:
+
+- **Video group extraction**: `name.slice(colon + 1)` → `name.slice(0, colon)` (extract scope prefix, not suffix)
+- **Kind-based `startsWith` checks**: `n.name.startsWith("download:")` → match on kind portion after the colon, e.g. `n.kind === NodeKind.Download`
+- **Dep filtering**: `d.endsWith(vid)` → `d.startsWith(vid + ":")` (deps within the same video scope share the prefix, not suffix)
+- **RSS entry filtering**: `n.name.startsWith("rss_entry:")` → `n.kind === NodeKind.RssEntry`
+
+Using `node.kind` instead of string-parsing `node.name` is more robust and decouples mermaid rendering from the naming convention.
 
 ### `define-action.ts` — cleanup
 
-Delete `toVideoActionName`. `toVideoDir` stays (it's about filesystem paths, not graph naming).
+Delete `toVideoActionName`.
 
 ### Tests — use `scope()` and return registered names
 
@@ -167,21 +191,23 @@ Delete `toVideoActionName`. `toVideoDir` stays (it's about filesystem paths, not
 
 | File | Change |
 |---|---|
-| `packages/dag/src/types.ts` | Add `GraphTarget` interface, add `byScope` to `AnalysisResult` |
-| `packages/dag/src/graph.ts` | `Graph` implements `GraphTarget`, `add()` returns `string`, add `scope()`, update `addNode()` to take `GraphTarget` and use return value |
-| `packages/dag/src/define-action.ts` | `name` optional in `ActionSpec`, `GraphTarget` in `ActionDef.addNode` |
-| `packages/dag/src/helpers.ts` | Add scope-extraction helper for `byScope` computation |
-| `packages/dag/src/dag.test.ts` | Use `scope()`, update name references |
+| `packages/dagraph/src/types.ts` | Add `GraphTarget` interface, add `byScope` to `AnalysisResult` |
+| `packages/dagraph/src/graph.ts` | `Graph` implements `GraphTarget`, `add()` returns `string`, add `scope()`, update `addNode()` to take `GraphTarget` and use return value |
+| `packages/dagraph/src/define-action.ts` | `name` optional in `ActionSpec`, `GraphTarget` in `ActionDef.addNode` |
+| `packages/dagraph/src/helpers.ts` | Add scope-extraction helper for `byScope` computation |
+| `packages/dagraph/src/index.ts` | Export `GraphTarget` type |
+| `packages/dagraph/src/dag.test.ts` | Use `scope()`, update name references |
 | `src/pipeline/actions/define-action.ts` | Delete `toVideoActionName` |
 | `src/pipeline/actions/download.ts` | Remove `name` field |
 | `src/pipeline/actions/transcribe.ts` | Remove `name` field |
 | `src/pipeline/actions/thumbnail.ts` | Remove `name` field |
 | `src/pipeline/actions/chapters.ts` | Remove `name` field |
+| `src/pipeline/actions/embed-chapters.ts` | Remove `name` field |
 | `src/pipeline/actions/summary.ts` | Remove `name` field |
 | `src/pipeline/actions/rss-entry.ts` | Remove `name` field |
-| `src/pipeline/actions/artwork.ts` | Remove `name` field (both channelAvatar and artwork) |
+| `src/pipeline/actions/artwork.ts` | Remove `name` field (both `channelAvatar` and `artwork`) |
 | `src/pipeline/graph-builder.ts` | Use `graph.scope(video.id)` |
-| `src/cli/commands/graph/mermaid.ts` | Parse scope from `name.slice(0, colon)` instead of `name.slice(colon + 1)` |
+| `src/cli/commands/graph/mermaid.ts` | Use `node.kind` instead of string-parsing `node.name`; flip scope extraction to `name.slice(0, colon)` |
 
 ## Future (not in this PR)
 
@@ -193,5 +219,5 @@ Delete `toVideoActionName`. `toVideoDir` stays (it's about filesystem paths, not
 
 1. `bunx tsgo` — type-checks clean
 2. `bun test` — all tests pass
-3. `bun run src/cli.ts graph <channel> -n 2` — mermaid output groups videos correctly
-4. `bun run src/cli.ts sync <channel> -n 1` — end-to-end execution works
+3. `bun run src/cli/cli.ts graph <channel> -n 2` — mermaid output groups videos correctly
+4. `bun run src/cli/cli.ts sync <channel> -n 1` — end-to-end execution works
