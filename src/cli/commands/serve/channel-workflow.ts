@@ -10,6 +10,7 @@ import type { Config, Episode, UploadEntry, VideoInfo } from "@/types";
 import type { OutputOf } from "@podpiper/dagraph";
 import type { HatchetClient, BaseWorkflowDeclaration } from "@hatchet-dev/typescript-sdk/v1";
 import type { VideoInput } from "./adapter";
+import { TASK_CONFIG } from "./task-config";
 
 export function registerChannelWorkflow(
   hatchet: HatchetClient,
@@ -64,8 +65,7 @@ export function registerChannelWorkflow(
   const avatarTask = workflow.task({
     name: "channel-avatar",
     parents: [discover],
-    retries: 3,
-    executionTimeout: "5m",
+    ...TASK_CONFIG[NodeKind.ChannelAvatar],
     fn: async () => {
       const actionFn = channelAvatar.createAction(ports);
       // Hatchet runs actions outside the DAG executor, so outputs use
@@ -82,7 +82,7 @@ export function registerChannelWorkflow(
   const artworkTask = workflow.task({
     name: "artwork",
     parents: [avatarTask],
-    executionTimeout: "2m",
+    ...TASK_CONFIG[NodeKind.Artwork],
     fn: async (_input, ctx) => {
       const avatarPath = (await ctx.parentOutput(avatarTask)) as string;
       const actionFn = artwork.createAction(ports);
@@ -119,7 +119,7 @@ export function registerChannelWorkflow(
       const artworkUploads = await readJson(ports.fs, artworkUploadsPath);
       uploads.push(...artworkUploads);
 
-      await publish({ uploads, results: [], episodes }, config, ports.fs, ports.storage);
+      await publish({ uploads, episodes }, config, ports.fs, ports.storage);
     },
   });
 

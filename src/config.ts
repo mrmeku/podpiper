@@ -1,6 +1,6 @@
 import type { Config } from "./types";
 
-export type ChannelDef = Omit<Config, "outputDir"> & { schedule?: string };
+export type ChannelDef = Omit<Config, "outputDir">;
 
 export const channels: Record<string, ChannelDef> = {
   heidi: {

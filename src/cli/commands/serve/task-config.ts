@@ -30,7 +30,7 @@ const claudeTaskDefaults: TaskConfig = {
   rateLimits: [claudeRateLimit],
 };
 
-export const TASK_CONFIG: Record<string, TaskConfig> = {
+export const TASK_CONFIG: Record<NodeKind, TaskConfig> = {
   [NodeKind.Download]: {
     executionTimeout: "5m",
     retries: 3,
@@ -45,8 +45,19 @@ export const TASK_CONFIG: Record<string, TaskConfig> = {
     retries: 1,
   },
   [NodeKind.Chapters]: { ...claudeTaskDefaults },
+  [NodeKind.EmbedChapters]: {
+    executionTimeout: "2m",
+    retries: 1,
+  },
   [NodeKind.Summary]: { ...claudeTaskDefaults },
   [NodeKind.RssEntry]: {
     executionTimeout: "30s",
+  },
+  [NodeKind.ChannelAvatar]: {
+    executionTimeout: "5m",
+    retries: 3,
+  },
+  [NodeKind.Artwork]: {
+    executionTimeout: "2m",
   },
 };

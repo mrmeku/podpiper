@@ -1,12 +1,15 @@
 import { buildFeedXml } from "@/pipeline/rss/generate";
 import { mergeEpisodes, parseExistingFeed } from "@/pipeline/rss/parse";
 import type { FileSystem, ObjectStore } from "@/ports/types";
-import type { Config } from "@/types";
+import type { Config, Episode, UploadEntry } from "@/types";
 
-import type { SyncResult } from "./execute";
+export interface PublishInput {
+  uploads: UploadEntry[];
+  episodes: Episode[];
+}
 
 export async function publish(
-  result: SyncResult,
+  result: PublishInput,
   config: Config,
   fs: FileSystem,
   storage: ObjectStore,

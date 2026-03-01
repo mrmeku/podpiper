@@ -8,6 +8,8 @@ import { toHatchetVideoWorkflow } from "./adapter";
 import { registerChannelWorkflow } from "./channel-workflow";
 import { FsCache } from "@podpiper/dagraph";
 
+const schedules: Record<string, string> = {};
+
 export function registerServe(program: Command) {
   program
     .command("serve")
@@ -18,7 +20,7 @@ export function registerServe(program: Command) {
       const ports = createRealPorts();
       const workflows = [];
 
-      for (const [name, def] of Object.entries(channels)) {
+      for (const [name] of Object.entries(channels)) {
         const config = getConfig(name);
         const casBaseDir = `${config.outputDir}/cas`;
         const cache = new FsCache(casBaseDir, ports.fs);
@@ -39,7 +41,7 @@ export function registerServe(program: Command) {
           config,
           ports,
           videoPipeline,
-          def.schedule,
+          schedules[name],
         );
         workflows.push(videoPipeline, channelWorkflow);
       }
