@@ -1,6 +1,6 @@
 import * as execState from "./exec-state";
 import { localRunner } from "./graph";
-import { computeHash, hashOutputFiles, verifyOutputs } from "./helpers";
+import { computeHash, hashOutputFiles, validateNoCycles, verifyOutputs } from "./helpers";
 import type { Cache, DagFs, ExecResult, ExecuteOptions, Node, NodeRunner } from "./types";
 
 import type { Graph } from "./graph";
@@ -23,6 +23,7 @@ export async function execute(
 ): Promise<ExecResult[]> {
   const { maxParallelism, concurrencyLimits, onAction } = opts ?? {};
   const nodes = graph.getNodes();
+  validateNoCycles(nodes);
   const state = execState.createExecState(nodes.values());
   const dispatch = (action: execState.ExecAction) => {
     execState.send(state, action);

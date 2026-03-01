@@ -54,7 +54,7 @@ export async function verifyOutputs(entry: CacheEntry, hashFile: HashFileFn): Pr
   }
 }
 
-export function validateNoCycles(nodes: Map<string, { deps: string[] }>): string[] {
+export function validateNoCycles(nodes: ReadonlyMap<string, { deps: string[] }>): string[] {
   const visited = new Set<string>();
   const visiting = new Set<string>();
   const order: string[] = [];

@@ -70,11 +70,9 @@ export function registerSync(program: Command) {
         progress.finish();
         renderFinalSummary(syncResult.results);
 
-        if (syncResult.results.some((r) => r.status === "done")) {
-          console.log("Publishing...");
-          await publish(syncResult, config, ports.fs, ports.storage);
-          console.log("Done.");
-        }
+        console.log("Publishing...");
+        await publish(syncResult, config, ports.fs, ports.storage);
+        console.log("Done.");
       },
     );
 }
