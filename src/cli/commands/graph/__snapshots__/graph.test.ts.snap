@@ -3,19 +3,19 @@
 exports[`graph command mermaid output 1`] = `
 "graph TD
   subgraph discovery_phase ["Discovery"]
-    discovery["yt-dlp: fetch videos"]
+    discovery["Discover Videos"]
   end
   discovery --> download_vid_aaa & download_vid_bbb
 
   subgraph pipeline_phase ["Execution"]
     subgraph video_1 ["Video 1"]
-      download_vid_aaa["yt-dlp: download"]
-      transcribe_vid_aaa["whisper: transcribe"]
-      thumbnail_vid_aaa["ffmpeg: thumbnail"]
-      chapters_vid_aaa["claude: generate chapters"]
-      embed_chapters_vid_aaa["id3: embed chapters"]
-      summary_vid_aaa["claude: summary"]
-      rss_entry_vid_aaa["rss entry"]
+      download_vid_aaa["Download Audio"]
+      transcribe_vid_aaa["Transcribe"]
+      thumbnail_vid_aaa["Crop Thumbnail"]
+      chapters_vid_aaa["Generate Chapters"]
+      embed_chapters_vid_aaa["Embed Chapters"]
+      summary_vid_aaa["Summarize"]
+      rss_entry_vid_aaa["RSS Entry"]
       download_vid_aaa --> transcribe_vid_aaa
       download_vid_aaa --> thumbnail_vid_aaa
       download_vid_aaa & transcribe_vid_aaa --> chapters_vid_aaa
@@ -24,13 +24,13 @@ exports[`graph command mermaid output 1`] = `
       download_vid_aaa & transcribe_vid_aaa & thumbnail_vid_aaa & chapters_vid_aaa & embed_chapters_vid_aaa & summary_vid_aaa --> rss_entry_vid_aaa
     end
     subgraph video_2 ["Video 2"]
-      download_vid_bbb["yt-dlp: download"]
-      transcribe_vid_bbb["whisper: transcribe"]
-      thumbnail_vid_bbb["ffmpeg: thumbnail"]
-      chapters_vid_bbb["claude: generate chapters"]
-      embed_chapters_vid_bbb["id3: embed chapters"]
-      summary_vid_bbb["claude: summary"]
-      rss_entry_vid_bbb["rss entry"]
+      download_vid_bbb["Download Audio"]
+      transcribe_vid_bbb["Transcribe"]
+      thumbnail_vid_bbb["Crop Thumbnail"]
+      chapters_vid_bbb["Generate Chapters"]
+      embed_chapters_vid_bbb["Embed Chapters"]
+      summary_vid_bbb["Summarize"]
+      rss_entry_vid_bbb["RSS Entry"]
       download_vid_bbb --> transcribe_vid_bbb
       download_vid_bbb --> thumbnail_vid_bbb
       download_vid_bbb & transcribe_vid_bbb --> chapters_vid_bbb
@@ -38,8 +38,8 @@ exports[`graph command mermaid output 1`] = `
       download_vid_bbb & transcribe_vid_bbb --> summary_vid_bbb
       download_vid_bbb & transcribe_vid_bbb & thumbnail_vid_bbb & chapters_vid_bbb & embed_chapters_vid_bbb & summary_vid_bbb --> rss_entry_vid_bbb
     end
-    channel_avatar["yt-dlp: avatar"]
-    artwork["ffmpeg: artwork"]
+    channel_avatar["Fetch Avatar"]
+    artwork["Process Artwork"]
     channel_avatar --> artwork
   end
 
@@ -71,8 +71,5 @@ exports[`graph command mermaid output 1`] = `
   style channel_avatar fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style artwork fill:#cbd5e1,stroke:#64748b,color:#0f172a
   style publish fill:#fbbf24,stroke:#b45309,color:#451a03
-  style discovery fill:#c2742f,stroke:#7c2d12,color:#fff
-  style download_vid_aaa fill:#c2742f,stroke:#7c2d12,color:#fff
-  style download_vid_bbb fill:#c2742f,stroke:#7c2d12,color:#fff
-  style channel_avatar fill:#c2742f,stroke:#7c2d12,color:#fff"
+  style discovery fill:#c2742f,stroke:#7c2d12,color:#fff"
 `;

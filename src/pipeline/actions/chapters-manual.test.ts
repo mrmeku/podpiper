@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { CLAUDE_MODEL } from "@/config";
-import { callClaude } from "@/ports/claude";
+import { createRealLlm } from "@/ports/claude";
 import type { WhisperSegment } from "@/types";
 
 import { buildChapterPrompt, parseChapterResponse } from "./chapter-prompt";
@@ -48,7 +47,8 @@ const segments: WhisperSegment[] = [
 describe.skipIf(!process.env.MANUAL_TEST)("manual", () => {
   test("chapter system prompt produces parseable output", async () => {
     const prompt = buildChapterPrompt(segments, "Generate chapters for this podcast transcript.");
-    const response = await callClaude(prompt, CLAUDE_MODEL);
+    const llm = createRealLlm("sonnet");
+    const response = await llm.call(prompt);
     const chapters = parseChapterResponse(response, segments);
     expect(chapters.length).toBeGreaterThan(0);
     for (const ch of chapters) {

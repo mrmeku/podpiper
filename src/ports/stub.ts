@@ -10,6 +10,7 @@ export function createStubPorts(): Ports {
     fs: {
       exists: async () => false,
       readText: async () => "",
+      readBinary: async () => new Uint8Array(),
       readJson: async () => ({}) as never,
       writeText: noop,
       stat: async () => null,

@@ -2,18 +2,16 @@ import { NodeKind } from "@/pipeline/actions/define-action";
 import type { Graph, Node } from "@podpiper/dagraph";
 
 const NODE_LABELS: Record<NodeKind, string> = {
-  download: "yt-dlp: download",
-  transcribe: "whisper: transcribe",
-  thumbnail: "ffmpeg: thumbnail",
-  chapters: "claude: generate chapters",
-  embed_chapters: "id3: embed chapters",
-  summary: "claude: summary",
-  rss_entry: "rss entry",
-  channel_avatar: "yt-dlp: avatar",
-  artwork: "ffmpeg: artwork",
+  download: "Download Audio",
+  transcribe: "Transcribe",
+  thumbnail: "Crop Thumbnail",
+  chapters: "Generate Chapters",
+  embed_chapters: "Embed Chapters",
+  summary: "Summarize",
+  rss_entry: "RSS Entry",
+  channel_avatar: "Fetch Avatar",
+  artwork: "Process Artwork",
 };
-
-const YTDLP_KINDS: Set<NodeKind> = new Set([NodeKind.Download, NodeKind.ChannelAvatar]);
 
 function toId(name: string): string {
   return name.replace(/:/g, "_");
@@ -49,7 +47,7 @@ export function generateMermaid(graph: Graph): string {
 
   // discovery phase
   lines.push(`  subgraph discovery_phase ["Discovery"]`);
-  lines.push(`    discovery["yt-dlp: fetch videos"]`);
+  lines.push(`    discovery["Discover Videos"]`);
   lines.push(`  end`);
   if (downloadIds.length) {
     lines.push(`  discovery --> ${downloadIds.join(" & ")}`);
@@ -106,7 +104,7 @@ export function generateMermaid(graph: Graph): string {
     lines.push(`  style video_${i} fill:#f5f3ff,stroke:#a78bfa,color:#4c1d95`);
   }
 
-  // node colors: silver base, gold for publish, bronze for yt-dlp (applied last to override)
+  // node colors: silver base, bronze for discovery, gold for publish
   const silverIds = ["discovery"];
   for (const node of nodes) {
     silverIds.push(toId(node.name));
@@ -115,13 +113,7 @@ export function generateMermaid(graph: Graph): string {
     lines.push(`  style ${id} fill:#cbd5e1,stroke:#64748b,color:#0f172a`);
   }
   lines.push(`  style publish fill:#fbbf24,stroke:#b45309,color:#451a03`);
-  const ytdlpIds = ["discovery"];
-  for (const node of nodes) {
-    if (YTDLP_KINDS.has(node.kind as NodeKind)) ytdlpIds.push(toId(node.name));
-  }
-  for (const id of ytdlpIds) {
-    lines.push(`  style ${id} fill:#c2742f,stroke:#7c2d12,color:#fff`);
-  }
+  lines.push(`  style discovery fill:#c2742f,stroke:#7c2d12,color:#fff`);
 
   return lines.join("\n");
 }

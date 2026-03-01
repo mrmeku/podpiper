@@ -1,8 +1,5 @@
 import type { Config } from "./types";
 
-export const CLAUDE_MODEL = "sonnet";
-export const WHISPER_MODEL_PATH = `${process.env.HOME}/.whisper-models/ggml-large-v3-turbo.bin`;
-
 export type ChannelDef = Omit<Config, "outputDir"> & { schedule?: string };
 
 export const channels: Record<string, ChannelDef> = {

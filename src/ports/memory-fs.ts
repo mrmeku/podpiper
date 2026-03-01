@@ -11,6 +11,11 @@ export function createMemoryFs(initial?: Record<string, string | Uint8Array>): F
       if (data === undefined) throw new Error(`ENOENT: ${path}`);
       return typeof data === "string" ? data : new TextDecoder().decode(data);
     },
+    readBinary: async (path) => {
+      const data = files.get(path);
+      if (data === undefined) throw new Error(`ENOENT: ${path}`);
+      return typeof data === "string" ? new TextEncoder().encode(data) : data;
+    },
     readJson: async <T = unknown>(path: string): Promise<T> => {
       const data = files.get(path);
       if (data === undefined) throw new Error(`ENOENT: ${path}`);

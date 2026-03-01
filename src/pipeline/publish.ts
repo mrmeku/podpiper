@@ -12,15 +12,15 @@ export async function publish(
   storage: ObjectStore,
 ): Promise<void> {
   for (const u of result.uploads) {
-    await storage.uploadFile(u.localPath, u.key, config.storage.bucket, u.cacheControl);
+    const data = await fs.readBinary(u.localPath);
+    await storage.uploadFile(data, u.key, config.storage.bucket, u.cacheControl);
   }
-  const feedData = await storage.getFile(config.storage.bucket, "feed.xml");
-  const existing = feedData
-    ? parseExistingFeed(config.storage.publicUrl, new TextDecoder().decode(feedData))
+  const existingFeed = await storage.getFile(config.storage.bucket, "feed.xml");
+  const existing = existingFeed
+    ? parseExistingFeed(config.storage.publicUrl, new TextDecoder().decode(existingFeed))
     : [];
   const allEpisodes = mergeEpisodes(existing, result.episodes);
   const feedXml = buildFeedXml(config, allEpisodes);
-  const feedPath = `${config.outputDir}/feed.xml`;
-  await fs.writeText(feedPath, feedXml);
-  await storage.uploadFile(feedPath, "feed.xml", config.storage.bucket, "max-age=300");
+  await fs.writeText(`${config.outputDir}/feed.xml`, feedXml);
+  await storage.uploadFile(new TextEncoder().encode(feedXml), "feed.xml", config.storage.bucket, "max-age=300");
 }

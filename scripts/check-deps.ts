@@ -1,5 +1,5 @@
 import pc from "picocolors";
-import { WHISPER_MODEL_PATH } from "../src/config";
+const WHISPER_MODEL_PATH = `${process.env.HOME}/.whisper-models/ggml-large-v3-turbo.bin`;
 import { dirname } from "node:path";
 
 const WHISPER_MODEL_URL =

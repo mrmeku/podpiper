@@ -4,6 +4,7 @@ import type { Chapter, VideoInfo, WhisperJson } from "@/types";
 export interface FileSystem {
   exists: (path: string) => Promise<boolean>;
   readText: (path: string) => Promise<string>;
+  readBinary: (path: string) => Promise<Uint8Array>;
   readJson: <T = unknown>(path: string) => Promise<T>;
   writeText: (path: string, content: string) => Promise<void>;
   stat: (path: string) => Promise<{ size: number } | null>;
@@ -38,7 +39,7 @@ export interface Llm {
 
 export interface ObjectStore {
   uploadFile: (
-    filePath: string,
+    data: Uint8Array,
     key: string,
     bucket: string,
     cacheControl?: string,

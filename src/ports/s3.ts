@@ -23,14 +23,12 @@ export function createS3Storage(): ObjectStore {
   });
 
   return {
-    async uploadFile(filePath, key, bucket, cacheControl) {
-      const file = Bun.file(filePath);
-      const body = await file.arrayBuffer();
+    async uploadFile(data, key, bucket, cacheControl) {
       await client.send(
         new PutObjectCommand({
           Bucket: bucket,
           Key: key,
-          Body: new Uint8Array(body),
+          Body: data,
           ContentType: getContentType(key),
           CacheControl: cacheControl,
         }),
