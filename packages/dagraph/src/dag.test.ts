@@ -686,14 +686,14 @@ describe("Graph", () => {
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
       expect(types).toEqual([
         "start:a",
-        "success:a",
+        "done:a",
         "complete:a",
         "start:b",
-        "success:b",
+        "done:b",
         "complete:b",
       ]);
       for (const a of actions) {
-        if (a.type === "success") expect(a.elapsed).toBeGreaterThanOrEqual(0);
+        if (a.type === "done") expect(a.elapsed).toBeGreaterThanOrEqual(0);
       }
     });
 
@@ -729,7 +729,7 @@ describe("Graph", () => {
       });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
-      expect(types).toEqual(["cache-hit:a", "complete:a", "cache-hit:b", "complete:b"]);
+      expect(types).toEqual(["cached:a", "complete:a", "cached:b", "complete:b"]);
     });
 
     test("emits start+failure on error with elapsed", async () => {
@@ -751,9 +751,9 @@ describe("Graph", () => {
       await execute(g, ctx(cache, fs), localRunner, { onAction: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
-      expect(types).toEqual(["start:bad", "failure:bad", "complete:bad"]);
-      const fail = actions.find((a) => a.type === "failure")!;
-      if (fail.type === "failure") {
+      expect(types).toEqual(["start:bad", "fail:bad", "complete:bad"]);
+      const fail = actions.find((a) => a.type === "fail")!;
+      if (fail.type === "fail") {
         expect(fail.error).toBeInstanceOf(Error);
         expect((fail.error as Error).message).toBe("boom");
         expect(fail.elapsed).toBeGreaterThanOrEqual(0);
@@ -787,9 +787,9 @@ describe("Graph", () => {
       await execute(g, ctx(cache, fs), localRunner, { onAction: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
-      expect(types).toEqual(["start:a", "failure:a", "complete:a", "dep-failure:b", "complete:b"]);
-      const depFail = actions.find((a) => a.type === "dep-failure")!;
-      if (depFail.type === "dep-failure") {
+      expect(types).toEqual(["start:a", "fail:a", "complete:a", "dep-failed:b", "complete:b"]);
+      const depFail = actions.find((a) => a.type === "dep-failed")!;
+      if (depFail.type === "dep-failed") {
         expect(depFail.error).toBeInstanceOf(Error);
         expect((depFail.error as Error).message).toBe("dependency a failed");
       }

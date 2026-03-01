@@ -30,10 +30,10 @@ export async function execute(
   };
 
   const processNode = async (node: Node): Promise<void> => {
-    const failedDep = execState.failedTransitiveDep(node, state);
+    const failedDep = execState.failedDep(node, state);
     if (failedDep) {
       dispatch({
-        type: "dep-failure",
+        type: "dep-failed",
         node,
         error: new Error(`dependency ${failedDep} failed`),
       });
@@ -47,7 +47,7 @@ export async function execute(
     const cached = await ctx.cache.get(actionKey);
     if (cached && (await verifyOutputs(cached, ctx.fs.hashFile))) {
       dispatch({
-        type: "cache-hit",
+        type: "cached",
         node,
         actionKey,
         outputs: cached.outputs,
@@ -64,7 +64,7 @@ export async function execute(
       const contentHash = await hashOutputFiles(outputs, ctx.fs.hashFile);
       await ctx.cache.put(actionKey, { outputs, contentHash });
       dispatch({
-        type: "success",
+        type: "done",
         node,
         actionKey,
         outputs,
@@ -72,7 +72,7 @@ export async function execute(
         elapsed: Date.now() - startTime,
       });
     } catch (e) {
-      dispatch({ type: "failure", node, error: e, elapsed: Date.now() - startTime });
+      dispatch({ type: "fail", node, error: e, elapsed: Date.now() - startTime });
     }
   };
 

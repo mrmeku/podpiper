@@ -25,15 +25,15 @@ function buildDependents(nodes: Iterable<Node>): Map<string, Node[]> {
 
 export function createExecState(nodes: Iterable<Node>): ExecState {
   const allNodes = Array.from(nodes);
-  const leafs = allNodes.filter((n) => n.deps.length === 0);
+  const leaves = allNodes.filter((n) => n.deps.length === 0);
   return {
     dependents: buildDependents(allNodes),
     results: new Map(),
     contentHashes: new Map(),
     execResults: new Map(),
     failed: new Set(),
-    ready: leafs,
-    enqueued: new Set(leafs.map((n) => n.name)),
+    ready: leaves,
+    enqueued: new Set(leaves.map((n) => n.name)),
     inflight: 0,
     groupInflight: new Map(),
   };
@@ -70,17 +70,17 @@ export function tryTakeNext(
 export type ExecAction =
   | { type: "start"; node: Node }
   | { type: "complete"; node: Node }
-  | { type: "cache-hit"; node: Node; actionKey: string; outputs: Outputs; contentHash: string }
+  | { type: "cached"; node: Node; actionKey: string; outputs: Outputs; contentHash: string }
   | {
-      type: "success";
+      type: "done";
       node: Node;
       actionKey: string;
       outputs: Outputs;
       contentHash: string;
       elapsed: number;
     }
-  | { type: "failure"; node: Node; error: unknown; elapsed: number }
-  | { type: "dep-failure"; node: Node; error: unknown };
+  | { type: "fail"; node: Node; error: unknown; elapsed: number }
+  | { type: "dep-failed"; node: Node; error: unknown };
 
 export function send(state: ExecState, action: ExecAction): void {
   switch (action.type) {
@@ -102,7 +102,7 @@ export function send(state: ExecState, action: ExecAction): void {
       for (const c of children) state.enqueued.add(c.name);
       return;
     }
-    case "cache-hit": {
+    case "cached": {
       const { node, actionKey, outputs, contentHash } = action;
       state.results.set(node.name, outputs);
       state.contentHashes.set(node.name, contentHash);
@@ -115,7 +115,7 @@ export function send(state: ExecState, action: ExecAction): void {
       });
       return;
     }
-    case "success": {
+    case "done": {
       const { node, actionKey, outputs, contentHash } = action;
       state.results.set(node.name, outputs);
       state.contentHashes.set(node.name, contentHash);
@@ -128,7 +128,7 @@ export function send(state: ExecState, action: ExecAction): void {
       });
       return;
     }
-    case "failure": {
+    case "fail": {
       const { node } = action;
       const error = action.error instanceof Error ? action.error : new Error(String(action.error));
       state.failed.add(node.name);
@@ -140,7 +140,7 @@ export function send(state: ExecState, action: ExecAction): void {
       });
       return;
     }
-    case "dep-failure": {
+    case "dep-failed": {
       const { node } = action;
       const error = action.error instanceof Error ? action.error : new Error(String(action.error));
       state.failed.add(node.name);
@@ -165,6 +165,6 @@ export function inputsFor(node: Node, state: ExecState): Record<string, Outputs>
   return Object.fromEntries(node.deps.map((d) => [d, state.results.get(d)!]));
 }
 
-export function failedTransitiveDep(node: Node, state: ExecState): string | undefined {
+export function failedDep(node: Node, state: ExecState): string | undefined {
   return node.deps.find((d) => state.failed.has(d));
 }

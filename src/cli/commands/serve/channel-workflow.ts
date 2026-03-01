@@ -90,9 +90,9 @@ export function registerChannelWorkflow(
       return actionFn(
         {
           kind: NodeKind.Artwork,
-          deps: { channel_avatar: { name: "" } },
+          deps: { channelAvatar: { name: "" } },
         },
-        { channel_avatar: avatarPath },
+        { channelAvatar: avatarPath },
         outputDir,
       );
     },

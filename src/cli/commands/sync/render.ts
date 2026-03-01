@@ -90,21 +90,21 @@ function createBarRenderer(kinds: [string, number][]): ProgressRenderer {
         case "start":
           inflight.set(k, (inflight.get(k) ?? 0) + 1);
           break;
-        case "cache-hit":
+        case "cached":
           done.set(k, (done.get(k) ?? 0) + 1);
           break;
-        case "success":
+        case "done":
           inflight.set(k, Math.max(0, (inflight.get(k) ?? 0) - 1));
           done.set(k, (done.get(k) ?? 0) + 1);
           break;
-        case "failure": {
+        case "fail": {
           inflight.set(k, Math.max(0, (inflight.get(k) ?? 0) - 1));
           failed.set(k, (failed.get(k) ?? 0) + 1);
           const msg = action.error instanceof Error ? action.error.message : String(action.error);
           multibar.log(`  ${pc.red(`FAIL ${action.node.name}: ${msg}`)}\n`);
           break;
         }
-        case "dep-failure":
+        case "dep-failed":
           failed.set(k, (failed.get(k) ?? 0) + 1);
           break;
         default:
@@ -121,11 +121,11 @@ function createBarRenderer(kinds: [string, number][]): ProgressRenderer {
 function createTextRenderer(): ProgressRenderer {
   return {
     onAction(action) {
-      if (action.type === "success") {
+      if (action.type === "done") {
         console.log(`  done ${action.node.name} (${action.elapsed}ms)`);
-      } else if (action.type === "cache-hit") {
+      } else if (action.type === "cached") {
         console.log(`  cached ${action.node.name}`);
-      } else if (action.type === "failure") {
+      } else if (action.type === "fail") {
         const msg = action.error instanceof Error ? action.error.message : String(action.error);
         console.log(pc.red(`  FAIL ${action.node.name}: ${msg}`));
       }

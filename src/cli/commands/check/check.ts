@@ -11,11 +11,13 @@ export function registerCheck(program: Command) {
     .command("check")
     .description("Show videos not in feed (dry run)")
     .argument("<channel>", "Channel name")
-    .action(async (channel: string) => {
+    .option("-n, --limit <n>", "Max videos to check", (v: string) => parseInt(v))
+    .action(async (channel: string, opts: { limit?: number }) => {
       const config = getConfig(channel);
       const ports = createRealPorts();
 
-      const videos = await ports.ytdlp.fetchVideoList(config.channelUrl);
+      let videos = await ports.ytdlp.fetchVideoList(config.channelUrl);
+      if (opts.limit) videos = videos.slice(0, opts.limit);
       const missing = await checkMissing(videos, config, ports.storage);
       console.log(`${missing.length} videos not in feed:`);
       for (const v of missing) {

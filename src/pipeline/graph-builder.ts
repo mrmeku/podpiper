@@ -1,28 +1,21 @@
 import type { Ports } from "@/ports/types";
 import type { Config, VideoInfo } from "@/types";
-import { Graph, type ActionDef, type KindEdge, type NodeRefOf, type OutputOf } from "@podpiper/dagraph";
+import { Graph, type KindEdge, type NodeRefOf } from "@podpiper/dagraph";
 
 import { artwork, channelAvatar } from "./actions/artwork";
-import type { ChaptersParams } from "./actions/chapters";
 import { chapters } from "./actions/chapters";
 import { NodeKind } from "./actions/define-action";
 import { download } from "./actions/download";
 import { embedChapters } from "./actions/embed-chapters";
 import type { RssEntryParams } from "./actions/rss-entry";
 import { rssEntry } from "./actions/rss-entry";
-import type { SummaryParams } from "./actions/summary";
 import { summary } from "./actions/summary";
 import { thumbnail } from "./actions/thumbnail";
 import { transcribe } from "./actions/transcribe";
 
-interface VideoActions {
-  chapters: ActionDef<Ports, ChaptersParams, OutputOf<chapters>>;
-  summary?: ActionDef<Ports, SummaryParams, string> | undefined;
-}
-
 export function buildVideoGraph(video: VideoInfo, ports: Ports, config: Config): Graph {
   const graph = new Graph();
-  addVideoSubgraph(graph, video, ports, videoActions(config));
+  addVideoSubgraph(graph, video, ports, config);
   return graph;
 }
 
@@ -30,7 +23,7 @@ function addVideoSubgraph(
   graph: Graph,
   video: VideoInfo,
   ports: Ports,
-  actions: VideoActions,
+  config: Config,
 ): NodeRefOf<rssEntry> {
   const dl = download.addNode(graph, ports, {
     kind: NodeKind.Download,
@@ -46,7 +39,7 @@ function addVideoSubgraph(
     videoId: video.id,
     deps: { download: dl },
   });
-  const ch = actions.chapters.addNode(graph, ports, {
+  const ch = chapters(config.chapterPrompt).addNode(graph, ports, {
     kind: NodeKind.Chapters,
     videoId: video.id,
     deps: { download: dl, transcribe: tr },
@@ -63,8 +56,8 @@ function addVideoSubgraph(
     chapters: ch,
     embedChapters: ec,
   };
-  if (actions.summary) {
-    deps.summary = actions.summary.addNode(graph, ports, {
+  if (config.summaryPrompt) {
+    deps.summary = summary(config.summaryPrompt).addNode(graph, ports, {
       kind: NodeKind.Summary,
       videoId: video.id,
       deps: { download: dl, transcribe: tr },
@@ -82,28 +75,20 @@ export interface PipelineRefs {
   artworkRef: NodeRefOf<artwork>;
 }
 
-function videoActions(config: Config): VideoActions {
-  return {
-    chapters: chapters(config.chapterPrompt),
-    summary: config.summaryPrompt ? summary(config.summaryPrompt) : undefined,
-  };
-}
-
 export function buildPipelineGraph(
   videos: VideoInfo[],
   ports: Ports,
   config: Config,
 ): { graph: Graph; refs: PipelineRefs } {
   const graph = new Graph();
-  const actions = videoActions(config);
-  const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, actions));
+  const entryRefs = videos.map((video) => addVideoSubgraph(graph, video, ports, config));
   const avatarRef = channelAvatar.addNode(graph, ports, {
     kind: NodeKind.ChannelAvatar,
     channelUrl: config.channelUrl,
   });
   const artworkRef = artwork.addNode(graph, ports, {
     kind: NodeKind.Artwork,
-    deps: { channel_avatar: avatarRef },
+    deps: { channelAvatar: avatarRef },
   });
   return {
     graph,

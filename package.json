@@ -10,6 +10,7 @@
     "podpiper-cli": "./src/cli/cli.ts"
   },
   "scripts": {
+    "test": "bun test",
     "typecheck": "tsgo --noEmit",
     "format": "prettier --write .",
     "lint": "eslint .",

@@ -23,7 +23,7 @@ export type channelAvatar = typeof channelAvatar;
 
 export interface ArtworkParams {
   kind: typeof NodeKind.Artwork;
-  deps: { channel_avatar: NodeRef<string> };
+  deps: { channelAvatar: NodeRef<string> };
 }
 
 export const artwork = defineActionWithPorts<ArtworkParams, JsonPath<UploadEntry[]>>({
@@ -31,7 +31,7 @@ export const artwork = defineActionWithPorts<ArtworkParams, JsonPath<UploadEntry
   config: "artwork-v1",
   action: (ports) => async (_params, inputs, outputDir) => {
     const artworkPath = `${outputDir}/artwork.jpg`;
-    await ports.ffmpeg.processChannelArtwork(inputs.channel_avatar, artworkPath);
+    await ports.ffmpeg.processChannelArtwork(inputs.channelAvatar, artworkPath);
     const uploads: UploadEntry[] = [
       { localPath: artworkPath, key: "artwork.jpg", cacheControl: "max-age=86400" },
     ];
