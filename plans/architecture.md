@@ -4,14 +4,6 @@
 
 Assembles episode metadata, constructs the upload manifest, formats chapters JSON for Podcast Chapters spec, checks for SRT existence, computes file size. Upload preparation should be a separate concern.
 
-## 21. `dagraph` has hard Bun dependency
-
-`Bun.CryptoHasher` in `helpers.ts` — Package is described as "reusable, generic" and "intended for use outside podpiper" but will crash on Node.js. No `engines` field in `package.json`. Replace with `node:crypto` (works in Bun too).
-
-## 22. `dagraph` tests import from the host application
-
-`dag.test.ts` imports `@/ports/memory-fs` and `@/ports/types`. The package can't be tested in isolation. Needs its own minimal `DagFs` in-memory implementation.
-
 ## 23. Cache manifest shares directory with action outputs
 
 Both `manifest.json` (cache entry) and action output files live in the same CAS directory. If an action ever writes `manifest.json`, it silently corrupts the cache.

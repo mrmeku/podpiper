@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createMemoryFs } from "@/ports/memory-fs";
-import type { FileSystem } from "@/ports/types";
+import { createHash } from "node:crypto";
 import { MemCache, TieredCache } from "./cache";
 import { defineAction } from "./define-action";
 import type { ExecAction } from "./exec-state";
@@ -9,9 +8,29 @@ import { execute } from "./execute";
 import type { ExecutionContext } from "./execute";
 import { Graph, localRunner } from "./graph";
 import { validateNoCycles } from "./helpers";
-import type { BaseParams, ExecResult, Node, NodeRunner } from "./types";
+import type { BaseParams, DagFs, ExecResult, Node, NodeRunner } from "./types";
 
-async function write(fs: FileSystem, name: string, content: string): Promise<string> {
+function createMemoryDagFs(): DagFs {
+  const files = new Map<string, string>();
+  return {
+    readText: async (path) => {
+      const data = files.get(path);
+      if (data === undefined) throw new Error(`ENOENT: ${path}`);
+      return data;
+    },
+    writeText: async (path, content) => {
+      files.set(path, content);
+    },
+    hashFile: async (path) => {
+      const data = files.get(path);
+      if (data === undefined) throw new Error(`ENOENT: ${path}`);
+      return createHash("sha256").update(data).digest("hex");
+    },
+    ensureDir: async () => {},
+  };
+}
+
+async function write(fs: DagFs, name: string, content: string): Promise<string> {
   await fs.writeText(name, content);
   return name;
 }
@@ -35,7 +54,7 @@ const p = (kind: string, deps?: Record<string, string>): BaseParams =>
       }
     : { kind };
 
-function addItemNodes(g: Graph, id: string, fs: FileSystem): void {
+function addItemNodes(g: Graph, id: string, fs: DagFs): void {
   const n = (kind: string) => `${kind}:${id}`;
   g.add({
     name: n("fetch"),
@@ -100,7 +119,7 @@ function addItemNodes(g: Graph, id: string, fs: FileSystem): void {
   });
 }
 
-function addAggregateNode(g: Graph, ids: string[], fs: FileSystem): void {
+function addAggregateNode(g: Graph, ids: string[], fs: DagFs): void {
   const deps = ids.map((id) => `entry:${id}`);
   const depsRecord = Object.fromEntries(deps.map((d) => [d, d]));
   g.add({
@@ -113,20 +132,20 @@ function addAggregateNode(g: Graph, ids: string[], fs: FileSystem): void {
   });
 }
 
-function buildGraph(ids: string[], fs: FileSystem): Graph {
+function buildGraph(ids: string[], fs: DagFs): Graph {
   const g = new Graph();
   for (const id of ids) addItemNodes(g, id, fs);
   addAggregateNode(g, ids, fs);
   return g;
 }
 
-function ctx(cache: MemCache | TieredCache, fs: FileSystem): ExecutionContext {
+function ctx(cache: MemCache | TieredCache, fs: DagFs): ExecutionContext {
   return { cache, fs, casBaseDir: "/cas" };
 }
 
 describe("Graph", () => {
   test("incremental items", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
 
     let results = await execute(buildGraph(["aaa", "bbb"], fs), ctx(cache, fs));
@@ -146,7 +165,7 @@ describe("Graph", () => {
   });
 
   test("tiered cache", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const remote = new MemCache();
 
     let results = await execute(buildGraph(["aaa"], fs), ctx(remote, fs));
@@ -166,7 +185,7 @@ describe("Graph", () => {
 
   describe("kindTopology()", () => {
     test("extracts kind-level edges from concrete graph", () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       expect(buildGraph(["aaa"], fs).kindTopology()).toEqual([
         { kind: "fetch", depKinds: [] },
         { kind: "extract", depKinds: ["fetch"] },
@@ -180,7 +199,7 @@ describe("Graph", () => {
     });
 
     test("multiple items produce same topology as single item", () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const single = buildGraph(["aaa"], fs).kindTopology();
       const multi = buildGraph(["aaa", "bbb", "ccc"], fs).kindTopology();
       expect(multi).toEqual(single);
@@ -189,13 +208,13 @@ describe("Graph", () => {
 
   describe("analyze()", () => {
     test("returns total count", () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const { total } = buildGraph(["aaa", "bbb"], fs).analyze();
       expect(total).toBe(15);
     });
 
     test("byKind breakdown", () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const { byKind } = buildGraph(["aaa", "bbb"], fs).analyze();
       expect(Object.fromEntries(byKind)).toEqual({
         fetch: 2,
@@ -210,7 +229,7 @@ describe("Graph", () => {
     });
 
     test("nodes list", () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const { nodes } = buildGraph(["aaa"], fs).analyze();
       expect(nodes.length).toBe(8);
       const fetchNode = nodes.find((n) => n.name === "fetch:aaa")!;
@@ -220,7 +239,7 @@ describe("Graph", () => {
   });
 
   test("readiness: dependent starts as soon as its deps finish", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
     const g = new Graph();
     const log: string[] = [];
@@ -276,7 +295,7 @@ describe("Graph", () => {
   });
 
   test("children of completed nodes run before queued siblings", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
     const g = new Graph();
     const log: string[] = [];
@@ -320,7 +339,7 @@ describe("Graph", () => {
   });
 
   test("config change rollback", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
     let leafConfig = "leaf-v2";
 
@@ -378,7 +397,7 @@ describe("Graph", () => {
   });
 
   test("mock runner: executor calls runner instead of node.action", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
     const g = new Graph();
     const calls: string[] = [];
@@ -415,7 +434,7 @@ describe("Graph", () => {
   });
 
   test("failure in one branch does not affect independent branches", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
     const g = new Graph();
     g.add({
@@ -464,7 +483,7 @@ describe("Graph", () => {
   });
 
   test("dep-failure cascades through transitive dependencies", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
     const g = new Graph();
     g.add({
@@ -513,7 +532,7 @@ describe("Graph", () => {
   });
 
   test("maxParallelism caps concurrent execution", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
     const g = new Graph();
     let peak = 0;
@@ -543,7 +562,7 @@ describe("Graph", () => {
 
   describe("early cutoff", () => {
     test("same output content skips downstream", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       let aConfig = "a-v1";
 
@@ -577,7 +596,7 @@ describe("Graph", () => {
     });
 
     test("different output content re-executes downstream", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       let aConfig = "a-v1";
       let aContent = "content-v1";
@@ -613,7 +632,7 @@ describe("Graph", () => {
     });
 
     test("cutoff chain: A → B → C, only A runs if output unchanged", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       let aConfig = "a-v1";
 
@@ -657,7 +676,7 @@ describe("Graph", () => {
 
   describe("progress events", () => {
     test("emits start+success for dirty nodes", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       const g = new Graph();
       g.add({
@@ -698,7 +717,7 @@ describe("Graph", () => {
     });
 
     test("emits cache-hit for cached nodes", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       const makeGraph = () => {
         const g = new Graph();
@@ -733,7 +752,7 @@ describe("Graph", () => {
     });
 
     test("emits start+failure on error with elapsed", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       const g = new Graph();
       g.add({
@@ -761,7 +780,7 @@ describe("Graph", () => {
     });
 
     test("emits dep-failure for dependency-failure skips", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       const g = new Graph();
       g.add({
@@ -835,7 +854,7 @@ describe("Graph", () => {
     });
 
     test("corrupted output causes re-execution", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       const makeGraph = () => {
         const g = new Graph();
@@ -859,7 +878,7 @@ describe("Graph", () => {
   });
 
   test("interrupted execution resumes from where it left off", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
     let bShouldFail = true;
 
@@ -921,7 +940,7 @@ describe("Graph", () => {
 
   describe("concurrencyLimits", () => {
     test("caps per-group concurrent execution", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       const g = new Graph();
       let peak = 0;
@@ -954,7 +973,7 @@ describe("Graph", () => {
     });
 
     test("ungrouped nodes run at full parallelism alongside group-limited nodes", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       const g = new Graph();
       let groupPeak = 0;
@@ -1007,7 +1026,7 @@ describe("Graph", () => {
     });
 
     test("does not affect cache keys", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
 
       const makeGraph = (group?: string) => {
@@ -1036,7 +1055,7 @@ describe("Graph", () => {
     });
 
     test("multiple groups are enforced independently", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       const g = new Graph();
       let aPeak = 0;
@@ -1089,7 +1108,7 @@ describe("Graph", () => {
 
   describe("structured config via defineAction", () => {
     test("object config produces deterministic cache keys", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
 
       const action = defineAction<null, BaseParams, string, { version: number; flag: boolean }>({
@@ -1110,7 +1129,7 @@ describe("Graph", () => {
     });
 
     test("config object passed to action function", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
       let receivedConfig: unknown;
 
@@ -1130,7 +1149,7 @@ describe("Graph", () => {
     });
 
     test("config change invalidates cache", async () => {
-      const fs = createMemoryFs();
+      const fs = createMemoryDagFs();
       const cache = new MemCache();
 
       const makeAction = (version: number) =>
@@ -1153,7 +1172,7 @@ describe("Graph", () => {
   });
 
   test("diamond-with-failure: D dep-fails when B fails but C succeeds", async () => {
-    const fs = createMemoryFs();
+    const fs = createMemoryDagFs();
     const cache = new MemCache();
     const g = new Graph();
     g.add({

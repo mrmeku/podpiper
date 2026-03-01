@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { jsonParse } from "@podpiper/dagraph";
 import type { FileSystem } from "./types";
 
@@ -35,7 +36,7 @@ export function createMemoryFs(initial?: Record<string, string | Uint8Array>): F
       const data = files.get(path);
       if (data === undefined) throw new Error(`ENOENT: ${path}`);
       const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
-      return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+      return createHash("sha256").update(bytes).digest("hex");
     },
     ensureDir: async () => {},
   };

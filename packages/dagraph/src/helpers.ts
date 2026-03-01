@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CacheEntry, Outputs } from "./types";
 
 export type HashFileFn = (path: string) => Promise<string>;
@@ -15,7 +16,7 @@ export function computeHash(
   node: { name: string; config: string; deps: string[] },
   depHashes: Map<string, string>,
 ): string {
-  const h = new Bun.CryptoHasher("sha256");
+  const h = createHash("sha256");
   h.update(node.name);
   h.update(node.config);
   const sorted = [...node.deps].sort();
@@ -39,7 +40,7 @@ export async function hashOutputFiles(
   hashFile: HashFileFn,
 ): Promise<string> {
   const paths = collectPaths(outputs).sort();
-  const h = new Bun.CryptoHasher("sha256");
+  const h = createHash("sha256");
   h.update(String(paths.length));
   for (const p of paths) h.update(await hashFile(p));
   return h.digest("hex");
