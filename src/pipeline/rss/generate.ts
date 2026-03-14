@@ -19,7 +19,20 @@ function formatDuration(seconds: number): string {
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
 
 function formatRfc2822(d: Date): string {
   const day = DAYS[d.getUTCDay()];
@@ -100,7 +113,7 @@ function buildItem(config: Config, ep: Episode): RssItem {
     ...(ep.transcript && {
       "podcast:transcript": {
         "@_url": `${config.storage.publicUrl}/${encodeUrl(ep.transcript)}`,
-        "@_type": "text/srt",
+        "@_type": "application/x-subrip",
       },
     }),
     "podcast:contentLink": {
