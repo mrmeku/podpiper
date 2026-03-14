@@ -56,7 +56,7 @@ Mock summary of the episode content.</p>]]>
       <itunes:image href="https://cdn.test.com/vid_aaa/thumbnail.jpg"/>
       <media:content url="https://cdn.test.com/vid_aaa/thumbnail.jpg" medium="image" type="image/jpeg"/>
       <podcast:chapters url="https://cdn.test.com/vid_aaa/chapters.json" type="application/json+chapters"/>
-      <podcast:transcript url="https://cdn.test.com/vid_aaa/transcript.srt" type="text/srt"/>
+      <podcast:transcript url="https://cdn.test.com/vid_aaa/transcript.srt" type="application/x-subrip"/>
       <podcast:contentLink href="https://www.youtube.com/watch?v=vid_aaa">Watch on YouTube</podcast:contentLink>
     </item>
     <item>
@@ -84,7 +84,7 @@ Mock summary of the episode content.</p>]]>
       <itunes:title>Growth Mindset Tips</itunes:title>
       <itunes:image href="https://cdn.test.com/vid_bbb/thumbnail.jpg"/>
       <media:content url="https://cdn.test.com/vid_bbb/thumbnail.jpg" medium="image" type="image/jpeg"/>
-      <podcast:transcript url="https://cdn.test.com/vid_bbb/transcript.srt" type="text/srt"/>
+      <podcast:transcript url="https://cdn.test.com/vid_bbb/transcript.srt" type="application/x-subrip"/>
       <podcast:contentLink href="https://www.youtube.com/watch?v=vid_bbb">Watch on YouTube</podcast:contentLink>
     </item>
   </channel>

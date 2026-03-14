@@ -34,3 +34,28 @@ Artwork specs:
 
 - yt-dlp downloads thumbnails with `--write-thumbnail --convert-thumbnails jpg`
 - ffmpeg pads to square and scales to 1400x1400: `pad=iw:iw:0:(oh-ih)/2:black,scale=1400:1400:flags=lanczos`
+
+## Transcripts
+
+Spec: https://podcasting2.org/docs/podcast-namespace/tags/transcript
+
+Tag: `<podcast:transcript url="..." type="..." language="..." rel="captions" />`
+
+- `url` (required): Location of the transcript file
+- `type` (required): MIME type — must be one of the values below
+- `language` (optional): BCP-47 language code; defaults to feed language
+- `rel` (optional): Set to `"captions"` for closed captions with timecodes
+
+**Valid MIME types (Podcasting 2.0 spec):**
+
+| Format | MIME type | Pocket Casts | Apple Podcasts | Podcast Addict | Podcasting 2.0 apps |
+|--------|-----------|---|---|---|---|
+| SRT | `application/x-subrip` | yes | yes | yes | yes |
+| WebVTT | `text/vtt` | yes | yes | — | yes |
+| JSON | `application/json` | yes | **no** | yes | yes |
+| HTML | `text/html` | yes | — | yes | yes |
+| Plain text | `text/plain` | — | **no** | **no** | yes |
+
+**podpiper uses SRT** (`application/x-subrip`) because it has the broadest player compatibility — it's the only timed format supported by all major players including Apple Podcasts. whisper-cli also outputs a JSON file, but the Podcast Index JSON spec (`startTime`/`endTime`/`body` fields) is a different schema than whisper's output (`timestamps`/`offsets`/`text`), so using it would require a converter — and for less compatibility since Apple Podcasts doesn't support JSON transcripts.
+
+Common mistakes: `application/srt`, `text/srt`, `text/x-subrip` are all **invalid** and will be rejected by players.
