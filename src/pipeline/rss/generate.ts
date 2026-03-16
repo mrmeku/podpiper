@@ -51,27 +51,77 @@ function formatTimestamp(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+export interface DescriptionInput {
+  description: string;
+  chapters: Chapter[];
+  chaptersGenerated: boolean;
+  summary: string | null;
+  resolvedLinks: Record<string, string>;
+}
+
 function formatChaptersText(chapters: Chapter[]): string {
   return chapters.map((ch) => `${formatTimestamp(ch.startTime)} — ${ch.title}`).join("\n");
 }
 
-function buildDescription(ep: Episode): string {
-  const parts = [ep.description];
-  if (ep.chapters.length > 0) {
-    const label = ep.chaptersGenerated ? "— Generated Chapters —" : "— Chapters —";
-    parts.push(`${label}\n${formatChaptersText(ep.chapters)}`);
-  }
-  if (ep.summary)
-    parts.push(`— Generated Summary —\n${ep.summary}`);
+function chaptersLabel(generated: boolean): string {
+  return generated ? "— Generated Chapters —" : "— Chapters —";
+}
+
+export function buildDescriptionText(input: DescriptionInput): string {
+  const parts = [input.description];
+  if (input.chapters.length > 0)
+    parts.push(`${chaptersLabel(input.chaptersGenerated)}\n${formatChaptersText(input.chapters)}`);
+  if (input.summary)
+    parts.push(`— Generated Summary —\n${input.summary}`);
   return parts.join("\n\n");
 }
 
-function descriptionToHtml(text: string): string {
+const URL_RE = /https?:\/\/[^\s<]+/g;
+const YT_ID_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function linkifyLine(line: string, resolvedLinks: Record<string, string>): string {
+  let result = "";
+  let lastIndex = 0;
+  for (const match of line.matchAll(URL_RE)) {
+    const url = match[0]!;
+    const start = match.index!;
+    result += escapeHtml(line.slice(lastIndex, start));
+    const ytMatch = url.match(YT_ID_RE);
+    const label = ytMatch ? resolvedLinks[ytMatch[1]!] ?? url : url;
+    result += `<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`;
+    lastIndex = start + url.length;
+  }
+  result += escapeHtml(line.slice(lastIndex));
+  return result;
+}
+
+function textToHtml(text: string, resolvedLinks: Record<string, string>): string {
   return text
+    .split("\n")
+    .map((line) => linkifyLine(line, resolvedLinks))
+    .join("\n")
     .split(/\n\n+/)
     .filter(Boolean)
     .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
     .join("\n");
+}
+
+export function buildDescriptionHtml(input: DescriptionInput): string {
+  const parts = [textToHtml(input.description, input.resolvedLinks)];
+  if (input.chapters.length > 0) {
+    const label = chaptersLabel(input.chaptersGenerated);
+    const items = input.chapters
+      .map((ch) => `${formatTimestamp(ch.startTime)} — ${escapeHtml(ch.title)}`)
+      .join("<br>");
+    parts.push(`<p>${escapeHtml(label)}<br>${items}</p>`);
+  }
+  if (input.summary)
+    parts.push(textToHtml(`— Generated Summary —\n${input.summary}`, {}));
+  return parts.join("\n");
 }
 
 interface RssItem {
@@ -99,8 +149,8 @@ function buildItem(config: Config, ep: Episode): RssItem {
   const hasChapters = ep.chapters.length > 0;
   return {
     title: ep.title,
-    description: buildDescription(ep),
-    "content:encoded": { __cdata: descriptionToHtml(buildDescription(ep)) },
+    description: buildDescriptionText(ep),
+    "content:encoded": { __cdata: buildDescriptionHtml(ep) },
     pubDate: formatPubDate(ep.uploadDate),
     guid: { "#text": ep.id, "@_isPermaLink": "false" },
     link: `https://www.youtube.com/watch?v=${ep.id}`,

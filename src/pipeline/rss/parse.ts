@@ -55,6 +55,7 @@ export function parseExistingFeed(baseUrl: string, xml: string): Episode[] {
       duration,
       filename,
       fileSize,
+      resolvedLinks: {},
       summary: null,
       thumbnail,
       chaptersGenerated: false,

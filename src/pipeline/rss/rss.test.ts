@@ -16,11 +16,14 @@ const EP_WITH_CHAPTERS: Episode = {
   duration: 1800,
   filename: "vid_aaa/audio.mp3",
   fileSize: 1000,
+  resolvedLinks: {},
+  summary: null,
   thumbnail: "vid_aaa/thumbnail.jpg",
   chapters: [
     { startTime: 0, endTime: 600, title: "Intro" },
     { startTime: 600, endTime: 1800, title: "Main" },
   ],
+  chaptersGenerated: false,
   transcript: "vid_aaa/transcript.srt",
 };
 
@@ -32,8 +35,11 @@ const EP_WITHOUT_CHAPTERS: Episode = {
   duration: 2400,
   filename: "vid_bbb/audio.mp3",
   fileSize: 2000,
+  resolvedLinks: {},
+  summary: null,
   thumbnail: "vid_bbb/thumbnail.jpg",
   chapters: [],
+  chaptersGenerated: false,
   transcript: null,
 };
 

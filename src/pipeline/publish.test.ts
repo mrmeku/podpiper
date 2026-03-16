@@ -31,8 +31,11 @@ function makeEpisode(id: string, uploadDate: string): Episode {
     duration: 1800,
     filename: `${id}/audio.mp3`,
     fileSize: 1024,
+    resolvedLinks: {},
+    summary: null,
     thumbnail: `${id}/thumbnail.jpg`,
     chapters: [],
+    chaptersGenerated: false,
     transcript: null,
   };
 }

@@ -29,6 +29,18 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
       const output = await ytdlp(["--flat-playlist", "--print", PRINT_FMT, channelUrl]).text();
       return parseVideoList(output);
     },
+    fetchVideoTitles: async (videoIds) => {
+      if (videoIds.length === 0) return {};
+      const urls = videoIds.map((id) => `https://www.youtube.com/watch?v=${id}`);
+      const result = await ytdlp(["--print", "%(id)s|%(title)s", ...urls]).nothrow();
+      if (result.exitCode !== 0) return {};
+      const titles: Record<string, string> = {};
+      for (const line of result.stdout.toString().trim().split("\n")) {
+        const sep = line.indexOf("|");
+        if (sep > 0) titles[line.slice(0, sep)] = line.slice(sep + 1);
+      }
+      return titles;
+    },
     downloadVideo: async (outputDir, videoId) => {
       const url = `https://www.youtube.com/watch?v=${videoId}`;
       const dlArgs = [

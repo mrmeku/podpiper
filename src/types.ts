@@ -202,6 +202,7 @@ export interface Episode {
   filename: string;
   fileSize: number | undefined;
   id: string;
+  resolvedLinks: Record<string, string>;
   summary: string | null;
   thumbnail: string;
   title: string;

@@ -14,6 +14,7 @@ export interface FileSystem {
 
 export interface YouTubeDownloader {
   fetchVideoList: (channelUrl: string) => Promise<VideoInfo[]>;
+  fetchVideoTitles: (videoIds: string[]) => Promise<Record<string, string>>;
   downloadVideo: (outputDir: string, videoId: string) => Promise<void>;
   downloadChannelArtwork: (outputDir: string, channelUrl: string) => Promise<void>;
 }

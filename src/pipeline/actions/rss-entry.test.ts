@@ -6,7 +6,7 @@ import { jsonPath } from "@/typed-path";
 import type { Chapter, ChaptersResult, Episode, UploadEntry, YtDlpInfo } from "@/types";
 
 import { NodeKind } from "./define-action";
-import { rssEntry } from "./rss-entry";
+import { extractYouTubeIds, rssEntry } from "./rss-entry";
 
 const VIDEO_ID = "vid_test";
 const OUTPUT_DIR = "/cas/rss_entry_test";
@@ -102,6 +102,7 @@ describe("rssEntry action", () => {
       duration: 1800,
       filename: "vid_test/audio.mp3",
       fileSize: expect.any(Number),
+      resolvedLinks: {},
       thumbnail: "vid_test/thumbnail.jpg",
       chapters: TEST_CHAPTERS,
       chaptersGenerated: false,
@@ -156,5 +157,21 @@ describe("rssEntry action", () => {
     const audioUpload = uploads.find((u) => u.key === "vid_test/audio.mp3")!;
 
     expect(audioUpload.localPath).toBe(embedPath);
+  });
+});
+
+describe("extractYouTubeIds", () => {
+  test("extracts IDs from youtube.com and youtu.be URLs", () => {
+    const text = "See https://www.youtube.com/watch?v=abc12345678 and https://youtu.be/xyz98765432";
+    expect(extractYouTubeIds(text)).toEqual(["abc12345678", "xyz98765432"]);
+  });
+
+  test("deduplicates repeated IDs", () => {
+    const text = "https://www.youtube.com/watch?v=abc12345678\nhttps://youtu.be/abc12345678";
+    expect(extractYouTubeIds(text)).toEqual(["abc12345678"]);
+  });
+
+  test("returns empty for no YouTube URLs", () => {
+    expect(extractYouTubeIds("no links here")).toEqual([]);
   });
 });

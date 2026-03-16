@@ -29,8 +29,11 @@ function makeEpisode(id: string): Episode {
     duration: 600,
     filename: `videos/${id}/audio.mp3`,
     fileSize: 1000,
+    resolvedLinks: {},
+    summary: null,
     thumbnail: "",
     chapters: [],
+    chaptersGenerated: false,
     transcript: null,
   };
 }

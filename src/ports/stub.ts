@@ -19,6 +19,7 @@ export function createStubPorts(): Ports {
     },
     ytdlp: {
       fetchVideoList: async () => [],
+      fetchVideoTitles: async () => ({}),
       downloadVideo: noop,
       downloadChannelArtwork: noop,
     },
