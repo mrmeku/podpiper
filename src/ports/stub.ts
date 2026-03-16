@@ -28,7 +28,7 @@ export function createStubPorts(): Ports {
     storage: {
       uploadFile: noop,
       getFile: async () => null,
-      headObject: async () => ({ exists: false }),
+      fileExists: async () => false,
     },
   };
 }

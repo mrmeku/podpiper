@@ -56,25 +56,18 @@ export function addNode<P extends BaseParams, R extends Outputs>({
 
 export const localRunner: NodeRunner = (node, rawInputs, outputDir) => node.action(rawInputs, outputDir);
 
-export interface ScopeOpts {
-  priority?: number;
-}
-
 export class Graph {
   private nodes: Map<string, Node>;
   private prefix: string;
-  private defaultPriority?: number;
 
-  constructor(prefix = "", nodes?: Map<string, Node>, defaultPriority?: number) {
+  constructor(prefix = "", nodes?: Map<string, Node>) {
     this.prefix = prefix;
     this.nodes = nodes ?? new Map();
-    if (defaultPriority != null) this.defaultPriority = defaultPriority;
   }
 
   add(def: Node): string {
     const name = this.prefix ? `${this.prefix}:${def.name}` : def.name;
-    const priority = def.priority ?? this.defaultPriority;
-    const node: Node = { ...def, name, ...(priority != null && { priority }) };
+    const prefixed = this.prefix ? { ...def, name } : def;
     if (this.nodes.has(name)) {
       const colon = name.indexOf(":");
       if (colon === -1) {
@@ -100,16 +93,16 @@ export class Graph {
           `  and a manually-named node. Check for hardcoded names that match the scope:kind pattern.`,
       );
     }
-    for (const d of node.deps) {
+    for (const d of prefixed.deps) {
       if (!this.nodes.has(d)) throw new Error(`node "${name}" depends on unknown node "${d}"`);
     }
-    this.nodes.set(name, node);
+    this.nodes.set(name, prefixed);
     return name;
   }
 
-  scope(prefix: string, opts?: ScopeOpts): Graph {
+  scope(prefix: string): Graph {
     const fullPrefix = this.prefix ? `${this.prefix}:${prefix}` : prefix;
-    return new Graph(fullPrefix, this.nodes, opts?.priority ?? this.defaultPriority);
+    return new Graph(fullPrefix, this.nodes);
   }
 
   getNodes(): ReadonlyMap<string, Node> {

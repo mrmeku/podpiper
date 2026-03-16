@@ -23,15 +23,14 @@ export function createS3Storage(): ObjectStore {
   });
 
   return {
-    async uploadFile(data, key, bucket, options) {
+    async uploadFile(data, key, bucket, cacheControl) {
       await client.send(
         new PutObjectCommand({
           Bucket: bucket,
           Key: key,
           Body: data,
           ContentType: getContentType(key),
-          CacheControl: options?.cacheControl,
-          Metadata: options?.metadata,
+          CacheControl: cacheControl,
         }),
       );
     },
@@ -47,14 +46,12 @@ export function createS3Storage(): ObjectStore {
       }
     },
 
-    async headObject(bucket, key) {
+    async fileExists(bucket, key) {
       try {
-        const result = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-        return { exists: true, ...(result.Metadata && { metadata: result.Metadata }) };
+        await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return true;
       } catch (err: unknown) {
-        if (err instanceof Error && (err.name === "NotFound" || err.name === "NoSuchKey")) {
-          return { exists: false };
-        }
+        if (err instanceof Error && err.name === "NotFound") return false;
         throw err;
       }
     },

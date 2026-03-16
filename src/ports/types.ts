@@ -42,10 +42,10 @@ export interface ObjectStore {
     data: Uint8Array,
     key: string,
     bucket: string,
-    options?: { cacheControl?: string; metadata?: Record<string, string> },
+    cacheControl?: string,
   ) => Promise<void>;
   getFile: (bucket: string, key: string) => Promise<Uint8Array | null>;
-  headObject: (bucket: string, key: string) => Promise<{ exists: boolean; metadata?: Record<string, string> }>;
+  fileExists: (bucket: string, key: string) => Promise<boolean>;
 }
 
 export interface Ports {

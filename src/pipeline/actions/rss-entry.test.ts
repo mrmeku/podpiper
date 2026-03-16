@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { createMemoryFs } from "@/ports/memory-fs";
 import { createMockPorts } from "@/ports/mock";
 import { jsonPath } from "@/typed-path";
-import type { Chapter, Episode, UploadEntry, YtDlpInfo } from "@/types";
+import type { Chapter, ChaptersResult, Episode, UploadEntry, YtDlpInfo } from "@/types";
 
 import { NodeKind } from "./define-action";
 import { rssEntry } from "./rss-entry";
@@ -27,13 +27,17 @@ const TEST_CHAPTERS: Chapter[] = [
 async function setupFs(opts: {
   info?: YtDlpInfo;
   chapters?: Chapter[];
+  chaptersGenerated?: boolean;
   hasSrt?: boolean;
   summary?: string;
   embedChaptersAudio?: string;
 }) {
   const fs = createMemoryFs();
   const info = opts.info ?? TEST_INFO;
-  const chapters = opts.chapters ?? [];
+  const chaptersResult: ChaptersResult = {
+    chapters: opts.chapters ?? [],
+    generated: opts.chaptersGenerated ?? false,
+  };
 
   const downloadDir = "/cas/download";
   await fs.writeText(`${downloadDir}/audio.mp3`, "fake-audio");
@@ -44,7 +48,7 @@ async function setupFs(opts: {
     await fs.writeText(`${transcribeDir}/audio.srt`, "1\n00:00:00 --> 00:05:00\nHello\n");
   }
 
-  await fs.writeText("/cas/chapters/chapters.json", JSON.stringify(chapters));
+  await fs.writeText("/cas/chapters/chapters.json", JSON.stringify(chaptersResult));
   await fs.writeText("/cas/thumbnail/thumbnail.jpg", "fake-thumb");
 
   if (opts.embedChaptersAudio) {
@@ -92,13 +96,15 @@ describe("rssEntry action", () => {
     expect(episode).toEqual({
       id: VIDEO_ID,
       title: "Test Video",
-      description: "A test description.\n\n— Generated Summary —\n\nA great summary.",
+      description: "A test description.",
+      summary: "A great summary.",
       uploadDate: "20240315",
       duration: 1800,
       filename: "vid_test/audio.mp3",
       fileSize: expect.any(Number),
       thumbnail: "vid_test/thumbnail.jpg",
       chapters: TEST_CHAPTERS,
+      chaptersGenerated: false,
       transcript: "vid_test/transcript.srt",
     });
     expect(uploads.map((u) => u.key).sort()).toEqual([

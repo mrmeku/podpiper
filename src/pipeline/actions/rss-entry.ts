@@ -1,6 +1,6 @@
 import type { JsonPath } from "@/typed-path";
 import { jsonPath, readJson } from "@/typed-path";
-import type { Chapter, Episode, UploadEntry, YtDlpInfo } from "@/types";
+import type { Chapter, ChaptersResult, Episode, UploadEntry, YtDlpInfo } from "@/types";
 import type { NodeRef, NodeRefOf } from "@podpiper/dagraph";
 import type { chapters } from "./chapters";
 import { NodeKind, defineActionWithPorts } from "./define-action";
@@ -29,25 +29,24 @@ function toObjectKey(videoId: string, key: string) {
 export function buildEpisode(
   videoId: string,
   info: YtDlpInfo,
-  chapters: Chapter[],
+  chaptersResult: ChaptersResult,
   summaryText: string | undefined,
   audioFileSize: number | undefined,
   srtExists: boolean,
 ): Episode {
   const objectKey = (key: string) => toObjectKey(videoId, key);
-  const description = [info.description, summaryText]
-    .filter(Boolean)
-    .join("\n\n— Generated Summary —\n\n");
   return {
     id: videoId,
     title: info.title,
-    description,
+    description: info.description ?? "",
     uploadDate: info.upload_date,
     duration: info.duration,
     filename: objectKey("audio.mp3"),
     fileSize: audioFileSize,
+    summary: summaryText ?? null,
     thumbnail: objectKey("thumbnail.jpg"),
-    chapters,
+    chapters: chaptersResult.chapters,
+    chaptersGenerated: chaptersResult.generated,
     transcript: srtExists ? objectKey("transcript.srt") : null,
   };
 }
@@ -86,18 +85,18 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, {
     async (params, inputs, outputDir) => {
       const { videoId } = params;
       const info = await readJson(fs, inputs.download.info);
-      const chapters = await readJson(fs, inputs.chapters);
+      const chaptersResult = await readJson(fs, inputs.chapters);
       const summaryText = inputs.summary ? await fs.readText(inputs.summary) : undefined;
       const srtExists = await fs.exists(inputs.transcribe.srt);
       const audioPath = inputs.embedChapters ?? inputs.download.audio;
       const audioFileSize = (await fs.stat(audioPath))?.size;
 
-      const episode = buildEpisode(videoId, info, chapters, summaryText, audioFileSize, srtExists);
+      const episode = buildEpisode(videoId, info, chaptersResult, summaryText, audioFileSize, srtExists);
       const uploads = await buildUploadManifest(
         episode,
         { audio: audioPath, thumbnail: inputs.thumbnail, srt: inputs.transcribe.srt },
         srtExists,
-        chapters,
+        chaptersResult.chapters,
         outputDir,
         fs.writeText,
       );

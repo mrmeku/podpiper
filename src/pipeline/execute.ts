@@ -41,13 +41,11 @@ export async function sync(
     const episode = await readJson(fs, paths.episode);
     const entryUploads = await readJson(fs, paths.uploads);
     episodes.push(episode);
-    if (r.status === "done") {
-      uploads.push(...entryUploads);
-    }
+    uploads.push(...entryUploads);
   }
 
   const artworkResult = resultsByName.get(artworkRef.name);
-  if (artworkResult && artworkResult.status === "done") {
+  if (artworkResult && (artworkResult.status === "done" || artworkResult.status === "cached")) {
     const uploadsPath = artworkResult.outputs as OutputOf<artwork>;
     const artworkUploads = await readJson(fs, uploadsPath);
     uploads.push(...artworkUploads);

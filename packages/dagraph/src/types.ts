@@ -38,8 +38,6 @@ export interface Node {
   params: BaseParams;
   /** Optional concurrency group. Nodes sharing a group are subject to a per-group parallelism limit. */
   concurrencyGroup?: string;
-  /** Optional scheduling priority. Higher values are scheduled first. Defaults to 0. */
-  priority?: number;
   /** Raw executor-level action. Receives dep outputs as `Record<name, Outputs>` and CAS output dir, returns Outputs. */
   action: (rawInputs: Record<string, Outputs>, outputDir: string) => Promise<Outputs>;
 }
@@ -83,6 +81,8 @@ export interface ExecuteOptions {
   concurrencyLimits?: Record<string, number>;
   /** Observer callback — receives every ExecAction dispatched during execution. */
   onAction?: (action: ExecAction) => void;
+  /** Skip cache lookups — every node re-executes from scratch. */
+  force?: boolean;
 }
 
 /** Kind-level dependency edge — collapses concrete nodes into kind-level topology. */

@@ -19,7 +19,7 @@ function buildAndSync(
   config: Config,
   ports: ReturnType<typeof createTestPorts>["ports"],
   cache: Cache,
-  opts?: { maxParallelism?: number },
+  opts?: { maxParallelism?: number; force?: boolean },
 ) {
   const { graph, refs } = buildPipelineGraph(videos, ports, config);
   const executionCtx: ExecutionContext = {
@@ -49,7 +49,7 @@ function countExec(results: ExecResult[]): {
 function getUploadCalls(ports: SpiedPorts): { key: string; cacheControl?: string }[] {
   return ports.storage.uploadFile.mock.calls.map((c: any) => ({
     key: c[1] as string,
-    ...(c[3]?.cacheControl ? { cacheControl: c[3].cacheControl as string } : {}),
+    ...(c[3] ? { cacheControl: c[3] as string } : {}),
   }));
 }
 
@@ -97,15 +97,13 @@ describe("sync pipeline", () => {
       },
     }).toEqual({
       vid_aaa: {
-        description:
-          "A video about deep learning.\n\n— Generated Summary —\n\nMock summary of the episode content.",
+        description: "A video about deep learning.",
         chapters: 3,
         transcript: "vid_aaa/transcript.srt",
         duration: 1800,
       },
       vid_bbb: {
-        description:
-          "A video about growth mindset.\n\n— Generated Summary —\n\nMock summary of the episode content.",
+        description: "A video about growth mindset.",
         chapters: 0,
         transcript: "vid_bbb/transcript.srt",
         duration: 2400,
@@ -187,9 +185,19 @@ describe("sync pipeline", () => {
     }).toEqual({
       dag: { exec: 0, skip: 16, fail: 0 },
       downloads: 0,
-      uploads: 1,
+      uploads: 9,
     });
-    expect(getUploadCalls(ports)).toEqual([{ key: "feed.xml", cacheControl: "max-age=300" }]);
+    expect(getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key))).toEqual([
+      { key: "artwork.jpg", cacheControl: "max-age=86400" },
+      { key: "feed.xml", cacheControl: "max-age=300" },
+      { key: "vid_aaa/audio.mp3" },
+      { key: "vid_aaa/chapters.json" },
+      { key: "vid_aaa/thumbnail.jpg" },
+      { key: "vid_aaa/transcript.srt" },
+      { key: "vid_bbb/audio.mp3" },
+      { key: "vid_bbb/thumbnail.jpg" },
+      { key: "vid_bbb/transcript.srt" },
+    ]);
   });
 
   test("empty local cache pulls from remote and skips all nodes", async () => {
@@ -230,7 +238,7 @@ describe("sync pipeline", () => {
     }).toEqual({
       dag: { exec: 0, skip: 16, fail: 0 },
       downloads: 0,
-      uploads: 1,
+      uploads: 9,
     });
   });
 
@@ -266,8 +274,7 @@ describe("sync pipeline", () => {
       transcript: cccEp.transcript,
       duration: cccEp.duration,
     }).toEqual({
-      description:
-        "A video about Rust programming.\n\n— Generated Summary —\n\nMock summary of the episode content.",
+      description: "A video about Rust programming.",
       chapters: 0,
       transcript: "vid_ccc/transcript.srt",
       duration: 3600,
@@ -291,7 +298,15 @@ describe("sync pipeline", () => {
       claudePrompts: [expect.stringContaining("Mock transcript")],
       storageGetFile: 1,
       uploads: [
+        { key: "artwork.jpg", cacheControl: "max-age=86400" },
         { key: "feed.xml", cacheControl: "max-age=300" },
+        { key: "vid_aaa/audio.mp3" },
+        { key: "vid_aaa/chapters.json" },
+        { key: "vid_aaa/thumbnail.jpg" },
+        { key: "vid_aaa/transcript.srt" },
+        { key: "vid_bbb/audio.mp3" },
+        { key: "vid_bbb/thumbnail.jpg" },
+        { key: "vid_bbb/transcript.srt" },
         { key: "vid_ccc/audio.mp3" },
         { key: "vid_ccc/thumbnail.jpg" },
         { key: "vid_ccc/transcript.srt" },
@@ -309,7 +324,7 @@ describe("sync pipeline", () => {
     }).toEqual({
       run3: { exec: 0, skip: 23, fail: 0 },
       downloadCalls: 0,
-      uploadCalls: 1,
+      uploadCalls: 12,
     });
   });
 
@@ -356,6 +371,9 @@ describe("sync pipeline", () => {
       { key: "vid_aaa/chapters.json" },
       { key: "vid_aaa/thumbnail.jpg" },
       { key: "vid_aaa/transcript.srt" },
+      { key: "vid_bbb/audio.mp3" },
+      { key: "vid_bbb/thumbnail.jpg" },
+      { key: "vid_bbb/transcript.srt" },
     ]);
   });
 
@@ -428,5 +446,19 @@ describe("sync pipeline", () => {
     const r3 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, p3, local);
     expect(countExec(r3.results).skip).toBe(16);
     expect(countExec(r3.results).exec).toBe(0);
+  });
+
+  test("force flag re-executes all nodes despite warm cache", async () => {
+    const { ports } = createTestPorts();
+    const cache = new MemCache();
+
+    const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
+    expect(countExec(r1.results)).toEqual({ exec: 16, skip: 0, fail: 0 });
+
+    ports.ytdlp.downloadVideo.mockClear();
+
+    const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache, { force: true });
+    expect(countExec(r2.results)).toEqual({ exec: 16, skip: 0, fail: 0 });
+    expect(ports.ytdlp.downloadVideo.mock.calls.length).toBe(2);
   });
 });

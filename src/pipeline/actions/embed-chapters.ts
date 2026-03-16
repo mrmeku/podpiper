@@ -16,7 +16,7 @@ export interface EmbedChaptersParams {
 export const embedChapters = defineActionWithPorts<EmbedChaptersParams, string>({
   config: "id3-chap-v1",
   action: (ports) => async (_params, inputs, outputDir) => {
-    const chapters = await readJson(ports.fs, inputs.chapters);
+    const { chapters } = await readJson(ports.fs, inputs.chapters);
     const outputPath = `${outputDir}/audio.mp3`;
     await ports.ffmpeg.embedChapters(inputs.download.audio, chapters, outputPath);
     return outputPath;

@@ -189,13 +189,20 @@ export interface Chapter {
   title: string;
 }
 
+export interface ChaptersResult {
+  chapters: Chapter[];
+  generated: boolean;
+}
+
 export interface Episode {
   chapters: Chapter[];
+  chaptersGenerated: boolean;
   description: string;
   duration: number | undefined;
   filename: string;
   fileSize: number | undefined;
   id: string;
+  summary: string | null;
   thumbnail: string;
   title: string;
   transcript: string | null;

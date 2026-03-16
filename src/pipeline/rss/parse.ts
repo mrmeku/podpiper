@@ -55,7 +55,9 @@ export function parseExistingFeed(baseUrl: string, xml: string): Episode[] {
       duration,
       filename,
       fileSize,
+      summary: null,
       thumbnail,
+      chaptersGenerated: false,
       chapters: item["podcast:chapters"]
         ? [{ startTime: 0, endTime: 0, title: "" } satisfies Chapter]
         : [],

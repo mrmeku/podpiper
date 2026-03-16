@@ -47,10 +47,11 @@ describe("publish", () => {
     const uploadedFiles: { key: string; cacheControl?: string }[] = [];
     const storage = {
       ...createStubPorts().storage,
-      uploadFile: async (_data: Uint8Array, key: string, _bucket: string, options?: { cacheControl?: string }) => {
-        uploadedFiles.push({ key, ...(options?.cacheControl && { cacheControl: options.cacheControl }) });
+      uploadFile: async (_data: Uint8Array, key: string, _bucket: string, cacheControl?: string) => {
+        uploadedFiles.push({ key, ...(cacheControl && { cacheControl }) });
       },
       getFile: async () => null,
+      fileExists: async () => false,
     };
 
     const ep1 = makeEpisode("ep1", "20240315");
@@ -85,6 +86,7 @@ describe("publish", () => {
       ...createStubPorts().storage,
       uploadFile: async () => {},
       getFile: async () => null,
+      fileExists: async () => false,
     };
     await publish(existingSr, TEST_CONFIG, fs, firstRunStorage);
     const firstFeed = await fs.readText("/test/output/feed.xml");
@@ -98,6 +100,7 @@ describe("publish", () => {
         if (key === "feed.xml") return new TextEncoder().encode(firstFeed);
         return null;
       },
+      fileExists: async () => false,
     };
     await publish(newSr, TEST_CONFIG, fs, secondRunStorage);
 
@@ -116,6 +119,7 @@ describe("publish", () => {
       ...createStubPorts().storage,
       uploadFile: async () => {},
       getFile: async () => null,
+      fileExists: async () => false,
     };
     await publish(oldSr, TEST_CONFIG, fs, firstStorage);
     const firstFeed = await fs.readText("/test/output/feed.xml");
@@ -130,6 +134,7 @@ describe("publish", () => {
         if (key === "feed.xml") return new TextEncoder().encode(firstFeed);
         return null;
       },
+      fileExists: async () => false,
     };
     await publish(newSr, TEST_CONFIG, fs, secondStorage);
 
@@ -137,5 +142,36 @@ describe("publish", () => {
     const episodes = parseExistingFeed("https://cdn.test.com", mergedFeed);
     expect(episodes).toHaveLength(1);
     expect(episodes[0]!.title).toBe("New Title");
+  });
+
+  test("skips uploading files that already exist on R2", async () => {
+    const fs = createMemoryFs();
+    const uploadedFiles: { key: string }[] = [];
+    const existingKeys = new Set(["ep1/audio.mp3"]);
+    const storage = {
+      ...createStubPorts().storage,
+      uploadFile: async (_data: Uint8Array, key: string) => {
+        uploadedFiles.push({ key });
+      },
+      getFile: async () => null,
+      fileExists: async (_bucket: string, key: string) => existingKeys.has(key),
+    };
+
+    const ep1 = makeEpisode("ep1", "20240315");
+    const ep2 = makeEpisode("ep2", "20240310");
+    await fs.writeText("/local/ep1.mp3", "audio");
+    await fs.writeText("/local/ep2.mp3", "audio");
+
+    const sr = makeSyncResult([ep1, ep2], [
+      { localPath: "/local/ep1.mp3", key: "ep1/audio.mp3" },
+      { localPath: "/local/ep2.mp3", key: "ep2/audio.mp3" },
+    ]);
+
+    await publish(sr, TEST_CONFIG, fs, storage);
+
+    expect(uploadedFiles.sort((a, b) => a.key.localeCompare(b.key))).toEqual([
+      { key: "ep2/audio.mp3" },
+      { key: "feed.xml" },
+    ]);
   });
 });

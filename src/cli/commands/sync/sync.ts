@@ -3,7 +3,7 @@ import type { Command } from "commander";
 import { getConfig } from "@/config";
 import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
-import { createIncrementalPublisher } from "@/pipeline/incremental-publisher";
+import { publish } from "@/pipeline/publish";
 import { createRealPorts } from "@/ports/real";
 import { FsCache } from "@podpiper/dagraph";
 import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
@@ -26,7 +26,7 @@ export function registerSync(program: Command) {
       { whisper: 1 } as Record<string, number>,
     )
     .option("-c, --cookies", "Use browser cookies for yt-dlp")
-    .option("-f, --force", "Skip cache and reupload everything")
+    .option("-f, --force", "Skip DAG cache and re-execute all pipeline nodes")
     .option("-d, --dry-run", "Show plan and exit without executing")
     .action(
       async (
@@ -62,20 +62,17 @@ export function registerSync(program: Command) {
 
         const executionCtx = { cache, fs: ports.fs, casBaseDir };
         const progress = createProgressRenderer(analysis, opts.parallel);
-        const publisher = createIncrementalPublisher(config, ports.fs, ports.storage);
         const syncResult = await sync(graph, refs, ports.fs, executionCtx, {
           maxParallelism: opts.parallel,
           concurrencyLimits: opts.concurrency,
-          onAction: (action) => {
-            progress.onAction(action);
-            publisher.onAction(action);
-          },
+          onAction: progress.onAction,
+          force: opts.force,
         });
         progress.finish();
         renderFinalSummary(syncResult.results);
 
         console.log("Publishing...");
-        await publisher.flush(syncResult);
+        await publish(syncResult, config, ports.fs, ports.storage);
         console.log("Done.");
       },
     );

@@ -21,7 +21,7 @@ export async function execute(
   runner: NodeRunner = localRunner,
   opts?: ExecuteOptions,
 ): Promise<ExecResult[]> {
-  const { maxParallelism, concurrencyLimits, onAction } = opts ?? {};
+  const { maxParallelism, concurrencyLimits, onAction, force } = opts ?? {};
   const nodes = graph.getNodes();
   validateNoCycles(nodes);
   const state = execState.createExecState(nodes.values());
@@ -45,7 +45,7 @@ export async function execute(
     const actionKey = computeHash(node, depContentHashes);
     const casDir = `${ctx.casBaseDir}/${actionKey}`;
 
-    const cached = await ctx.cache.get(actionKey);
+    const cached = !force ? await ctx.cache.get(actionKey) : undefined;
     if (cached && (await verifyOutputs(cached, ctx.fs.hashFile))) {
       dispatch({
         type: "cached",

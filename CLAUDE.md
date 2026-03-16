@@ -1,46 +1,66 @@
 - IMPORTANT: Skip sycophantic flattery; avoid hollow praise and empty validation. Probe my assumptions, surface bias, present counter-evidence, challenge emotional framing, and disagree openly when warranted; agreement must be earned through reason
-- IMPORTANT: When I suggest non-idiomatic naming, patterns, or approaches, proactively point out the idiomatic alternative and explain why it's preferred
-- When I describe what I want to build or change, start by identifying the key semantic decisions and their tradeoffs. Surface ambiguous choices as questions rather than silently picking one. Name the mental model and confirm it before writing code.
+- IMPORTANT: When I suggest non-idiomatic naming, patterns, or approaches, proactively point out the idiomatic alternative and explain why it's preferred. Teach me the idioms of the language/framework we're working in
 
-## Programming Style
+General programming principles:
 
-1. All configuration in global variables or a single config file
-2. Functions over objects wherever possible
-3. Minimal comments and whitespace — only when code is genuinely hard to follow
-4. Simple, straight-line code over complex abstractions
-5. Use libraries, don't reimplement
-6. Look up API documentation on the web rather than guessing
-7. Write it, reflect on quality/simplicity/correctness, then rewrite
-8. Prefer idiomatic solutions for the language/framework
+1. put all configuration in global variables that I can edit, or in a single config file.
+2. use functions instead of objects wherever possible
+3. prioritize low amounts of comments and whitespace. Only include comments if they are necessary to understand the code because it is really complicated
+4. prefer simple, straightline code to complex abstractions
+5. use libraries instead of reimplementing things from scratch
+6. look up documentation for APIs on the web instead of trying to remember things from scratch
+7. write the program, reflect on its quality, simplicity, correctness, and ease of modification, and then go back and write a second version
+8. prefer idiomatic solutions — use the conventions, naming patterns, and standard approaches of the language/framework rather than inventing custom ones
 
-## podpiper
+## Project
 
-CLI tool to download YouTube channels as podcast RSS feeds, hosted on Cloudflare R2. Bun + TypeScript (`bunx tsgo` for typechecking). Entry: `src/cli/cli.ts` (Commander: `sync`, `check`, `graph`).
+**podpiper** - CLI tool to download YouTube channels as podcast RSS feeds, hosted on Cloudflare R2.
 
-### Core Semantic Decisions
+### Architecture
 
-Keep this section updated. When a new architectural or semantic decision is made, add it here with its rationale and implications.
+- **Runtime**: Bun + TypeScript (`bunx tsgo` for typechecking)
+- **Entry**: `src/cli/cli.ts` using Commander with `sync`, `check`, and `graph` commands
+- **Config**: `src/config.ts` - channel definitions with YouTube URL, R2 config, podcast metadata, optional LLM prompts
+- **Execution**: DAG-based pipeline with automatic caching and parallel execution
+- **Ports**: All external tools (yt-dlp, ffmpeg, whisper-cli, claude, S3, filesystem) are behind interfaces in `src/ports/types.ts`, with real/mock/stub implementations
+- **DAG engine**: `packages/dagraph/` is a **reusable, generic workspace package** — it must stay free of podcast-specific concerns (intended for use outside podpiper). The bridge: `src/pipeline/actions/define-action.ts` wraps the generic `defineAction` with a `Ports`-typed context via `defineActionWithPorts`.
 
-**Ports and adapters.** All external tools (yt-dlp, ffmpeg, whisper-cli, claude, S3, filesystem) are behind port interfaces in `src/ports/types.ts` with real/mock/stub implementations. Logic depends only on ports, never on concrete externals. This is the testability and substitutability boundary.
+### Data Flow
 
-**Pipeline as DAG.** Each podcast action (download, transcode, transcribe, summarize, generate RSS) is a DAG node with declared inputs/outputs. The DAG engine handles caching, parallelism, and execution order. New features are "add a node and declare edges," not "find the right place in a sequence."
-
-**dagraph is generic.** `packages/dagraph/` is a reusable DAG execution engine with zero podcast knowledge. It exposes a context object that gets threaded through all node execution — dagraph doesn't know or care what's in it. For podpiper, that context is the ports. The bridge (`src/pipeline/actions/define-action.ts`) wraps dagraph's generic `defineAction` to type the context as `Ports`. If something feels like it belongs in dagraph, ask: does this make sense for any DAG, or just for podcasts?
-
-**Config drives everything.** `src/config.ts` holds channel definitions with YouTube URL, R2 config, podcast metadata, optional LLM prompts. The pipeline reads config, not ad-hoc arguments scattered through the code.
+1. `discoverVideos()` gets all videos via `yt-dlp --flat-playlist`
+2. `buildPipelineGraph()` wires a DAG per video: download -> {thumbnail, transcribe} -> {chapters, summary} -> rss_entry
+3. `sync()` executes the DAG with caching - unchanged nodes are skipped via SHA256 hash matching
+4. `publish()` uploads files to R2, fetches existing feed, merges episodes, generates and uploads new feed.xml. Only nodes with status `"done"` (freshly executed, not cached) contribute uploads — cached episodes are assumed to already be on R2.
 
 ### Testing
 
-Test real logic: data transformations, parsing, merge semantics, cache invalidation, integration flows. Test doubles in `src/ports/` (mock.ts, stub.ts, memory-fs.ts).
+Never generate tests that fall into these categories:
 
-Don't generate:
+1. **Mock wiring tests** — tests that only verify a dependency/port was called with expected arguments without testing any real logic. If the test would pass with _any_ implementation that calls the mock, it's testing nothing. Example: "calls ffmpeg.cropThumbnail with correct paths".
+2. **Null/empty guard tests** — tests that only verify trivial behavior for null, undefined, or empty inputs (`undefined -> []`, `missing file -> null`, `[] -> []`). These are obvious from the code and not worth maintaining. Example: "returns empty for undefined", "handles both empty lists".
+3. **Redundant assertion tests** — tests whose assertions are already fully covered by other tests in the same suite. If removing the test loses zero coverage of behavior, it shouldn't exist. Example: a "returns correct path" test when path is already asserted in "generates when output missing".
+4. **Piecemeal assertions** — never assert individual fields/keys of a structure one at a time. Build the full expected object and compare with a single `toEqual`. This gives cmp.Diff-style output on failure and makes the expected shape obvious at a glance.
 
-- **Mock wiring tests** that only verify a port was called with expected args
-- **Null/empty guard tests** for trivially obvious behavior
-- **Redundant tests** whose assertions are already covered by other tests in the suite
-- **Piecemeal assertions** — build the full expected object and use a single `toEqual`
+Tests should exercise real logic: data transformations, parsing, merge semantics, cache invalidation, integration flows. Test doubles are in `src/ports/` (mock.ts, stub.ts, memory-fs.ts).
 
-### Reference Docs
+### Coding Patterns
 
-- `docs/rss-specs.md` — XML namespaces, artwork specs, Pocket Casts rules, transcript format
-- `docs/adding-pipeline-action.md` — step-by-step recipe for new pipeline actions
+**File paths**: Actions receive an `outputDir` parameter (the CAS directory `{casBaseDir}/{actionKey}/`) and write all output files there. Use `${outputDir}/filename` for output paths. Never construct paths from `config.outputDir` + video ID — the executor manages output directories.
+
+### Cache Constraints
+
+**Action key = hash(nodeName + config + sorted dep content hashes)**
+
+- **Config changes invalidate cache.** If you change an ffmpeg filter or LLM prompt, bump the config string/version. If you don't, cached outputs won't re-execute.
+- **Dep hashes are sorted** before hashing, so reordering the `deps` record doesn't invalidate cache.
+- **`--force` vs config bump:** `--force` (CLI flag) skips cache entirely for a one-off retry. Config bumps are for when the action's logic actually changed and all future runs should re-execute.
+- **Early cutoff:** If a node re-executes but produces files with identical content, the `contentHash` doesn't change. Downstream nodes hit cache. Config rollbacks are cheap.
+- **Output verification:** Before accepting a cache hit, the executor verifies all output files still exist and their content hash matches. Missing or corrupted files trigger re-execution.
+
+### RSS Feed Specs
+
+See `docs/rss-specs.md` for XML namespace requirements, artwork specs, and Pocket Casts episode artwork rules.
+
+### Adding a Pipeline Action
+
+See `docs/adding-pipeline-action.md` for the step-by-step recipe.
