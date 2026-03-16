@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
 
+import { registerBackfill } from "@/cli/commands/backfill/backfill";
 import { registerCheck } from "@/cli/commands/check/check";
 import { registerGraph } from "@/cli/commands/graph/graph";
 import { registerServe } from "@/cli/commands/serve/serve";
@@ -16,4 +17,5 @@ registerSync(program);
 registerCheck(program);
 registerGraph(program);
 registerServe(program);
+registerBackfill(program);
 program.parse();

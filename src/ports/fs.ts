@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 
 import type { FileSystem } from "./types";
 
@@ -22,6 +22,9 @@ export function createRealFs(): FileSystem {
     writeText: async (path, content) => {
       await Bun.write(path, content);
     },
+    writeBinary: async (path, data) => {
+      await Bun.write(path, data);
+    },
     stat: async (path) => {
       const f = Bun.file(path);
       if (!(await f.exists())) return null;
@@ -30,5 +33,6 @@ export function createRealFs(): FileSystem {
     ensureDir: async (path) => {
       await mkdir(path, { recursive: true });
     },
+    readdir: async (path) => readdir(path),
   };
 }

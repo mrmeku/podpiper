@@ -1,6 +1,6 @@
 import type { Config } from "./types";
 
-export type ChannelDef = Omit<Config, "outputDir">;
+export type ChannelDef = Omit<Config, "outputDir" | "casBaseDir">;
 
 export const channels: Record<string, ChannelDef> = {
   heidi: {
@@ -67,5 +67,6 @@ export function getConfig(name: string): Config {
     const available = Object.keys(channels).join(", ");
     throw new Error(`Unknown channel "${name}". Available: ${available}`);
   }
-  return { ...def, outputDir: `./output/${name}` };
+  const outputDir = `./output/${name}`;
+  return { ...def, outputDir, casBaseDir: `${outputDir}/cas` };
 }

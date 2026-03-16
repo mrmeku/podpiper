@@ -8,7 +8,7 @@ function getContentType(filename: string): string {
   if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
   if (filename.endsWith(".json")) return "application/json";
   if (filename.endsWith(".txt")) return "text/plain";
-  if (filename.endsWith(".srt")) return "text/srt";
+  if (filename.endsWith(".srt")) return "application/x-subrip";
   return "application/octet-stream";
 }
 

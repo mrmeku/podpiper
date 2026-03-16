@@ -25,7 +25,7 @@ function buildAndSync(
   const executionCtx: ExecutionContext = {
     cache,
     fs: ports.fs,
-    casBaseDir: `${config.outputDir}/cas`,
+    casBaseDir: config.casBaseDir,
   };
   return sync(graph, refs, ports.fs, executionCtx, opts);
 }

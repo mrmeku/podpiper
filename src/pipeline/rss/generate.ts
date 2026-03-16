@@ -181,7 +181,7 @@ function buildItem(config: Config, ep: Episode): RssItem {
     ...(ep.transcript && {
       "podcast:transcript": {
         "@_url": `${config.storage.publicUrl}/${encodeUrl(ep.transcript)}`,
-        "@_type": "text/srt",
+        "@_type": "application/x-subrip",
       },
     }),
     "podcast:contentLink": {

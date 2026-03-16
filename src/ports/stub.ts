@@ -13,9 +13,11 @@ export function createStubPorts(): Ports {
       readBinary: async () => new Uint8Array(),
       readJson: async () => ({}) as never,
       writeText: noop,
+      writeBinary: noop,
       stat: async () => null,
       hashFile: async () => "",
       ensureDir: noop,
+      readdir: async () => [],
     },
     ytdlp: {
       fetchVideoList: async () => [],

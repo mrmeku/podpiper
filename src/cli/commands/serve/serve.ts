@@ -22,9 +22,8 @@ export function registerServe(program: Command) {
 
       for (const [name] of Object.entries(channels)) {
         const config = getConfig(name);
-        const casBaseDir = `${config.outputDir}/cas`;
-        const cache = new FsCache(casBaseDir, ports.fs);
-        const executionCtx = { cache, fs: ports.fs, casBaseDir };
+        const cache = new FsCache(config.casBaseDir, ports.fs);
+        const executionCtx = { cache, fs: ports.fs, casBaseDir: config.casBaseDir };
 
         const topology = videoPipelineTopology(ports, config);
         const videoPipeline = toHatchetVideoWorkflow(

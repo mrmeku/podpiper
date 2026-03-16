@@ -7,9 +7,11 @@ export interface FileSystem {
   readBinary: (path: string) => Promise<Uint8Array>;
   readJson: <T = unknown>(path: string) => Promise<T>;
   writeText: (path: string, content: string) => Promise<void>;
+  writeBinary: (path: string, data: Uint8Array) => Promise<void>;
   stat: (path: string) => Promise<{ size: number } | null>;
   hashFile: (path: string) => Promise<string>;
   ensureDir: (path: string) => Promise<void>;
+  readdir: (path: string) => Promise<string[]>;
 }
 
 export interface YouTubeDownloader {

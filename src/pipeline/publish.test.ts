@@ -11,6 +11,7 @@ import { parseExistingFeed } from "./rss/parse";
 const TEST_CONFIG: Config = {
   channelUrl: "https://www.youtube.com/@test",
   outputDir: "/test/output",
+  casBaseDir: "/test/output/cas",
   storage: { bucket: "test-bucket", publicUrl: "https://cdn.test.com" },
   podcast: {
     title: "Test Podcast",

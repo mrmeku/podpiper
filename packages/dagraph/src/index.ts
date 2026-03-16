@@ -3,7 +3,7 @@ export { defineAction, type ActionDef, type ActionSpec, type NodeRefOf, type Out
 export type { ExecAction } from "./exec-state";
 export { execute, type ExecutionContext } from "./execute";
 export { Graph, addNode, localRunner } from "./graph";
-export { jsonParse } from "./helpers";
+export { collectPaths, jsonParse } from "./helpers";
 export type {
   ActionFunc,
   AnalysisResult,

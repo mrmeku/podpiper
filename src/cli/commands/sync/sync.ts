@@ -1,11 +1,12 @@
 import type { Command } from "commander";
 
+import { createR2Cache } from "@/ports/r2-cache";
 import { getConfig } from "@/config";
 import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
 import { createRealPorts } from "@/ports/real";
-import { FsCache } from "@podpiper/dagraph";
+import { FsCache, TieredCache } from "@podpiper/dagraph";
 import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
 
 export function registerSync(program: Command) {
@@ -52,8 +53,15 @@ export function registerSync(program: Command) {
           console.log(`Processing ${videos.length} (limit=${opts.limit})`);
         }
 
-        const casBaseDir = `${config.outputDir}/cas`;
-        const cache = new FsCache(casBaseDir, ports.fs);
+        const casBaseDir = config.casBaseDir;
+        const localCache = new FsCache(casBaseDir, ports.fs);
+        const r2Cache = createR2Cache({
+          storage: ports.storage,
+          fs: ports.fs,
+          bucket: config.storage.bucket,
+          casBaseDir,
+        });
+        const cache = new TieredCache({ local: localCache, remote: r2Cache });
         const { graph, refs } = buildPipelineGraph(videos, ports, config);
 
         const analysis = graph.analyze();
@@ -66,7 +74,7 @@ export function registerSync(program: Command) {
           maxParallelism: opts.parallel,
           concurrencyLimits: opts.concurrency,
           onAction: progress.onAction,
-          force: opts.force,
+          force: opts.force || false,
         });
         progress.finish();
         renderFinalSummary(syncResult.results);

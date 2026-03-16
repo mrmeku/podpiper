@@ -26,6 +26,9 @@ export function createMemoryFs(initial?: Record<string, string | Uint8Array>): F
     writeText: async (path, content) => {
       files.set(path, content);
     },
+    writeBinary: async (path, data) => {
+      files.set(path, data);
+    },
     stat: async (path) => {
       const data = files.get(path);
       if (data === undefined) return null;
@@ -39,5 +42,17 @@ export function createMemoryFs(initial?: Record<string, string | Uint8Array>): F
       return createHash("sha256").update(bytes).digest("hex");
     },
     ensureDir: async () => {},
+    readdir: async (path) => {
+      const prefix = path.endsWith("/") ? path : `${path}/`;
+      const entries = new Set<string>();
+      for (const key of files.keys()) {
+        if (key.startsWith(prefix)) {
+          const rest = key.slice(prefix.length);
+          const name = rest.split("/")[0];
+          if (name) entries.add(name);
+        }
+      }
+      return [...entries];
+    },
   };
 }

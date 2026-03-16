@@ -156,6 +156,7 @@ export interface StorageConfig {
 export interface Config {
   channelUrl: string;
   outputDir: string;
+  casBaseDir: string;
   storage: StorageConfig;
   podcast: PodcastConfig;
   summaryPrompt?: string;
