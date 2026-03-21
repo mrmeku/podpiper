@@ -45,7 +45,7 @@ export function registerSync(program: Command) {
         const ports = createRealPorts(opts);
 
         console.log(`Discovering videos for ${channel}...`);
-        let videos = await ports.ytdlp.fetchVideoList(config.channelUrl);
+        let videos = await ports.ytdlp.fetchVideoList(config);
         console.log(`Found ${videos.length} videos`);
 
         if (opts.limit) {

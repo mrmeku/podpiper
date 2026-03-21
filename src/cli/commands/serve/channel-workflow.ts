@@ -29,7 +29,7 @@ export function registerChannelWorkflow(
   const discover = workflow.task({
     name: "discover",
     fn: async () => {
-      const allVideos = await ports.ytdlp.fetchVideoList(config.channelUrl);
+      const allVideos = await ports.ytdlp.fetchVideoList(config);
       const feedData = await ports.storage.getFile(config.storage.bucket, "feed.xml");
       const existing = new Set<string>();
       if (feedData) {

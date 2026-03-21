@@ -1,5 +1,5 @@
 import type { JsonPath } from "@/typed-path";
-import type { Chapter, VideoInfo, WhisperJson } from "@/types";
+import type { Chapter, Config, VideoInfo, WhisperJson } from "@/types";
 
 export interface FileSystem {
   exists: (path: string) => Promise<boolean>;
@@ -15,7 +15,7 @@ export interface FileSystem {
 }
 
 export interface YouTubeDownloader {
-  fetchVideoList: (channelUrl: string) => Promise<VideoInfo[]>;
+  fetchVideoList: (config: Pick<Config, "channelUrl" | "startDate">) => Promise<VideoInfo[]>;
   fetchVideoTitles: (videoIds: string[]) => Promise<Record<string, string>>;
   downloadVideo: (outputDir: string, videoId: string) => Promise<void>;
   downloadChannelArtwork: (outputDir: string, channelUrl: string) => Promise<void>;

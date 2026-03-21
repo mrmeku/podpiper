@@ -56,7 +56,7 @@ export function createTestPorts(existingFs?: ReturnType<typeof createMemoryFs>) 
   const fs = existingFs ?? createMemoryFs();
   const ports = createSpyPorts(fs, {
     ytdlp: {
-      fetchVideoList: async () => [],
+      fetchVideoList: async (_config) => [],
       fetchVideoTitles: async () => ({}),
       downloadVideo: async (outputDir: string, videoId: string) => {
         const infoMap: Record<string, YtDlpInfo> = {

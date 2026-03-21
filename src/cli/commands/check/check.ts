@@ -16,7 +16,7 @@ export function registerCheck(program: Command) {
       const config = getConfig(channel);
       const ports = createRealPorts();
 
-      let videos = await ports.ytdlp.fetchVideoList(config.channelUrl);
+      let videos = await ports.ytdlp.fetchVideoList(config);
       if (opts.limit) videos = videos.slice(0, opts.limit);
       const missing = await checkMissing(videos, config, ports.storage);
       console.log(`${missing.length} videos not in feed:`);

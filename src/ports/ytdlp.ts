@@ -25,8 +25,11 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
   const ytdlp = (args: string[]) => $`yt-dlp ${[...baseArgs, ...args]}`.quiet();
 
   return {
-    fetchVideoList: async (channelUrl) => {
-      const output = await ytdlp(["--flat-playlist", "--print", PRINT_FMT, channelUrl]).text();
+    fetchVideoList: async (config) => {
+      const args = config.startDate
+        ? ["-s", "--dateafter", config.startDate, "--print", PRINT_FMT, config.channelUrl]
+        : ["--flat-playlist", "--print", PRINT_FMT, config.channelUrl];
+      const output = await ytdlp(args).text();
       return parseVideoList(output);
     },
     fetchVideoTitles: async (videoIds) => {

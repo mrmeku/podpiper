@@ -45,6 +45,22 @@ CHANNEL-SPECIFIC RULES:
       copyright: "Heidi Priebe",
     },
   },
+  atrioc: {
+    channelUrl: "https://www.youtube.com/channel/UCdBXOyqr8cDshsp7kcKDAkg/videos",
+    startDate: "20260318",
+    storage: {
+      bucket: "atrioc",
+      publicUrl: "https://atrioc.cast.mrmeku.com",
+    },
+    podcast: {
+      title: "Big A",
+      author: "Atrioc",
+      description: "Audio from Big A's YouTube channel",
+      category: "News",
+      subcategory: "News Commentary",
+      copyright: "Atrioc",
+    },
+  },
   asianometry: {
     channelUrl: "https://www.youtube.com/asianometry",
     storage: {
