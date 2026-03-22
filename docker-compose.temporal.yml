@@ -39,6 +39,15 @@ services:
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CORS_ORIGINS=http://localhost:8233
+      - TEMPORAL_UI_CONTENT_SECURITY_POLICY=
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - temporal-ui
+    restart: always
 
 volumes:
   temporal_postgres_data:
