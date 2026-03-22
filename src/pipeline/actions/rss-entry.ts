@@ -14,7 +14,7 @@ export interface RssEntryParams {
   videoId: string;
   deps: {
     download: NodeRefOf<download>;
-    transcribe: NodeRefOf<transcribe>;
+    transcribe?: NodeRefOf<transcribe>;
     thumbnail: NodeRefOf<thumbnail>;
     chapters: NodeRefOf<chapters>;
     embedChapters?: NodeRefOf<embedChapters>;
@@ -98,7 +98,7 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, {
         ? { chapters: chaptersRaw, generated: false }
         : chaptersRaw;
       const summaryText = inputs.summary ? await fs.readText(inputs.summary) : undefined;
-      const srtExists = await fs.exists(inputs.transcribe.srt);
+      const srtExists = inputs.transcribe ? await fs.exists(inputs.transcribe.srt) : false;
       const audioPath = inputs.embedChapters ?? inputs.download.audio;
       const audioFileSize = (await fs.stat(audioPath))?.size;
       const ytIds = extractYouTubeIds(info.description ?? "");
@@ -107,7 +107,7 @@ export const rssEntry = defineActionWithPorts<RssEntryParams, {
       const episode = buildEpisode(videoId, info, chaptersResult, summaryText, audioFileSize, srtExists, resolvedLinks);
       const uploads = await buildUploadManifest(
         episode,
-        { audio: audioPath, thumbnail: inputs.thumbnail, srt: inputs.transcribe.srt },
+        { audio: audioPath, thumbnail: inputs.thumbnail, srt: inputs.transcribe?.srt ?? "" },
         srtExists,
         chaptersResult.chapters,
         outputDir,

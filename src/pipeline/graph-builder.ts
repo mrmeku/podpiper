@@ -30,11 +30,13 @@ function addVideoSubgraph(
     kind: NodeKind.Download,
     videoId: video.id,
   });
-  const transcribeRef = transcribe.addNode(scope, ports, {
-    kind: NodeKind.Transcribe,
-    videoId: video.id,
-    deps: { download: downloadRef },
-  });
+  const transcribeRef = config.skipTranscribe
+    ? undefined
+    : transcribe.addNode(scope, ports, {
+        kind: NodeKind.Transcribe,
+        videoId: video.id,
+        deps: { download: downloadRef },
+      });
   const thumbnailRef = thumbnail.addNode(scope, ports, {
     kind: NodeKind.Thumbnail,
     videoId: video.id,
@@ -43,7 +45,7 @@ function addVideoSubgraph(
   const chaptersRef = chapters(config.chapterPrompt).addNode(scope, ports, {
     kind: NodeKind.Chapters,
     videoId: video.id,
-    deps: { download: downloadRef, transcribe: transcribeRef },
+    deps: { download: downloadRef, ...(transcribeRef && { transcribe: transcribeRef }) },
   });
   const embedChaptersRef = embedChapters.addNode(scope, ports, {
     kind: NodeKind.EmbedChapters,
@@ -52,12 +54,12 @@ function addVideoSubgraph(
   });
   const deps: RssEntryParams["deps"] = {
     download: downloadRef,
-    transcribe: transcribeRef,
+    ...(transcribeRef && { transcribe: transcribeRef }),
     thumbnail: thumbnailRef,
     chapters: chaptersRef,
     embedChapters: embedChaptersRef,
   };
-  if (config.summaryPrompt) {
+  if (config.summaryPrompt && transcribeRef) {
     deps.summary = summary(config.summaryPrompt).addNode(scope, ports, {
       kind: NodeKind.Summary,
       videoId: video.id,

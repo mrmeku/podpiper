@@ -26,9 +26,10 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
 
   return {
     fetchVideoList: async (config) => {
-      const args = config.startDate
-        ? ["-s", "--dateafter", config.startDate, "--print", PRINT_FMT, config.channelUrl]
-        : ["--flat-playlist", "--print", PRINT_FMT, config.channelUrl];
+      const playlistItems = config.playlistOffset
+        ? ["--playlist-items", `1:${config.playlistOffset}`]
+        : [];
+      const args = ["--flat-playlist", ...playlistItems, "--print", PRINT_FMT, config.channelUrl];
       const output = await ytdlp(args).text();
       return parseVideoList(output);
     },
@@ -66,7 +67,9 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
       if (result.exitCode !== 0) {
         const stderr = result.stderr.toString().trim();
         if (!opts?.cookies && stderr.includes("Sign in to confirm your age")) {
-          const retry = await $`yt-dlp --cookies-from-browser chrome ${[...baseArgs, ...dlArgs]}`.quiet().nothrow();
+          const retry = await $`yt-dlp --cookies-from-browser chrome ${[...baseArgs, ...dlArgs]}`
+            .quiet()
+            .nothrow();
           if (retry.exitCode !== 0) {
             const retryStderr = retry.stderr.toString().trim();
             throw new Error(retryStderr || `yt-dlp exited with code ${retry.exitCode}`);

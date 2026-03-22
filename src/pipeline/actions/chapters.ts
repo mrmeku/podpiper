@@ -27,7 +27,7 @@ function convertYtDlpChapters(chapters?: YtDlpChapter[]): Chapter[] {
 export interface ChaptersParams {
   kind: typeof NodeKind.Chapters;
   videoId: string;
-  deps: { download: NodeRefOf<download>; transcribe: NodeRefOf<transcribe> };
+  deps: { download: NodeRefOf<download>; transcribe?: NodeRefOf<transcribe> };
 }
 
 interface ChaptersConfig {
@@ -42,7 +42,7 @@ export const chapters = (chapterPrompt: string | undefined) =>
       const info = await readJson(ports.fs, inputs.download.info);
       const ytChapters = convertYtDlpChapters(info.chapters);
       let result: ChaptersResult = { chapters: ytChapters, generated: false };
-      if (ytChapters.length === 0 && config.prompt) {
+      if (ytChapters.length === 0 && config.prompt && inputs.transcribe) {
         const whisper = await readJsonIfExists(ports.fs, inputs.transcribe.json);
         if (whisper) {
           const prompt = buildChapterPrompt(whisper.transcription, config.prompt);

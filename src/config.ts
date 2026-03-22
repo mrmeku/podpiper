@@ -47,7 +47,8 @@ CHANNEL-SPECIFIC RULES:
   },
   atrioc: {
     channelUrl: "https://www.youtube.com/channel/UCdBXOyqr8cDshsp7kcKDAkg/videos",
-    startDate: "20260318",
+    playlistOffset: 5,
+    skipTranscribe: true,
     storage: {
       bucket: "atrioc",
       publicUrl: "https://atrioc.cast.mrmeku.com",
