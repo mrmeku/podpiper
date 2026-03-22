@@ -36,7 +36,7 @@ General programming principles:
 
 Never generate tests that fall into these categories:
 
-1. **Mock wiring tests** — tests that only verify a dependency/port was called with expected arguments without testing any real logic. If the test would pass with _any_ implementation that calls the mock, it's testing nothing. Example: "calls ffmpeg.cropThumbnail with correct paths".
+1. **Mock wiring tests** — tests that only verify a dependency/port was called with expected arguments without testing any real logic. If the test would pass with _any_ implementation that calls the mock, it's testing nothing. Example: "calls ffmpeg.squareThumbnail with correct paths".
 2. **Null/empty guard tests** — tests that only verify trivial behavior for null, undefined, or empty inputs (`undefined -> []`, `missing file -> null`, `[] -> []`). These are obvious from the code and not worth maintaining. Example: "returns empty for undefined", "handles both empty lists".
 3. **Redundant assertion tests** — tests whose assertions are already fully covered by other tests in the same suite. If removing the test loses zero coverage of behavior, it shouldn't exist. Example: a "returns correct path" test when path is already asserted in "generates when output missing".
 4. **Piecemeal assertions** — never assert individual fields/keys of a structure one at a time. Build the full expected object and compare with a single `toEqual`. This gives cmp.Diff-style output on failure and makes the expected shape obvious at a glance.

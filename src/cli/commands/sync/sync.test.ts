@@ -112,8 +112,8 @@ describe("sync pipeline", () => {
 
     // S3 uploads + port calls
     expect({
-      downloads: ports.ytdlp.downloadVideo.mock.calls.map((c: any) => c[1]).sort(),
-      cropThumbnails: ports.ffmpeg.cropThumbnail.mock.calls
+      downloads: ports.ytdlp.downloadAudio.mock.calls.map((c: any) => c[1]).sort(),
+      squareThumbnails: ports.ffmpeg.squareThumbnail.mock.calls
         .map((c: any) => [
           (c[0] as string).split("/").pop(),
           (c[1] as string).split("/").pop(),
@@ -125,7 +125,7 @@ describe("sync pipeline", () => {
       uploads: getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key)),
     }).toEqual({
       downloads: ["vid_aaa", "vid_bbb"],
-      cropThumbnails: [
+      squareThumbnails: [
         ["audio.jpg", "thumbnail.jpg"],
         ["audio.jpg", "thumbnail.jpg"],
       ],
@@ -161,7 +161,7 @@ describe("sync pipeline", () => {
     await publish(r1, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect({
       dag: countExec(r1.results),
-      downloads: ports.ytdlp.downloadVideo.mock.calls.length,
+      downloads: ports.ytdlp.downloadAudio.mock.calls.length,
       uploads: ports.storage.uploadFile.mock.calls.length,
     }).toEqual({
       dag: { exec: 16, skip: 0, fail: 0 },
@@ -169,14 +169,14 @@ describe("sync pipeline", () => {
       uploads: 9,
     });
 
-    ports.ytdlp.downloadVideo.mockClear();
+    ports.ytdlp.downloadAudio.mockClear();
     ports.storage.uploadFile.mockClear();
 
     const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     await publish(r2, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect({
       dag: countExec(r2.results),
-      downloads: ports.ytdlp.downloadVideo.mock.calls.length,
+      downloads: ports.ytdlp.downloadAudio.mock.calls.length,
       uploads: ports.storage.uploadFile.mock.calls.length,
     }).toEqual({
       dag: { exec: 0, skip: 16, fail: 0 },
@@ -209,7 +209,7 @@ describe("sync pipeline", () => {
     await publish(r1, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect({
       dag: countExec(r1.results),
-      downloads: ports.ytdlp.downloadVideo.mock.calls.length,
+      downloads: ports.ytdlp.downloadAudio.mock.calls.length,
       uploads: ports.storage.uploadFile.mock.calls.length,
     }).toEqual({
       dag: { exec: 16, skip: 0, fail: 0 },
@@ -217,7 +217,7 @@ describe("sync pipeline", () => {
       uploads: 9,
     });
 
-    ports.ytdlp.downloadVideo.mockClear();
+    ports.ytdlp.downloadAudio.mockClear();
     ports.storage.uploadFile.mockClear();
 
     const r2 = await buildAndSync(
@@ -229,7 +229,7 @@ describe("sync pipeline", () => {
     await publish(r2, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect({
       dag: countExec(r2.results),
-      downloads: ports.ytdlp.downloadVideo.mock.calls.length,
+      downloads: ports.ytdlp.downloadAudio.mock.calls.length,
       uploads: ports.storage.uploadFile.mock.calls.length,
     }).toEqual({
       dag: { exec: 0, skip: 16, fail: 0 },
@@ -278,8 +278,8 @@ describe("sync pipeline", () => {
 
     // Port calls + uploads (fresh ports, only captures run 2 calls)
     expect({
-      downloads: p2.ytdlp.downloadVideo.mock.calls.map((c: any) => c[1]),
-      cropThumbnails: p2.ffmpeg.cropThumbnail.mock.calls.map((c: any) => [
+      downloads: p2.ytdlp.downloadAudio.mock.calls.map((c: any) => c[1]),
+      squareThumbnails: p2.ffmpeg.squareThumbnail.mock.calls.map((c: any) => [
         (c[0] as string).split("/").pop(),
         (c[1] as string).split("/").pop(),
       ]),
@@ -289,7 +289,7 @@ describe("sync pipeline", () => {
       uploads: getUploadCalls(p2).sort((a, b) => a.key.localeCompare(b.key)),
     }).toEqual({
       downloads: ["vid_ccc"],
-      cropThumbnails: [["audio.jpg", "thumbnail.jpg"]],
+      squareThumbnails: [["audio.jpg", "thumbnail.jpg"]],
       processChannelArtwork: 0,
       claudePrompts: [expect.stringContaining("Mock transcript")],
       storageGetFile: 1,
@@ -315,7 +315,7 @@ describe("sync pipeline", () => {
     await publish(r3, TEST_CONFIG, p3.fs, p3.storage, p3.clock.now);
     expect({
       run3: countExec(r3.results),
-      downloadCalls: p3.ytdlp.downloadVideo.mock.calls.length,
+      downloadCalls: p3.ytdlp.downloadAudio.mock.calls.length,
       uploadCalls: p3.storage.uploadFile.mock.calls.length,
     }).toEqual({
       run3: { exec: 0, skip: 23, fail: 0 },
@@ -451,10 +451,10 @@ describe("sync pipeline", () => {
     const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
     expect(countExec(r1.results)).toEqual({ exec: 16, skip: 0, fail: 0 });
 
-    ports.ytdlp.downloadVideo.mockClear();
+    ports.ytdlp.downloadAudio.mockClear();
 
     const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache, { force: true });
     expect(countExec(r2.results)).toEqual({ exec: 16, skip: 0, fail: 0 });
-    expect(ports.ytdlp.downloadVideo.mock.calls.length).toBe(2);
+    expect(ports.ytdlp.downloadAudio.mock.calls.length).toBe(2);
   });
 });

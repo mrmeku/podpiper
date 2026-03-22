@@ -13,7 +13,7 @@ export const thumbnail = defineActionWithPorts<ThumbnailParams, string>({
   config: "crop-v1",
   action: (ports) => async (_params, inputs, outputDir) => {
     const outputPath = `${outputDir}/thumbnail.jpg`;
-    await ports.ffmpeg.cropThumbnail(inputs.download.thumb, outputPath);
+    await ports.ffmpeg.squareThumbnail(inputs.download.thumb, outputPath);
     return outputPath;
   },
 });

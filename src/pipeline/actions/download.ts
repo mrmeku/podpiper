@@ -16,7 +16,7 @@ export const download = defineActionWithPorts<DownloadParams, {
 }>({
   config: "ytdlp-v1,quality=0,embed-thumb,embed-chapters",
   action: (ports) => async (params, _inputs, outputDir) => {
-    await ports.ytdlp.downloadVideo(outputDir, params.videoId);
+    await ports.ytdlp.downloadAudio(outputDir, params.videoId);
     return {
       audio: `${outputDir}/audio.mp3`,
       info: jsonPath<YtDlpInfo>(`${outputDir}/audio.info.json`),

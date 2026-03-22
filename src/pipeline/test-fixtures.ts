@@ -58,7 +58,7 @@ export function createTestPorts(existingFs?: ReturnType<typeof createMemoryFs>) 
     ytdlp: {
       fetchVideoList: async (_config) => [],
       fetchVideoTitles: async () => ({}),
-      downloadVideo: async (outputDir: string, videoId: string) => {
+      downloadAudio: async (outputDir: string, videoId: string) => {
         const infoMap: Record<string, YtDlpInfo> = {
           vid_aaa: VID_AAA_INFO,
           vid_bbb: VID_BBB_INFO,

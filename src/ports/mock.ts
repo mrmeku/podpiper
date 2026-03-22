@@ -36,7 +36,7 @@ export function createMockPorts(
       ...overrides?.ytdlp,
     },
     ffmpeg: {
-      cropThumbnail: async (_input, output) => {
+      squareThumbnail: async (_input, output) => {
         await fs.writeText(output, "fake-cropped-thumb");
       },
       processChannelArtwork: async (_raw, output) => {

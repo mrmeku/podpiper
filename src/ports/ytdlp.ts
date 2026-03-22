@@ -45,7 +45,7 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
       }
       return titles;
     },
-    downloadVideo: async (outputDir, videoId) => {
+    downloadAudio: async (outputDir, videoId) => {
       const url = `https://www.youtube.com/watch?v=${videoId}`;
       const dlArgs = [
         "-x",

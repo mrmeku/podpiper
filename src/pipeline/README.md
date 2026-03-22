@@ -29,7 +29,7 @@ Two videos exercise both code paths:
 
 **S3 uploads** — 8 files uploaded with correct keys and cache-control headers. vid_bbb has no SRT or chapters upload.
 
-**Port calls** — `downloadVideo` called twice, `cropThumbnail` called twice, `claude.call` called once (only vid_aaa has SRT for summarization), `storage.getFile` called once for existing feed check.
+**Port calls** — `downloadAudio` called twice, `squareThumbnail` called twice, `claude.call` called once (only vid_aaa has SRT for summarization), `storage.getFile` called once for existing feed check.
 
 **Episode data** — vid_aaa gets LLM summary and 3 chapters; vid_bbb falls back to info.json description with empty chapters.
 

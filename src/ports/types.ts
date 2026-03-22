@@ -17,12 +17,12 @@ export interface FileSystem {
 export interface YouTubeDownloader {
   fetchVideoList: (config: Pick<Config, "channelUrl" | "playlistOffset">) => Promise<VideoInfo[]>;
   fetchVideoTitles: (videoIds: string[]) => Promise<Record<string, string>>;
-  downloadVideo: (outputDir: string, videoId: string) => Promise<void>;
+  downloadAudio: (outputDir: string, videoId: string) => Promise<void>;
   downloadChannelArtwork: (outputDir: string, channelUrl: string) => Promise<void>;
 }
 
 export interface MediaProcessor {
-  cropThumbnail: (input: string, output: string) => Promise<void>;
+  squareThumbnail: (input: string, output: string) => Promise<void>;
   processChannelArtwork: (rawPath: string, outputPath: string) => Promise<void>;
   embedChapters: (audioPath: string, chapters: Chapter[], outputPath: string) => Promise<void>;
 }
