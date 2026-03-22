@@ -101,12 +101,7 @@ describe("temporal serve", () => {
     // ---- Temporal: channelWorkflow via test server ----
     const { ports: temporalPorts } = createTestPorts();
     temporalPorts.ytdlp.fetchVideoList.mockImplementation(async () => TEST_VIDEOS);
-    const temporalCtx: ExecutionContext = {
-      cache: new MemCache(),
-      fs: temporalPorts.fs,
-      casBaseDir: `${TEST_CONFIG.outputDir}/cas`,
-    };
-    const activities = createActivities(temporalPorts, TEST_CONFIG, temporalCtx);
+    const activities = createActivities(temporalPorts, () => TEST_CONFIG);
 
     await withWorkers(activities, async () => {
       await testEnv.client.workflow.execute<(input: ChannelWorkflowInput) => Promise<void>>(
@@ -146,12 +141,7 @@ describe("temporal serve", () => {
 
   test("discover filters out videos already in existing feed", async () => {
     const { ports } = createTestPorts();
-    const executionCtx: ExecutionContext = {
-      cache: new MemCache(),
-      fs: ports.fs,
-      casBaseDir: `${TEST_CONFIG.outputDir}/cas`,
-    };
-    const activities = createActivities(ports, TEST_CONFIG, executionCtx);
+    const activities = createActivities(ports, () => TEST_CONFIG);
 
     const allVideos = [
       { id: "vid_aaa", uploadDate: "20240315", title: "Video AAA" },
@@ -167,8 +157,24 @@ describe("temporal serve", () => {
       return null;
     });
 
-    const result = await activities.discover();
+    const result = await activities.discover({ channelName: "test" });
     expect(result.videos.map((v) => v.video.id)).toEqual(["vid_bbb", "vid_ccc"]);
+  });
+
+  test("activities resolve config per channel, not last-registered", async () => {
+    const configA = { ...TEST_CONFIG, channelUrl: "https://youtube.com/@channelA" };
+    const configB = { ...TEST_CONFIG, channelUrl: "https://youtube.com/@channelB" };
+    const resolver = (name: string) => (name === "a" ? configA : configB);
+
+    const { ports } = createTestPorts();
+    ports.ytdlp.fetchVideoList.mockImplementation(async () => []);
+    const activities = createActivities(ports, resolver);
+
+    await activities.discover({ channelName: "a" });
+    await activities.discover({ channelName: "b" });
+
+    expect(ports.ytdlp.fetchVideoList.mock.calls[0][0].channelUrl).toBe(configA.channelUrl);
+    expect(ports.ytdlp.fetchVideoList.mock.calls[1][0].channelUrl).toBe(configB.channelUrl);
   });
 
   test("Graph.describe() returns serializable descriptors", () => {

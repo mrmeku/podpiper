@@ -2,12 +2,11 @@ import type { Command } from "commander";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
 
-import { channels, getConfig } from "@/config";
+import { channels } from "@/config";
 import { createRealPorts } from "@/ports/real";
 import { createActivities } from "./activities";
 import { webpackConfigHook, WORKFLOW_BUNDLER_IGNORE_MODULES } from "./bundler-config";
 import { TASK_QUEUES } from "./task-config";
-import { FsCache } from "@podpiper/dagraph";
 
 const DEFAULT_SCHEDULE = "0 */6 * * *"; // every 6 hours
 
@@ -21,23 +20,8 @@ export function registerServe(program: Command) {
       const clientConnection = await Connection.connect({ address: opts.address });
       const client = new Client({ connection: clientConnection });
       const ports = createRealPorts();
-
-      // Collect activities from all channels
-      const allActivities: Record<string, (...args: unknown[]) => unknown> = {};
-      const channelConfigs: { name: string; schedule?: string }[] = [];
-
-      for (const [name] of Object.entries(channels)) {
-        const config = getConfig(name);
-        const cache = new FsCache(config.casBaseDir, ports.fs);
-        const executionCtx = { cache, fs: ports.fs, casBaseDir: config.casBaseDir };
-        const activities = createActivities(ports, config, executionCtx);
-
-        for (const [key, fn] of Object.entries(activities)) {
-          allActivities[key] = fn;
-        }
-
-        channelConfigs.push({ name, schedule: DEFAULT_SCHEDULE });
-      }
+      const activities = createActivities(ports);
+      const channelNames = Object.keys(channels);
 
       // Workflow worker (V8 sandbox, no activities)
       const workflowWorker = await Worker.create({
@@ -51,7 +35,7 @@ export function registerServe(program: Command) {
       const defaultWorker = await Worker.create({
         connection: nativeConnection,
         taskQueue: TASK_QUEUES.default,
-        activities: allActivities,
+        activities,
         maxConcurrentActivityTaskExecutions: 10,
       });
 
@@ -59,7 +43,7 @@ export function registerServe(program: Command) {
       const whisperWorker = await Worker.create({
         connection: nativeConnection,
         taskQueue: TASK_QUEUES.whisper,
-        activities: { processVideoNode: allActivities.processVideoNode },
+        activities: { processVideoNode: activities.processVideoNode },
         maxConcurrentActivityTaskExecutions: 1,
       });
 
@@ -67,14 +51,13 @@ export function registerServe(program: Command) {
       const claudeWorker = await Worker.create({
         connection: nativeConnection,
         taskQueue: TASK_QUEUES.claude,
-        activities: { processVideoNode: allActivities.processVideoNode },
+        activities: { processVideoNode: activities.processVideoNode },
         maxConcurrentActivityTaskExecutions: 5,
       });
 
       // Schedule cron workflows for each channel
-      for (const ch of channelConfigs) {
-        if (!ch.schedule) continue;
-        const scheduleId = `${ch.name}-sync`;
+      for (const name of channelNames) {
+        const scheduleId = `${name}-sync`;
         try {
           try {
             const handle = client.schedule.getHandle(scheduleId);
@@ -84,15 +67,15 @@ export function registerServe(program: Command) {
           }
           await client.schedule.create({
             scheduleId,
-            spec: { cronExpressions: [ch.schedule] },
+            spec: { cronExpressions: [DEFAULT_SCHEDULE] },
             action: {
               type: "startWorkflow",
               workflowType: "channelWorkflow",
               taskQueue: TASK_QUEUES.workflows,
-              args: [{ channelName: ch.name }],
+              args: [{ channelName: name }],
             },
           });
-          console.log(`Scheduled ${scheduleId} with cron: ${ch.schedule}`);
+          console.log(`Scheduled ${scheduleId} with cron: ${DEFAULT_SCHEDULE}`);
         } catch (e) {
           console.error(`Failed to create schedule ${scheduleId}:`, e);
         }

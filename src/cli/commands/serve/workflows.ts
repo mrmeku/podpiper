@@ -18,6 +18,7 @@ import { TEMPORAL_TASK_CONFIG, TASK_QUEUES } from "./task-config";
 import type { NodeKind } from "@/pipeline/actions/define-action";
 
 export interface VideoWorkflowInput {
+  channelName: string;
   video: { videoId: string; uploadDate: string; title: string };
   descriptors: Node[];
 }
@@ -52,6 +53,7 @@ export async function videoWorkflow(input: VideoWorkflowInput): Promise<Outputs 
   const run: RunNode = async (desc, depContentHashes, depOutputs) => {
     const acts = proxyActivities<Activities>(activityOptions(desc.kind));
     return acts.processVideoNode({
+      channelName: input.channelName,
       video: input.video,
       nodeName: desc.name,
       kind: desc.kind,
@@ -79,11 +81,9 @@ export async function channelWorkflow(input: ChannelWorkflowInput): Promise<void
     startToCloseTimeout: "5m",
   });
 
-  // 1. Discover new videos
-  const { videos } = await defaultActs.discover();
+  const { videos } = await defaultActs.discover({ channelName: input.channelName });
   if (videos.length === 0) return;
 
-  // 2. Spawn child workflow per video + channel avatar in parallel
   const [videoResults, avatarPath] = await Promise.all([
     Promise.all(
       videos.map(({ video, descriptors }) =>
@@ -92,6 +92,7 @@ export async function channelWorkflow(input: ChannelWorkflowInput): Promise<void
           taskQueue: TASK_QUEUES.workflows,
           args: [
             {
+              channelName: input.channelName,
               video: { videoId: video.id, uploadDate: video.uploadDate, title: video.title },
               descriptors,
             },
@@ -99,13 +100,18 @@ export async function channelWorkflow(input: ChannelWorkflowInput): Promise<void
         }),
       ),
     ),
-    defaultActs.channelAvatarActivity(),
+    defaultActs.channelAvatarActivity({ channelName: input.channelName }),
   ]);
 
-  // 3. Process artwork (depends on avatar)
-  const artworkOutputs = await defaultActs.artworkActivity(avatarPath);
+  const artworkOutputs = await defaultActs.artworkActivity({
+    channelName: input.channelName,
+    avatarPath,
+  });
 
-  // 4. Collect episode data from video results and publish
   const videoOutputs = videoResults.filter((r): r is Outputs => r != null);
-  await defaultActs.collectAndPublish({ videoOutputs, artworkOutputs });
+  await defaultActs.collectAndPublish({
+    channelName: input.channelName,
+    videoOutputs,
+    artworkOutputs,
+  });
 }

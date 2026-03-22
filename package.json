@@ -17,7 +17,7 @@
     "verify": "bun test & tsgo --noEmit & eslint . & wait",
     "env": "op inject -i .env.tpl -o .env",
     "check-deps": "bun scripts/check-deps.ts",
-    "install-plist": "launchctl unload ~/Library/LaunchAgents/com.podpiper.serve.plist 2>/dev/null; cp com.podpiper.serve.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.podpiper.serve.plist"
+    "reload-plist": "launchctl unload ~/Library/LaunchAgents/com.podpiper.serve.plist 2>/dev/null; cp com.podpiper.serve.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.podpiper.serve.plist"
   },
   "devDependencies": {
     "@temporalio/testing": "^1.15.0",
