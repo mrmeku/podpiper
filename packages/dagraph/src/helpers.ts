@@ -1,7 +1,5 @@
-import { createHash } from "node:crypto";
+import { sha256 } from "js-sha256";
 import type { CacheEntry, Outputs } from "./types";
-
-export type HashFileFn = (path: string) => Promise<string>;
 
 export function jsonParse<T = unknown>(raw: string, label: string): T {
   try {
@@ -12,11 +10,19 @@ export function jsonParse<T = unknown>(raw: string, label: string): T {
   }
 }
 
+export function collectPaths(outputs: Outputs): string[] {
+  if (typeof outputs === "string") return [outputs];
+  if (Array.isArray(outputs)) return outputs;
+  return Object.values(outputs).flatMap((v) => (Array.isArray(v) ? v : [v]));
+}
+
+export type HashFileFn = (path: string) => Promise<string>;
+
 export function computeHash(
   node: { name: string; config: string; deps: string[] },
   depHashes: Map<string, string>,
 ): string {
-  const h = createHash("sha256");
+  const h = sha256.create();
   h.update(node.name);
   h.update(node.config);
   const sorted = [...node.deps].sort();
@@ -26,13 +32,7 @@ export function computeHash(
     if (depHash === undefined) throw new Error(`BUG: missing content hash for dep "${dep}"`);
     h.update(depHash);
   }
-  return h.digest("hex");
-}
-
-export function collectPaths(outputs: Outputs): string[] {
-  if (typeof outputs === "string") return [outputs];
-  if (Array.isArray(outputs)) return outputs;
-  return Object.values(outputs).flatMap((v) => (Array.isArray(v) ? v : [v]));
+  return h.hex();
 }
 
 export async function hashOutputFiles(
@@ -40,10 +40,10 @@ export async function hashOutputFiles(
   hashFile: HashFileFn,
 ): Promise<string> {
   const paths = collectPaths(outputs).sort();
-  const h = createHash("sha256");
+  const h = sha256.create();
   h.update(String(paths.length));
   for (const p of paths) h.update(await hashFile(p));
-  return h.digest("hex");
+  return h.hex();
 }
 
 export async function verifyOutputs(entry: CacheEntry, hashFile: HashFileFn): Promise<boolean> {
@@ -75,4 +75,3 @@ export function validateNoCycles(nodes: ReadonlyMap<string, { deps: string[] }>)
   for (const name of nodes.keys()) visit(name);
   return order;
 }
-

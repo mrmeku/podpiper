@@ -27,7 +27,7 @@ export type ActionFunc<P extends BaseParams, R extends Outputs> = (
   outputDir: string,
 ) => Promise<R>;
 
-/** A single unit of work in the DAG. All values are Outputs at the executor level. */
+/** Serializable identity of a DAG node — no closures, safe for cross-process communication. */
 export interface Node {
   name: string;
   kind: string;
@@ -35,15 +35,19 @@ export interface Node {
   deps: string[];
   /** Serialized configuration — included in the action key so config changes invalidate cache. */
   config: string;
-  params: BaseParams;
   /** Optional concurrency group. Nodes sharing a group are subject to a per-group parallelism limit. */
   concurrencyGroup?: string;
+}
+
+/** A Node with an executable action — the unit of work the executor actually runs. */
+export interface RunnableNode extends Node {
+  params: BaseParams;
   /** Raw executor-level action. Receives dep outputs as `Record<name, Outputs>` and CAS output dir, returns Outputs. */
   action: (rawInputs: Record<string, Outputs>, outputDir: string) => Promise<Outputs>;
 }
 
 /** Pluggable execution strategy — the executor calls this instead of `node.action` directly. */
-export type NodeRunner = (node: Node, inputs: Record<string, Outputs>, outputDir: string) => Promise<Outputs>;
+export type NodeRunner = (node: RunnableNode, inputs: Record<string, Outputs>, outputDir: string) => Promise<Outputs>;
 
 /** What gets stored per action key in the cache. */
 export interface CacheEntry {
@@ -85,12 +89,6 @@ export interface ExecuteOptions {
   force?: boolean;
 }
 
-/** Kind-level dependency edge — collapses concrete nodes into kind-level topology. */
-export interface KindEdge {
-  kind: string;
-  depKinds: string[];
-}
-
 /** Output of `graph.analyze()` — structural info, no cache prediction. */
 export interface AnalysisResult {
   nodes: Node[];
@@ -103,3 +101,13 @@ export interface NodeRef<T extends Outputs = Outputs> {
   name: string;
   readonly _T?: T;
 }
+
+/** Result of processing a single node — returned by `processNode`. */
+type ProcessNodeResultBase = { name: string; actionKey: string };
+export type ProcessNodeResult = ProcessNodeResultBase &
+  (
+    | { status: "done"; outputs: Outputs; contentHash: string; elapsed: number }
+    | { status: "cached"; outputs: Outputs; contentHash: string }
+    | { status: "fail"; error: string; elapsed: number }
+    | { status: "dep-failed"; error: string }
+  );

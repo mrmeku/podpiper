@@ -1,16 +1,22 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+
+import { TestWorkflowEnvironment } from "@temporalio/testing";
+import { bundleWorkflowCode, DefaultLogger, Runtime, Worker, type WorkflowBundleWithSourceMap } from "@temporalio/worker";
+import path from "node:path";
 
 import { MemCache, type ExecutionContext } from "@podpiper/dagraph";
 
 import { sync } from "@/pipeline/execute";
-import { buildPipelineGraph, videoPipelineTopology } from "@/pipeline/graph-builder";
+import { buildPipelineGraph, buildVideoGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
 import { createTestPorts, TEST_CONFIG, TEST_VIDEOS } from "@/pipeline/test-fixtures";
 
 import type { SpiedPorts } from "@/ports/mock";
-import { toHatchetVideoWorkflow } from "./adapter";
-import { registerChannelWorkflow } from "./channel-workflow";
-import { createFakeHatchet, runFakeWorkflow } from "./test-helpers";
+import { TEMPORAL_TASK_CONFIG, TASK_QUEUES } from "./task-config";
+import { NodeKind } from "@/pipeline/actions/define-action";
+import { createActivities } from "./activities";
+import { webpackConfigHook, WORKFLOW_BUNDLER_IGNORE_MODULES } from "./bundler-config";
+import type { ChannelWorkflowInput } from "./workflows";
 
 function getUploadCalls(ports: SpiedPorts) {
   return ports.storage.uploadFile.mock.calls
@@ -18,79 +24,135 @@ function getUploadCalls(ports: SpiedPorts) {
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
-function registerWorkflows(ports: ReturnType<typeof createTestPorts>["ports"]) {
-  const { hatchet, getWorkflow, workflows } = createFakeHatchet();
-  const topology = videoPipelineTopology(ports, TEST_CONFIG);
-  const executionCtx: ExecutionContext = {
-    cache: new MemCache(),
-    fs: ports.fs,
-    casBaseDir: `${TEST_CONFIG.outputDir}/cas`,
-  };
-  const videoPipeline = toHatchetVideoWorkflow(
-    hatchet,
-    "video",
-    topology,
-    ports,
-    TEST_CONFIG,
-    executionCtx,
-  );
-  return { hatchet, getWorkflow, workflows, videoPipeline };
+// ---------- Temporal test environment (shared across tests) ----------
+
+let testEnv: TestWorkflowEnvironment;
+let workflowBundle: WorkflowBundleWithSourceMap;
+
+beforeAll(async () => {
+  const logger = new DefaultLogger("ERROR");
+  Runtime.install({ logger });
+  workflowBundle = await bundleWorkflowCode({
+    workflowsPath: path.resolve(import.meta.dirname, "./workflows.ts"),
+    webpackConfigHook,
+    ignoreModules: WORKFLOW_BUNDLER_IGNORE_MODULES,
+    logger,
+  });
+  testEnv = await TestWorkflowEnvironment.createLocal({
+    server: { log: { format: "pretty", level: "error" } },
+  });
+}, 60_000);
+
+afterAll(async () => {
+  await testEnv?.teardown();
+});
+
+/**
+ * Start workers for all task queues (workflows + 3 activity queues),
+ * run `fn` while workers are alive, then shut them down.
+ */
+async function withWorkers<T>(
+  activities: ReturnType<typeof createActivities>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const activityQueues = [TASK_QUEUES.default, TASK_QUEUES.whisper, TASK_QUEUES.claude];
+
+  const workers = await Promise.all([
+    Worker.create({
+      connection: testEnv.nativeConnection,
+      taskQueue: TASK_QUEUES.workflows,
+      workflowBundle,
+    }),
+    ...activityQueues.map((taskQueue) =>
+      Worker.create({
+        connection: testEnv.nativeConnection,
+        taskQueue,
+        activities,
+      }),
+    ),
+  ]);
+
+  // runUntil starts all workers, runs fn, then shuts workers down
+  // We need to run all workers concurrently with the workflow execution
+  const workerPromises = workers.map((w) => w.run());
+  try {
+    const result = await fn();
+    return result;
+  } finally {
+    workers.forEach((w) => w.shutdown());
+    await Promise.all(workerPromises);
+  }
 }
 
-describe("hatchet serve", () => {
-  test("hatchet workflow produces identical feed.xml as sync pipeline", async () => {
-    // Sync pipeline (reference)
+describe("temporal serve", () => {
+  test("channelWorkflow through Temporal produces identical feed.xml as sync pipeline", async () => {
+    // ---- Reference: sync pipeline ----
     const { ports: syncPorts } = createTestPorts();
     const { graph, refs } = buildPipelineGraph(TEST_VIDEOS, syncPorts, TEST_CONFIG);
-    const executionCtx: ExecutionContext = {
+    const syncCtx: ExecutionContext = {
       cache: new MemCache(),
       fs: syncPorts.fs,
       casBaseDir: `${TEST_CONFIG.outputDir}/cas`,
     };
-    const sr = await sync(graph, refs, syncPorts.fs, executionCtx);
-    await publish(sr, TEST_CONFIG, syncPorts.fs, syncPorts.storage);
+    const sr = await sync(graph, refs, syncPorts.fs, syncCtx);
+    await publish(sr, TEST_CONFIG, syncPorts.fs, syncPorts.storage, syncPorts.clock.now);
     const syncFeedXml = await syncPorts.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
 
-    // Hatchet workflow (same ports/config, fake orchestrator)
-    const { ports: hatchetPorts } = createTestPorts();
-    const { hatchet, getWorkflow, workflows, videoPipeline } = registerWorkflows(hatchetPorts);
-    hatchetPorts.ytdlp.fetchVideoList.mockImplementation(async () => TEST_VIDEOS);
-    registerChannelWorkflow(hatchet, "ch", TEST_CONFIG, hatchetPorts, videoPipeline);
-    await runFakeWorkflow(getWorkflow("ch-sync"), {}, workflows);
-    const hatchetFeedXml = await hatchetPorts.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
+    // ---- Temporal: channelWorkflow via test server ----
+    const { ports: temporalPorts } = createTestPorts();
+    temporalPorts.ytdlp.fetchVideoList.mockImplementation(async () => TEST_VIDEOS);
+    const temporalCtx: ExecutionContext = {
+      cache: new MemCache(),
+      fs: temporalPorts.fs,
+      casBaseDir: `${TEST_CONFIG.outputDir}/cas`,
+    };
+    const activities = createActivities(temporalPorts, TEST_CONFIG, temporalCtx);
 
-    expect(hatchetFeedXml).toEqual(syncFeedXml);
-    expect(getUploadCalls(hatchetPorts)).toEqual(getUploadCalls(syncPorts));
-  });
+    await withWorkers(activities, async () => {
+      await testEnv.client.workflow.execute<(input: ChannelWorkflowInput) => Promise<void>>(
+        "channelWorkflow",
+        {
+          taskQueue: TASK_QUEUES.workflows,
+          workflowId: "test-channel",
+          args: [{ channelName: "test" }],
+        },
+      );
+    });
 
-  test("channel workflow tasks form correct dependency DAG", () => {
-    const { ports } = createTestPorts();
-    const { hatchet, getWorkflow, videoPipeline } = registerWorkflows(ports);
-    registerChannelWorkflow(hatchet, "ch", TEST_CONFIG, ports, videoPipeline);
+    const temporalFeedXml = await temporalPorts.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
+    expect(temporalFeedXml).toEqual(syncFeedXml);
+    expect(getUploadCalls(temporalPorts)).toEqual(getUploadCalls(syncPorts));
+  }, 60_000);
 
-    expect(getWorkflow("ch-sync").tasks.map((t) => ({ name: t.name, parents: t.parents }))).toEqual(
-      [
-        { name: "discover", parents: [] },
-        { name: "process-videos", parents: ["discover"] },
-        { name: "channel-avatar", parents: ["discover"] },
-        { name: "artwork", parents: ["channel-avatar"] },
-        { name: "publish", parents: ["process-videos", "artwork"] },
-      ],
-    );
-  });
+  test("task config covers all node kinds with correct task queues", () => {
+    for (const kind of Object.values(NodeKind)) {
+      expect(TEMPORAL_TASK_CONFIG[kind]).toBeDefined();
+      expect(TEMPORAL_TASK_CONFIG[kind].taskQueue).toBeTruthy();
+      expect(TEMPORAL_TASK_CONFIG[kind].startToCloseTimeout).toBeTruthy();
+    }
 
-  test("video pipeline topology maps to correct Hatchet task parents", () => {
-    const { ports } = createTestPorts();
-    const topology = videoPipelineTopology(ports, TEST_CONFIG);
-    const { getWorkflow } = registerWorkflows(ports);
+    // Whisper goes to whisper queue
+    expect(TEMPORAL_TASK_CONFIG[NodeKind.Transcribe].taskQueue).toBe(TASK_QUEUES.whisper);
 
-    expect(getWorkflow("video").tasks.map((t) => ({ name: t.name, parents: t.parents }))).toEqual(
-      topology.map((e) => ({ name: e.kind, parents: e.depKinds })),
-    );
+    // Claude tasks go to claude queue
+    expect(TEMPORAL_TASK_CONFIG[NodeKind.Chapters].taskQueue).toBe(TASK_QUEUES.claude);
+    expect(TEMPORAL_TASK_CONFIG[NodeKind.Summary].taskQueue).toBe(TASK_QUEUES.claude);
+
+    // Others go to default queue
+    expect(TEMPORAL_TASK_CONFIG[NodeKind.Download].taskQueue).toBe(TASK_QUEUES.default);
+    expect(TEMPORAL_TASK_CONFIG[NodeKind.Thumbnail].taskQueue).toBe(TASK_QUEUES.default);
+    expect(TEMPORAL_TASK_CONFIG[NodeKind.RssEntry].taskQueue).toBe(TASK_QUEUES.default);
   });
 
   test("discover filters out videos already in existing feed", async () => {
     const { ports } = createTestPorts();
+    const executionCtx: ExecutionContext = {
+      cache: new MemCache(),
+      fs: ports.fs,
+      casBaseDir: `${TEST_CONFIG.outputDir}/cas`,
+    };
+    const activities = createActivities(ports, TEST_CONFIG, executionCtx);
+
     const allVideos = [
       { id: "vid_aaa", uploadDate: "20240315", title: "Video AAA" },
       { id: "vid_bbb", uploadDate: "20240310", title: "Video BBB" },
@@ -105,19 +167,26 @@ describe("hatchet serve", () => {
       return null;
     });
 
-    const { hatchet, getWorkflow, videoPipeline } = registerWorkflows(ports);
-    registerChannelWorkflow(hatchet, "ch", TEST_CONFIG, ports, videoPipeline);
-    const discoverTask = getWorkflow("ch-sync").tasks.find((t) => t.name === "discover")!;
-    const result = (await discoverTask.fn({}, { log: async () => {} })) as {
-      videos: typeof allVideos;
-    };
-    expect(result.videos.map((v) => v.id)).toEqual(["vid_bbb", "vid_ccc"]);
+    const result = await activities.discover();
+    expect(result.videos.map((v) => v.video.id)).toEqual(["vid_bbb", "vid_ccc"]);
   });
 
-  test("workflow includes cron schedule when provided", () => {
+  test("Graph.describe() returns serializable descriptors", () => {
     const { ports } = createTestPorts();
-    const { hatchet, getWorkflow, videoPipeline } = registerWorkflows(ports);
-    registerChannelWorkflow(hatchet, "ch", TEST_CONFIG, ports, videoPipeline, "0 3 * * *");
-    expect(getWorkflow("ch-sync").opts.on).toEqual({ cron: "0 3 * * *" });
+    const video = TEST_VIDEOS[0]!;
+    const graph = buildVideoGraph(video, ports, TEST_CONFIG);
+    const descriptors = graph.describe();
+
+    // Descriptors should be JSON-serializable (no closures)
+    const serialized = JSON.parse(JSON.stringify(descriptors));
+    expect(serialized).toEqual(descriptors);
+
+    // Each descriptor should have required fields
+    for (const desc of descriptors) {
+      expect(typeof desc.name).toBe("string");
+      expect(typeof desc.kind).toBe("string");
+      expect(Array.isArray(desc.deps)).toBe(true);
+      expect(typeof desc.config).toBe("string");
+    }
   });
 });

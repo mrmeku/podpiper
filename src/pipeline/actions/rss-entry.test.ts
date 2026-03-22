@@ -69,7 +69,7 @@ async function setupFs(opts: {
       json: jsonPath<any>(`${transcribeDir}/audio.json`),
     },
     thumbnail: "/cas/thumbnail/thumbnail.jpg",
-    chapters: jsonPath<Chapter[]>("/cas/chapters/chapters.json"),
+    chapters: jsonPath<ChaptersResult>("/cas/chapters/chapters.json"),
     ...(opts.embedChaptersAudio && { embedChapters: opts.embedChaptersAudio }),
     ...(opts.summary && { summary: "/cas/summary/summary.txt" }),
   };

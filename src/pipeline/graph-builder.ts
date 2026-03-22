@@ -1,12 +1,12 @@
 import type { Ports } from "@/ports/types";
 import type { Config, VideoInfo } from "@/types";
-import { Graph, type KindEdge, type NodeRefOf } from "@podpiper/dagraph";
+import { Graph, type NodeRefOf } from "@podpiper/dagraph";
 
 import { artwork, channelAvatar } from "./actions/artwork";
 import { chapters } from "./actions/chapters";
-import { NodeKind } from "./actions/define-action";
 import { download } from "./actions/download";
 import { embedChapters } from "./actions/embed-chapters";
+import { NodeKind } from "./actions/define-action";
 import type { RssEntryParams } from "./actions/rss-entry";
 import { rssEntry } from "./actions/rss-entry";
 import { summary } from "./actions/summary";
@@ -97,10 +97,4 @@ export function buildPipelineGraph(
     graph,
     refs: { entryRefs, artworkRef },
   };
-}
-
-export function videoPipelineTopology(ports: Ports, config: Config): KindEdge[] {
-  const dummy: VideoInfo = { id: "_topo", uploadDate: "00000000", title: "" };
-  const graph = buildVideoGraph(dummy, ports, config);
-  return graph.kindTopology();
 }

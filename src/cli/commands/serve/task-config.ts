@@ -1,64 +1,67 @@
 import { NodeKind } from "@/pipeline/actions/define-action";
-import type { CreateBaseTaskOpts } from "@hatchet-dev/typescript-sdk/v1";
-import { RateLimitDuration } from "@hatchet-dev/typescript-sdk/protoc/workflows";
 
-export type TaskConfig = Pick<
-  CreateBaseTaskOpts,
-  "retries" | "executionTimeout" | "scheduleTimeout" | "backoff" | "rateLimits" | "concurrency"
->;
+export const TASK_QUEUES = {
+  workflows: "podpiper-workflows",
+  default: "podpiper-default",
+  whisper: "podpiper-whisper",
+  claude: "podpiper-claude",
+} as const;
 
-// Claude Code CLI capacity — tune to match your usage tier.
-// Both chapters and summary share this bucket since they hit the same CLI.
-const CLAUDE_LIMIT = 5;
-const CLAUDE_WINDOW = RateLimitDuration.MINUTE;
-// Must exceed (expected_claude_tasks / CLAUDE_LIMIT) * window_duration.
-// 30 new videos × 2 claude tasks each = 60 tasks ÷ 5/min = 12min queue drain.
-const CLAUDE_SCHEDULE_TIMEOUT = "30m";
+export interface TemporalTaskConfig {
+  taskQueue: string;
+  startToCloseTimeout: string;
+  scheduleToCloseTimeout?: string;
+  retry?: {
+    maximumAttempts?: number;
+    backoffCoefficient?: number;
+    maximumInterval?: string;
+  };
+}
 
-const claudeRateLimit = {
-  staticKey: "claude-cli",
-  units: 1,
-  limit: CLAUDE_LIMIT,
-  duration: CLAUDE_WINDOW,
-};
-
-const claudeTaskDefaults: TaskConfig = {
-  executionTimeout: "2m",
-  scheduleTimeout: CLAUDE_SCHEDULE_TIMEOUT,
-  retries: 2,
-  backoff: { factor: 3, maxSeconds: 120 },
-  rateLimits: [claudeRateLimit],
-};
-
-export const TASK_CONFIG: Record<NodeKind, TaskConfig> = {
+export const TEMPORAL_TASK_CONFIG: Record<NodeKind, TemporalTaskConfig> = {
   [NodeKind.Download]: {
-    executionTimeout: "5m",
-    retries: 3,
-    backoff: { factor: 2, maxSeconds: 30 },
+    taskQueue: TASK_QUEUES.default,
+    startToCloseTimeout: "30m",
+    retry: { maximumAttempts: 4, backoffCoefficient: 2, maximumInterval: "30s" },
   },
   [NodeKind.Transcribe]: {
-    executionTimeout: "15m",
-    retries: 1,
-    concurrency: { expression: "'whisper'", maxRuns: 1 },
+    taskQueue: TASK_QUEUES.whisper,
+    startToCloseTimeout: "15m",
+    retry: { maximumAttempts: 3, backoffCoefficient: 2 },
   },
   [NodeKind.Thumbnail]: {
-    executionTimeout: "30s",
-    retries: 1,
+    taskQueue: TASK_QUEUES.default,
+    startToCloseTimeout: "30s",
+    retry: { maximumAttempts: 2 },
   },
-  [NodeKind.Chapters]: { ...claudeTaskDefaults },
+  [NodeKind.Chapters]: {
+    taskQueue: TASK_QUEUES.claude,
+    startToCloseTimeout: "2m",
+    scheduleToCloseTimeout: "30m",
+    retry: { maximumAttempts: 3, backoffCoefficient: 3, maximumInterval: "2m" },
+  },
   [NodeKind.EmbedChapters]: {
-    executionTimeout: "2m",
-    retries: 1,
+    taskQueue: TASK_QUEUES.default,
+    startToCloseTimeout: "2m",
+    retry: { maximumAttempts: 2 },
   },
-  [NodeKind.Summary]: { ...claudeTaskDefaults },
+  [NodeKind.Summary]: {
+    taskQueue: TASK_QUEUES.claude,
+    startToCloseTimeout: "2m",
+    scheduleToCloseTimeout: "30m",
+    retry: { maximumAttempts: 3, backoffCoefficient: 3, maximumInterval: "2m" },
+  },
   [NodeKind.RssEntry]: {
-    executionTimeout: "30s",
+    taskQueue: TASK_QUEUES.default,
+    startToCloseTimeout: "30s",
   },
   [NodeKind.ChannelAvatar]: {
-    executionTimeout: "5m",
-    retries: 3,
+    taskQueue: TASK_QUEUES.default,
+    startToCloseTimeout: "5m",
+    retry: { maximumAttempts: 4 },
   },
   [NodeKind.Artwork]: {
-    executionTimeout: "2m",
+    taskQueue: TASK_QUEUES.default,
+    startToCloseTimeout: "2m",
   },
 };

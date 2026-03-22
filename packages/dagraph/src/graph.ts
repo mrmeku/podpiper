@@ -3,11 +3,11 @@ import type {
   AnalysisResult,
   BaseParams,
   InputsFor,
-  KindEdge,
   Node,
   NodeRef,
   NodeRunner,
   Outputs,
+  RunnableNode,
 } from "./types";
 
 import { validateNoCycles } from "./helpers";
@@ -49,23 +49,25 @@ export function addNode<P extends BaseParams, R extends Outputs>({
     config,
     ...(concurrencyGroup && { concurrencyGroup }),
     params,
-    action: (rawInputs, outputDir) => action(params, resolveInputs<P>(params, rawInputs), outputDir),
+    action: (rawInputs, outputDir) =>
+      action(params, resolveInputs<P>(params, rawInputs), outputDir),
   });
   return { name: registeredName };
 }
 
-export const localRunner: NodeRunner = (node, rawInputs, outputDir) => node.action(rawInputs, outputDir);
+export const localRunner: NodeRunner = (node, rawInputs, outputDir) =>
+  node.action(rawInputs, outputDir);
 
 export class Graph {
-  private nodes: Map<string, Node>;
+  private nodes: Map<string, RunnableNode>;
   private prefix: string;
 
-  constructor(prefix = "", nodes?: Map<string, Node>) {
+  constructor(prefix = "", nodes?: Map<string, RunnableNode>) {
     this.prefix = prefix;
     this.nodes = nodes ?? new Map();
   }
 
-  add(def: Node): string {
+  add(def: RunnableNode): string {
     const name = this.prefix ? `${this.prefix}:${def.name}` : def.name;
     const prefixed = this.prefix ? { ...def, name } : def;
     if (this.nodes.has(name)) {
@@ -105,23 +107,15 @@ export class Graph {
     return new Graph(fullPrefix, this.nodes);
   }
 
-  getNodes(): ReadonlyMap<string, Node> {
+  getNodes(): ReadonlyMap<string, RunnableNode> {
     return this.nodes;
   }
 
-  kindTopology(): KindEdge[] {
-    const kindDeps = new Map<string, Set<string>>();
-    const kindOrder: string[] = [];
-    for (const node of this.nodes.values()) {
-      if (!kindDeps.has(node.kind)) {
-        kindDeps.set(node.kind, new Set());
-        kindOrder.push(node.kind);
-      }
-      for (const depName of node.deps) {
-        kindDeps.get(node.kind)!.add(this.nodes.get(depName)!.kind);
-      }
-    }
-    return kindOrder.map((kind) => ({ kind, depKinds: [...kindDeps.get(kind)!] }));
+  /** Return the graph as serializable nodes — no closures, safe for Temporal workflow sandbox. */
+  describe(): Node[] {
+    return Array.from(this.nodes.values()).map(
+      ({ action: _action, params: _params, ...node }) => node,
+    );
   }
 
   analyze(): AnalysisResult {

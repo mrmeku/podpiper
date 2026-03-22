@@ -14,11 +14,13 @@
     "typecheck": "tsgo --noEmit",
     "format": "prettier --write .",
     "lint": "eslint .",
+    "verify": "bun test & tsgo --noEmit & eslint . & wait",
     "env": "op inject -i .env.tpl -o .env",
     "check-deps": "bun scripts/check-deps.ts",
     "install-plist": "launchctl unload ~/Library/LaunchAgents/com.podpiper.serve.plist 2>/dev/null; cp com.podpiper.serve.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.podpiper.serve.plist"
   },
   "devDependencies": {
+    "@temporalio/testing": "^1.15.0",
     "@types/bun": "latest",
     "@types/cli-progress": "^3.11.6",
     "@typescript/native-preview": "^7.0.0-dev.20260131.1",
@@ -29,7 +31,11 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.980.0",
-    "@hatchet-dev/typescript-sdk": "^1.12.1",
+    "@temporalio/activity": "^1.15.0",
+    "@temporalio/client": "^1.15.0",
+    "@temporalio/common": "^1.15.0",
+    "@temporalio/worker": "^1.15.0",
+    "@temporalio/workflow": "^1.15.0",
     "cli-progress": "^3.12.0",
     "commander": "^14.0.3",
     "fast-xml-parser": "^5.3.4",

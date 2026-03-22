@@ -1,12 +1,21 @@
-import * as execState from "./exec-state";
 import { localRunner } from "./graph";
 import { computeHash, hashOutputFiles, validateNoCycles, verifyOutputs } from "./helpers";
-import type { Cache, DagFs, ExecResult, ExecuteOptions, Node, NodeRunner } from "./types";
+import { orchestrate } from "./orchestrate";
+import type {
+  Cache,
+  DagFs,
+  ExecResult,
+  ExecuteOptions,
+  NodeRunner,
+  Outputs,
+  ProcessNodeResult,
+  RunnableNode,
+} from "./types";
 
 import type { Graph } from "./graph";
 
 /** Required infrastructure for execution — stable, typically shared across invocations (e.g. one
- * ExecutionContext for all Hatchet tasks in a channel). The runner parameter on execute() is separate
+ * ExecutionContext for all Temporal activities in a channel). The runner parameter on execute() is separate
  * because it's the execution *strategy* that varies per invocation (Bazel: SpawnStrategy vs
  * ActionExecutionContext — different selection mechanisms, different lifetimes). */
 export interface ExecutionContext {
@@ -15,82 +24,84 @@ export interface ExecutionContext {
   casBaseDir: string;
 }
 
+/**
+ * Process a single DAG node: check deps, check cache, run action, cache result.
+ * Extracted from execute() so it can be called independently (e.g. as a Temporal activity).
+ */
+export async function processNode(
+  node: RunnableNode,
+  depContentHashes: Map<string, string>,
+  depOutputs: Record<string, Outputs>,
+  ctx: ExecutionContext,
+  opts?: { runner?: NodeRunner; force?: boolean },
+): Promise<ProcessNodeResult> {
+  const runner = opts?.runner ?? localRunner;
+  const force = opts?.force ?? false;
+
+  for (const dep of node.deps) {
+    if (!depContentHashes.has(dep)) {
+      return {
+        name: node.name,
+        actionKey: "",
+        status: "dep-failed",
+        error: `dependency ${dep} failed`,
+      };
+    }
+  }
+
+  const actionKey = computeHash(node, depContentHashes);
+  const casDir = `${ctx.casBaseDir}/${actionKey}`;
+
+  const cached = !force ? await ctx.cache.get(actionKey) : undefined;
+  if (cached && (await verifyOutputs(cached, ctx.fs.hashFile))) {
+    return {
+      name: node.name,
+      actionKey,
+      status: "cached",
+      outputs: cached.outputs,
+      contentHash: cached.contentHash,
+    };
+  }
+
+  await ctx.fs.ensureDir(casDir);
+  const startTime = Date.now();
+  try {
+    const outputs = await runner(node, depOutputs, casDir);
+    const contentHash = await hashOutputFiles(outputs, ctx.fs.hashFile);
+    await ctx.cache.put(actionKey, { outputs, contentHash });
+    return {
+      name: node.name,
+      actionKey,
+      status: "done",
+      outputs,
+      contentHash,
+      elapsed: Date.now() - startTime,
+    };
+  } catch (e) {
+    return {
+      name: node.name,
+      actionKey,
+      status: "fail",
+      error: e instanceof Error ? e.message : String(e),
+      elapsed: Date.now() - startTime,
+    };
+  }
+}
+
 export async function execute(
   graph: Graph,
   ctx: ExecutionContext,
   runner: NodeRunner = localRunner,
   opts?: ExecuteOptions,
 ): Promise<ExecResult[]> {
-  const { maxParallelism, concurrencyLimits, onAction, force } = opts ?? {};
   const nodes = graph.getNodes();
   validateNoCycles(nodes);
-  const state = execState.createExecState(nodes.values());
-  const dispatch = (action: execState.ExecAction) => {
-    execState.send(state, action);
-    onAction?.(action);
-  };
-
-  const processNode = async (node: Node): Promise<void> => {
-    const failedDep = execState.failedDep(node, state);
-    if (failedDep) {
-      dispatch({
-        type: "dep-failed",
-        node,
-        error: new Error(`dependency ${failedDep} failed`),
-      });
-      return;
-    }
-
-    const depContentHashes = new Map(node.deps.map((d) => [d, state.contentHashes.get(d)!]));
-    const actionKey = computeHash(node, depContentHashes);
-    const casDir = `${ctx.casBaseDir}/${actionKey}`;
-
-    const cached = !force ? await ctx.cache.get(actionKey) : undefined;
-    if (cached && (await verifyOutputs(cached, ctx.fs.hashFile))) {
-      dispatch({
-        type: "cached",
-        node,
-        actionKey,
-        outputs: cached.outputs,
-        contentHash: cached.contentHash,
-      });
-      return;
-    }
-
-    await ctx.fs.ensureDir(casDir);
-    dispatch({ type: "start", node });
-    const startTime = Date.now();
-    try {
-      const outputs = await runner(node, execState.inputsFor(node, state), casDir);
-      const contentHash = await hashOutputFiles(outputs, ctx.fs.hashFile);
-      await ctx.cache.put(actionKey, { outputs, contentHash });
-      dispatch({
-        type: "done",
-        node,
-        actionKey,
-        outputs,
-        contentHash,
-        elapsed: Date.now() - startTime,
-      });
-    } catch (e) {
-      dispatch({ type: "fail", node, error: e, elapsed: Date.now() - startTime });
-    }
-  };
-
-  let resumeLoop: () => void = () => {};
-  while (execState.hasWork(state)) {
-    let node: Node | null;
-    while ((node = execState.tryTakeNext(state, maxParallelism, concurrencyLimits))) {
-      const captured = node;
-      processNode(captured).finally(() => {
-        dispatch({ type: "complete", node: captured });
-        resumeLoop();
-      });
-    }
-    await new Promise<void>((r) => {
-      resumeLoop = r;
-    });
-  }
-
-  return [...state.execResults.values()];
+  return orchestrate(
+    nodes.values(),
+    (desc, depContentHashes, depOutputs) => {
+      const node = nodes.get(desc.name)!;
+      return processNode(node, depContentHashes, depOutputs, ctx, { runner, force: opts?.force ?? false });
+    },
+    opts,
+  );
 }

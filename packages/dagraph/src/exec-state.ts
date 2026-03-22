@@ -1,4 +1,4 @@
-import type { ExecResult, Node, Outputs } from "./types";
+import type { ExecResult, Node, Outputs, ProcessNodeResult } from "./types";
 
 export interface ExecState {
   dependents: Map<string, Node[]>;
@@ -152,6 +152,27 @@ export function send(state: ExecState, action: ExecAction): void {
       });
       return;
     }
+  }
+}
+
+// --- conversions ---
+
+export function resultToActions(node: Node, result: ProcessNodeResult): ExecAction[] {
+  switch (result.status) {
+    case "cached":
+      return [{ type: "cached", node, actionKey: result.actionKey, outputs: result.outputs, contentHash: result.contentHash }];
+    case "done":
+      return [
+        { type: "start", node },
+        { type: "done", node, actionKey: result.actionKey, outputs: result.outputs, contentHash: result.contentHash, elapsed: result.elapsed },
+      ];
+    case "fail":
+      return [
+        { type: "start", node },
+        { type: "fail", node, error: new Error(result.error), elapsed: result.elapsed },
+      ];
+    case "dep-failed":
+      return [{ type: "dep-failed", node, error: new Error(result.error) }];
   }
 }
 

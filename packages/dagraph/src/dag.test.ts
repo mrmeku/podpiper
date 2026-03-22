@@ -8,7 +8,7 @@ import { execute } from "./execute";
 import type { ExecutionContext } from "./execute";
 import { Graph, localRunner } from "./graph";
 import { validateNoCycles } from "./helpers";
-import type { BaseParams, DagFs, ExecResult, Node, NodeRunner } from "./types";
+import type { BaseParams, DagFs, ExecResult, NodeRunner, RunnableNode } from "./types";
 
 function createMemoryDagFs(): DagFs {
   const files = new Map<string, string>();
@@ -182,29 +182,6 @@ describe("Graph", () => {
     results = await execute(buildGraph(["aaa"], fs), ctx(local, fs));
     ({ exec } = countExec(results));
     expect(exec).toBe(0);
-  });
-
-  describe("kindTopology()", () => {
-    test("extracts kind-level edges from concrete graph", () => {
-      const fs = createMemoryDagFs();
-      expect(buildGraph(["aaa"], fs).kindTopology()).toEqual([
-        { kind: "fetch", depKinds: [] },
-        { kind: "extract", depKinds: ["fetch"] },
-        { kind: "parse", depKinds: ["extract"] },
-        { kind: "summarize", depKinds: ["parse"] },
-        { kind: "classify", depKinds: ["parse"] },
-        { kind: "resize", depKinds: ["fetch"] },
-        { kind: "entry", depKinds: ["summarize", "classify", "extract", "resize"] },
-        { kind: "aggregate", depKinds: ["entry"] },
-      ]);
-    });
-
-    test("multiple items produce same topology as single item", () => {
-      const fs = createMemoryDagFs();
-      const single = buildGraph(["aaa"], fs).kindTopology();
-      const multi = buildGraph(["aaa", "bbb", "ccc"], fs).kindTopology();
-      expect(multi).toEqual(single);
-    });
   });
 
   describe("analyze()", () => {
@@ -1032,7 +1009,7 @@ describe("Graph", () => {
 
       const makeGraph = (group?: string) => {
         const g = new Graph();
-        const node: Node = {
+        const node: RunnableNode = {
           name: "a",
           kind: "task",
           deps: [],

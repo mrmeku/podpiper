@@ -1,5 +1,5 @@
 import { NodeKind } from "@/pipeline/actions/define-action";
-import type { Graph, Node } from "@podpiper/dagraph";
+import type { Graph, RunnableNode } from "@podpiper/dagraph";
 
 const NODE_LABELS: Record<NodeKind, string> = {
   download: "Download Audio",
@@ -22,9 +22,9 @@ function toLabel(kind: string): string {
 }
 
 export function generateMermaid(graph: Graph): string {
-  const nodes: Node[] = [...graph.getNodes().values()];
-  const videoGroups = new Map<string, Node[]>();
-  const topLevel: Node[] = [];
+  const nodes: RunnableNode[] = [...graph.getNodes().values()];
+  const videoGroups = new Map<string, RunnableNode[]>();
+  const topLevel: RunnableNode[] = [];
   for (const node of nodes) {
     const colon = node.name.indexOf(":");
     if (colon === -1) {
