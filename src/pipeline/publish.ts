@@ -13,6 +13,7 @@ export async function publish(
   config: Config,
   fs: FileSystem,
   storage: ObjectStore,
+  now: () => Date,
 ): Promise<void> {
   for (const u of result.uploads) {
     if (await storage.fileExists(config.storage.bucket, u.key)) continue;
@@ -24,7 +25,7 @@ export async function publish(
     ? parseExistingFeed(config.storage.publicUrl, new TextDecoder().decode(existingFeed))
     : [];
   const allEpisodes = mergeEpisodes(existing, result.episodes);
-  const feedXml = buildFeedXml(config, allEpisodes);
+  const feedXml = buildFeedXml(config, allEpisodes, now);
   await fs.writeText(`${config.outputDir}/feed.xml`, feedXml);
   await storage.uploadFile(new TextEncoder().encode(feedXml), "feed.xml", config.storage.bucket, "max-age=300");
 }

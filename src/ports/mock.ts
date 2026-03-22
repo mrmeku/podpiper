@@ -81,6 +81,7 @@ export function createMockPorts(
       ...stub.storage,
       ...overrides?.storage,
     },
+    clock: { ...stub.clock, ...overrides?.clock },
   };
 }
 

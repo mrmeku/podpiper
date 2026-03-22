@@ -74,7 +74,7 @@ describe("sync pipeline", () => {
     // 2 videos × 7 nodes/video (download, transcribe, thumbnail, chapters, embed_chapters, summary, rss_entry) + 2 global (channel_avatar, artwork)
     expect(exec).toBe(16);
 
-    await publish(sr, TEST_CONFIG, ports.fs, ports.storage);
+    await publish(sr, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
 
     // Episode data
     const aaaResult = sr.results.find((r) => r.name === "vid_aaa:rss_entry")!;
@@ -150,11 +150,7 @@ describe("sync pipeline", () => {
 
     // Feed XML
     const feedXml = await ports.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
-    const stableFeedXml = feedXml.replace(
-      /<lastBuildDate>.*<\/lastBuildDate>/,
-      "<lastBuildDate>STABLE</lastBuildDate>",
-    );
-    expect(stableFeedXml).toMatchSnapshot();
+    expect(feedXml).toMatchSnapshot();
   });
 
   test("second run with same inputs caches all DAG nodes but still publishes feed", async () => {
@@ -162,7 +158,7 @@ describe("sync pipeline", () => {
     const cache = new MemCache();
 
     const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
-    await publish(r1, TEST_CONFIG, ports.fs, ports.storage);
+    await publish(r1, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect({
       dag: countExec(r1.results),
       downloads: ports.ytdlp.downloadVideo.mock.calls.length,
@@ -177,7 +173,7 @@ describe("sync pipeline", () => {
     ports.storage.uploadFile.mockClear();
 
     const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
-    await publish(r2, TEST_CONFIG, ports.fs, ports.storage);
+    await publish(r2, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect({
       dag: countExec(r2.results),
       downloads: ports.ytdlp.downloadVideo.mock.calls.length,
@@ -210,7 +206,7 @@ describe("sync pipeline", () => {
       ports,
       new TieredCache({ local: new MemCache(), remote }),
     );
-    await publish(r1, TEST_CONFIG, ports.fs, ports.storage);
+    await publish(r1, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect({
       dag: countExec(r1.results),
       downloads: ports.ytdlp.downloadVideo.mock.calls.length,
@@ -230,7 +226,7 @@ describe("sync pipeline", () => {
       ports,
       new TieredCache({ local: new MemCache(), remote }),
     );
-    await publish(r2, TEST_CONFIG, ports.fs, ports.storage);
+    await publish(r2, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect({
       dag: countExec(r2.results),
       downloads: ports.ytdlp.downloadVideo.mock.calls.length,
@@ -257,7 +253,7 @@ describe("sync pipeline", () => {
     ];
     const { fs: fs2, ports: p2 } = createTestPorts(sharedFs);
     const r2 = await buildAndSync(allVideos, TEST_CONFIG, p2, cache);
-    await publish(r2, TEST_CONFIG, p2.fs, p2.storage);
+    await publish(r2, TEST_CONFIG, p2.fs, p2.storage, p2.clock.now);
 
     // DAG execution: 6 new nodes for vid_ccc, 14 cached (no feed node)
     expect(countExec(r2.results)).toEqual({ exec: 7, skip: 16, fail: 0 });
@@ -316,7 +312,7 @@ describe("sync pipeline", () => {
     // Sanity: third run with all 3 videos fully cached
     const { ports: p3 } = createTestPorts(sharedFs);
     const r3 = await buildAndSync(allVideos, TEST_CONFIG, p3, cache);
-    await publish(r3, TEST_CONFIG, p3.fs, p3.storage);
+    await publish(r3, TEST_CONFIG, p3.fs, p3.storage, p3.clock.now);
     expect({
       run3: countExec(r3.results),
       downloadCalls: p3.ytdlp.downloadVideo.mock.calls.length,
@@ -331,7 +327,7 @@ describe("sync pipeline", () => {
   test("uploaded files match URLs referenced in feed.xml", async () => {
     const { ports } = createTestPorts();
     const sr = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, new MemCache());
-    await publish(sr, TEST_CONFIG, ports.fs, ports.storage);
+    await publish(sr, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     const feedXml = await ports.fs.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
     const prefix = TEST_CONFIG.storage.publicUrl + "/";
     const referencedKeys = extractReferencedUrls(feedXml)
@@ -351,7 +347,7 @@ describe("sync pipeline", () => {
     const { ports } = createTestPorts();
 
     const r1 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
-    await publish(r1, TEST_CONFIG, ports.fs, ports.storage);
+    await publish(r1, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect(countExec(r1.results)).toEqual({ exec: 16, skip: 0, fail: 0 });
 
     for (const r of r1.results) {
@@ -362,7 +358,7 @@ describe("sync pipeline", () => {
     ports.storage.uploadFile.mockClear();
 
     const r2 = await buildAndSync(TEST_VIDEOS, TEST_CONFIG, ports, cache);
-    await publish(r2, TEST_CONFIG, ports.fs, ports.storage);
+    await publish(r2, TEST_CONFIG, ports.fs, ports.storage, ports.clock.now);
     expect(countExec(r2.results)).toEqual({ exec: 2, skip: 14, fail: 0 });
     expect(getUploadCalls(ports).sort((a, b) => a.key.localeCompare(b.key))).toEqual([
       { key: "artwork.jpg", cacheControl: "max-age=86400" },
@@ -386,7 +382,7 @@ describe("sync pipeline", () => {
     // Run 1: process all 3 videos
     const { fs: fs1, ports: p1 } = createTestPorts();
     const sr1 = await buildAndSync(allVideos, TEST_CONFIG, p1, new MemCache());
-    await publish(sr1, TEST_CONFIG, p1.fs, p1.storage);
+    await publish(sr1, TEST_CONFIG, p1.fs, p1.storage, p1.clock.now);
     const feedAfterRun1 = await fs1.readText(`${TEST_CONFIG.outputDir}/feed.xml`);
 
     // Run 2: force-reprocess first 2 only (simulates -f -n 2)
@@ -397,7 +393,7 @@ describe("sync pipeline", () => {
     });
     const subset = allVideos.slice(0, 2);
     const sr2 = await buildAndSync(subset, TEST_CONFIG, p2, new MemCache());
-    await publish(sr2, TEST_CONFIG, p2.fs, p2.storage);
+    await publish(sr2, TEST_CONFIG, p2.fs, p2.storage, p2.clock.now);
 
     expect({
       dag: countExec(sr2.results),

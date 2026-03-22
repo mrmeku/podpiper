@@ -6,6 +6,8 @@ import type { Episode } from "@/types";
 
 import { type DescriptionInput, buildDescriptionHtml, buildDescriptionText, buildFeedXml } from "./generate";
 
+const FIXED_NOW = () => new Date("2024-01-01T00:00:00Z");
+
 const EPISODE: Episode = {
   id: "vid_001",
   title: "Test Episode",
@@ -41,14 +43,14 @@ const EPISODE_WITH_GENERATED_CHAPTERS: Episode = {
 
 describe("buildFeedXml", () => {
   test("description-only episode has no separators", () => {
-    const xml = buildFeedXml(TEST_CONFIG, [EPISODE]);
+    const xml = buildFeedXml(TEST_CONFIG, [EPISODE], FIXED_NOW);
     const parsed = new XMLParser().parse(xml);
     const item = parsed.rss.channel.item;
     expect(item.description).toBe(EPISODE.description);
   });
 
   test("youtube chapters use — Chapters — separator", () => {
-    const xml = buildFeedXml(TEST_CONFIG, [EPISODE_WITH_ALL]);
+    const xml = buildFeedXml(TEST_CONFIG, [EPISODE_WITH_ALL], FIXED_NOW);
     const parsed = new XMLParser().parse(xml);
     const item = parsed.rss.channel.item;
     expect(item.description).toBe(
@@ -61,7 +63,7 @@ describe("buildFeedXml", () => {
   });
 
   test("generated chapters use — Generated Chapters — separator", () => {
-    const xml = buildFeedXml(TEST_CONFIG, [EPISODE_WITH_GENERATED_CHAPTERS]);
+    const xml = buildFeedXml(TEST_CONFIG, [EPISODE_WITH_GENERATED_CHAPTERS], FIXED_NOW);
     const parsed = new XMLParser().parse(xml);
     const item = parsed.rss.channel.item;
     expect(item.description).toBe(

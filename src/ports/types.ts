@@ -51,6 +51,10 @@ export interface ObjectStore {
   fileExists: (bucket: string, key: string) => Promise<boolean>;
 }
 
+export interface Clock {
+  now: () => Date;
+}
+
 export interface Ports {
   fs: FileSystem;
   ytdlp: YouTubeDownloader;
@@ -58,4 +62,5 @@ export interface Ports {
   whisper: Transcriber;
   claude: Llm;
   storage: ObjectStore;
+  clock: Clock;
 }

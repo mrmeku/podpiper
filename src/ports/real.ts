@@ -17,5 +17,6 @@ export function createRealPorts(opts?: { force?: boolean; cookies?: boolean }): 
     whisper: createRealWhisper(WHISPER_MODEL_PATH),
     claude: createRealLlm(CLAUDE_MODEL),
     storage: createS3Storage(),
+    clock: { now: () => new Date() },
   };
 }

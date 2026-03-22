@@ -8,6 +8,8 @@ import type { SyncResult } from "./execute";
 import { publish } from "./publish";
 import { parseExistingFeed } from "./rss/parse";
 
+const FIXED_NOW = () => new Date("2024-01-01T00:00:00Z");
+
 const TEST_CONFIG: Config = {
   channelUrl: "https://www.youtube.com/@test",
   outputDir: "/test/output",
@@ -68,7 +70,7 @@ describe("publish", () => {
       { localPath: "/local/ep2.mp3", key: "ep2/audio.mp3" },
     ]);
 
-    await publish(sr, TEST_CONFIG, fs, storage);
+    await publish(sr, TEST_CONFIG, fs, storage, FIXED_NOW);
 
     expect(uploadedFiles.sort((a, b) => a.key.localeCompare(b.key))).toEqual([
       { key: "ep1/audio.mp3" },
@@ -92,7 +94,7 @@ describe("publish", () => {
       getFile: async () => null,
       fileExists: async () => false,
     };
-    await publish(existingSr, TEST_CONFIG, fs, firstRunStorage);
+    await publish(existingSr, TEST_CONFIG, fs, firstRunStorage, FIXED_NOW);
     const firstFeed = await fs.readText("/test/output/feed.xml");
 
     const newEp = makeEpisode("new_ep", "20240315");
@@ -106,7 +108,7 @@ describe("publish", () => {
       },
       fileExists: async () => false,
     };
-    await publish(newSr, TEST_CONFIG, fs, secondRunStorage);
+    await publish(newSr, TEST_CONFIG, fs, secondRunStorage, FIXED_NOW);
 
     const mergedFeed = await fs.readText("/test/output/feed.xml");
     const episodes = parseExistingFeed("https://cdn.test.com", mergedFeed);
@@ -125,7 +127,7 @@ describe("publish", () => {
       getFile: async () => null,
       fileExists: async () => false,
     };
-    await publish(oldSr, TEST_CONFIG, fs, firstStorage);
+    await publish(oldSr, TEST_CONFIG, fs, firstStorage, FIXED_NOW);
     const firstFeed = await fs.readText("/test/output/feed.xml");
 
     const updatedEp = makeEpisode("ep1", "20240315");
@@ -140,7 +142,7 @@ describe("publish", () => {
       },
       fileExists: async () => false,
     };
-    await publish(newSr, TEST_CONFIG, fs, secondStorage);
+    await publish(newSr, TEST_CONFIG, fs, secondStorage, FIXED_NOW);
 
     const mergedFeed = await fs.readText("/test/output/feed.xml");
     const episodes = parseExistingFeed("https://cdn.test.com", mergedFeed);
@@ -171,7 +173,7 @@ describe("publish", () => {
       { localPath: "/local/ep2.mp3", key: "ep2/audio.mp3" },
     ]);
 
-    await publish(sr, TEST_CONFIG, fs, storage);
+    await publish(sr, TEST_CONFIG, fs, storage, FIXED_NOW);
 
     expect(uploadedFiles.sort((a, b) => a.key.localeCompare(b.key))).toEqual([
       { key: "ep2/audio.mp3" },

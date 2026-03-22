@@ -80,7 +80,7 @@ export function registerSync(program: Command) {
         renderFinalSummary(syncResult.results);
 
         console.log("Publishing...");
-        await publish(syncResult, config, ports.fs, ports.storage);
+        await publish(syncResult, config, ports.fs, ports.storage, ports.clock.now);
         console.log("Done.");
       },
     );

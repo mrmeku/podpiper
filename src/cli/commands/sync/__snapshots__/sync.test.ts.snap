@@ -11,7 +11,7 @@ exports[`sync pipeline fresh run executes full pipeline and publishes correct ar
     <language>en</language>
     <copyright>Test Author</copyright>
     <pubDate>Fri, 15 Mar 2024 00:00:00 GMT</pubDate>
-    <lastBuildDate>STABLE</lastBuildDate>
+    <lastBuildDate>Mon, 01 Jan 2024 00:00:00 GMT</lastBuildDate>
     <ttl>60</ttl>
     <generator>podpiper</generator>
     <image>

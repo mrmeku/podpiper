@@ -6,6 +6,7 @@ import type { Episode } from "@/types";
 import { buildFeedXml } from "./generate";
 import { mergeEpisodes, parseExistingFeed } from "./parse";
 
+const FIXED_NOW = () => new Date("2024-01-01T00:00:00Z");
 const BASE_URL = TEST_CONFIG.storage.publicUrl;
 
 const EP_WITH_CHAPTERS: Episode = {
@@ -45,7 +46,7 @@ const EP_WITHOUT_CHAPTERS: Episode = {
 
 describe("feed round-trip preserves chapters", () => {
   test("parseExistingFeed retains chapters flag from podcast:chapters element", () => {
-    const xml = buildFeedXml(TEST_CONFIG, [EP_WITH_CHAPTERS, EP_WITHOUT_CHAPTERS]);
+    const xml = buildFeedXml(TEST_CONFIG, [EP_WITH_CHAPTERS, EP_WITHOUT_CHAPTERS], FIXED_NOW);
     const parsed = parseExistingFeed(BASE_URL, xml);
     const byId = Object.fromEntries(parsed.map((ep) => [ep.id, ep]));
     expect(byId.vid_aaa!.chapters.length).toBeGreaterThan(0);
@@ -53,10 +54,10 @@ describe("feed round-trip preserves chapters", () => {
   });
 
   test("merge then rebuild preserves podcast:chapters in XML", () => {
-    const feedXml = buildFeedXml(TEST_CONFIG, [EP_WITH_CHAPTERS, EP_WITHOUT_CHAPTERS]);
+    const feedXml = buildFeedXml(TEST_CONFIG, [EP_WITH_CHAPTERS, EP_WITHOUT_CHAPTERS], FIXED_NOW);
     const existing = parseExistingFeed(BASE_URL, feedXml);
     const merged = mergeEpisodes(existing, []);
-    const rebuiltXml = buildFeedXml(TEST_CONFIG, merged);
+    const rebuiltXml = buildFeedXml(TEST_CONFIG, merged, FIXED_NOW);
     expect(rebuiltXml).toContain("podcast:chapters");
     expect(rebuiltXml).toContain("vid_aaa/chapters.json");
   });

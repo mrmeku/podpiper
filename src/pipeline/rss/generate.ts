@@ -191,7 +191,7 @@ function buildItem(config: Config, ep: Episode): RssItem {
   };
 }
 
-export function buildFeedXml(config: Config, episodes: Episode[]): string {
+export function buildFeedXml(config: Config, episodes: Episode[], now: () => Date): string {
   const { podcast } = config;
   const artworkUrl = `${config.storage.publicUrl}/artwork.jpg`;
   const builder = new XMLBuilder(xmlBuilderOptions);
@@ -224,7 +224,7 @@ export function buildFeedXml(config: Config, episodes: Episode[]): string {
         language: podcast.language ?? "en",
         ...(podcast.copyright && { copyright: podcast.copyright }),
         pubDate: newestEpisode ? formatPubDate(newestEpisode.uploadDate) : undefined,
-        lastBuildDate: formatRfc2822(new Date()),
+        lastBuildDate: formatRfc2822(now()),
         ttl: 60,
         generator: "podpiper",
         image: {

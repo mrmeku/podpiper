@@ -6,6 +6,8 @@ import type { Config, Episode, VideoInfo } from "@/types";
 
 import { checkMissing } from "./check";
 
+const FIXED_NOW = () => new Date("2024-01-01T00:00:00Z");
+
 const TEST_CONFIG: Config = {
   channelUrl: "https://www.youtube.com/@testchannel",
   outputDir: "/test/output",
@@ -61,7 +63,7 @@ describe("checkMissing", () => {
   });
 
   test("returns interleaved missing when 1st and 3rd are in feed", async () => {
-    const feedXml = buildFeedXml(TEST_CONFIG, [makeEpisode("vid_aaa"), makeEpisode("vid_ccc")]);
+    const feedXml = buildFeedXml(TEST_CONFIG, [makeEpisode("vid_aaa"), makeEpisode("vid_ccc")], FIXED_NOW);
     const missing = await checkMissing(VIDEOS, TEST_CONFIG, mockStorage(feedXml));
     expect(missing).toEqual([VIDEOS[1]!, VIDEOS[3]!]);
   });
@@ -70,6 +72,7 @@ describe("checkMissing", () => {
     const feedXml = buildFeedXml(
       TEST_CONFIG,
       VIDEOS.map((v) => makeEpisode(v.id)),
+      FIXED_NOW,
     );
     const missing = await checkMissing(VIDEOS, TEST_CONFIG, mockStorage(feedXml));
     expect(missing).toEqual([]);

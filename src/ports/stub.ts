@@ -33,5 +33,6 @@ export function createStubPorts(): Ports {
       getFile: async () => null,
       fileExists: async () => false,
     },
+    clock: { now: () => new Date("2024-01-01T00:00:00Z") },
   };
 }
