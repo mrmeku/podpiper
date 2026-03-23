@@ -106,10 +106,10 @@ export async function execute(
   validateNoCycles(nodes);
   const runner = opts?.runner ?? localRunner;
   const force = opts?.force ?? false;
+  const scheduler = opts?.scheduler ?? unboundedScheduler();
   const run: RunNode = (desc, depContentHashes, depOutputs) => {
     const node = nodes.get(desc.name)!;
     return processNode(node, depContentHashes, depOutputs, ctx, { runner, force });
   };
-  const scheduler = opts?.scheduler ?? unboundedScheduler();
   return orchestrate(nodes.values(), run, scheduler, opts?.onAction);
 }

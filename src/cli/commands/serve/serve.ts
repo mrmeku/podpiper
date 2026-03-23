@@ -43,7 +43,7 @@ export function registerServe(program: Command) {
       const whisperWorker = await Worker.create({
         connection: nativeConnection,
         taskQueue: TASK_QUEUES.whisper,
-        activities: { processVideoNode: activities.processVideoNode },
+        activities: { transcribe: activities.transcribe },
         maxConcurrentActivityTaskExecutions: 1,
       });
 
@@ -51,7 +51,7 @@ export function registerServe(program: Command) {
       const claudeWorker = await Worker.create({
         connection: nativeConnection,
         taskQueue: TASK_QUEUES.claude,
-        activities: { processVideoNode: activities.processVideoNode },
+        activities: { chapters: activities.chapters, summary: activities.summary },
         maxConcurrentActivityTaskExecutions: 5,
       });
 

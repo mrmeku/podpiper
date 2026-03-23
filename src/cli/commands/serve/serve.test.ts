@@ -173,8 +173,8 @@ describe("temporal serve", () => {
     await activities.discover({ channelName: "a" });
     await activities.discover({ channelName: "b" });
 
-    expect(ports.ytdlp.fetchVideoList.mock.calls[0][0].channelUrl).toBe(configA.channelUrl);
-    expect(ports.ytdlp.fetchVideoList.mock.calls[1][0].channelUrl).toBe(configB.channelUrl);
+    expect(ports.ytdlp.fetchVideoList.mock.calls[0]![0].channelUrl).toBe(configA.channelUrl);
+    expect(ports.ytdlp.fetchVideoList.mock.calls[1]![0].channelUrl).toBe(configB.channelUrl);
   });
 
   test("Graph.describe() returns serializable descriptors", () => {

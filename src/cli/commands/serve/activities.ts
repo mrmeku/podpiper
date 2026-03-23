@@ -1,5 +1,5 @@
 import { artwork, channelAvatar } from "@/pipeline/actions/artwork";
-import { NodeKind } from "@/pipeline/actions/define-action";
+import { ChannelNodeKind, VideoNodeKind } from "@/pipeline/actions/define-action";
 import type { rssEntry } from "@/pipeline/actions/rss-entry";
 import { buildVideoGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
@@ -57,24 +57,32 @@ function defaultResolve(ports: Ports, configResolver: ConfigResolver, channelNam
   return { config, executionCtx: { cache, fs: ports.fs, casBaseDir: config.casBaseDir } };
 }
 
+type VideoNodeActivities = Record<VideoNodeKind, (input: VideoNodeInput) => Promise<ProcessNodeResult>>;
+
 export function createActivities(ports: Ports, configResolver: ConfigResolver = getConfig) {
+  async function runVideoNode(input: VideoNodeInput): Promise<ProcessNodeResult> {
+    const { config, executionCtx } = defaultResolve(ports, configResolver, input.channelName);
+    const video: VideoInfo = {
+      id: input.video.videoId,
+      uploadDate: input.video.uploadDate,
+      title: input.video.title,
+    };
+    const graph = buildVideoGraph(video, ports, config);
+    const node = graph.getNodes().get(input.nodeName)!;
+    return processNode(
+      node,
+      new Map(Object.entries(input.depContentHashes)),
+      input.depOutputs,
+      executionCtx,
+    );
+  }
+
+  const videoNodeActivities = Object.fromEntries(
+    Object.values(VideoNodeKind).map((kind) => [kind, runVideoNode]),
+  ) as VideoNodeActivities;
+
   return {
-    async processVideoNode(input: VideoNodeInput): Promise<ProcessNodeResult> {
-      const { config, executionCtx } = defaultResolve(ports, configResolver, input.channelName);
-      const video: VideoInfo = {
-        id: input.video.videoId,
-        uploadDate: input.video.uploadDate,
-        title: input.video.title,
-      };
-      const graph = buildVideoGraph(video, ports, config);
-      const node = graph.getNodes().get(input.nodeName)!;
-      return processNode(
-        node,
-        new Map(Object.entries(input.depContentHashes)),
-        input.depOutputs,
-        executionCtx,
-      );
-    },
+    ...videoNodeActivities,
 
     async discover(input: DiscoverInput): Promise<DiscoverResult> {
       const { config } = defaultResolve(ports, configResolver, input.channelName);
@@ -102,7 +110,7 @@ export function createActivities(ports: Ports, configResolver: ConfigResolver = 
       const actionFn = channelAvatar.createAction(ports);
       const outputDir = `${config.outputDir}/temporal/channel_avatar`;
       return actionFn(
-        { kind: NodeKind.ChannelAvatar, channelUrl: config.channelUrl },
+        { kind: ChannelNodeKind.ChannelAvatar, channelUrl: config.channelUrl },
         {},
         outputDir,
       );
@@ -114,7 +122,7 @@ export function createActivities(ports: Ports, configResolver: ConfigResolver = 
       const outputDir = `${config.outputDir}/temporal/artwork`;
       return actionFn(
         {
-          kind: NodeKind.Artwork,
+          kind: ChannelNodeKind.Artwork,
           deps: { channelAvatar: { name: "" } },
         },
         { channelAvatar: input.avatarPath },

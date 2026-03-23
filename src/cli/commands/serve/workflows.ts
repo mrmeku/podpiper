@@ -15,7 +15,7 @@ import { orchestrate, unboundedScheduler, type Node, type Outputs, type RunNode 
 
 import type { Activities } from "./activities";
 import { TEMPORAL_TASK_CONFIG, TASK_QUEUES } from "./task-config";
-import type { NodeKind } from "@/pipeline/actions/define-action";
+import type { NodeKind, VideoNodeKind } from "@/pipeline/actions/define-action";
 
 export interface VideoWorkflowInput {
   channelName: string;
@@ -37,7 +37,8 @@ function activityOptions(kind: string): ActivityOptions {
 export async function videoWorkflow(input: VideoWorkflowInput): Promise<Outputs | undefined> {
   const run: RunNode = async (desc, depContentHashes, depOutputs) => {
     const acts = proxyActivities<Activities>(activityOptions(desc.kind));
-    return acts.processVideoNode({
+    const activity = acts[desc.kind as VideoNodeKind];
+    return activity({
       channelName: input.channelName,
       video: input.video,
       nodeName: desc.name,

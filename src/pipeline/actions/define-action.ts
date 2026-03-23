@@ -13,7 +13,7 @@ export function defineActionWithPorts<P extends BaseParams, R extends Outputs, C
   return defineAction(spec);
 }
 
-export enum NodeKind {
+export enum VideoNodeKind {
   Download = "download",
   Transcribe = "transcribe",
   Thumbnail = "thumbnail",
@@ -21,6 +21,12 @@ export enum NodeKind {
   EmbedChapters = "embed_chapters",
   Summary = "summary",
   RssEntry = "rss_entry",
+}
+
+export enum ChannelNodeKind {
   ChannelAvatar = "channel_avatar",
   Artwork = "artwork",
 }
+
+export type NodeKind = VideoNodeKind | ChannelNodeKind;
+export const NodeKind = { ...VideoNodeKind, ...ChannelNodeKind } as const;
