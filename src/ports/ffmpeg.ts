@@ -1,6 +1,6 @@
-import { $ } from "bun";
 import NodeID3 from "node-id3";
 
+import { exec } from "@/ports/exec";
 import type { Chapter } from "@/types";
 import type { MediaProcessor } from "./types";
 
@@ -23,10 +23,30 @@ function buildId3ChapterTags(chapters: Chapter[]) {
 export function createRealFfmpeg(): MediaProcessor {
   return {
     squareThumbnail: async (input, output) => {
-      await $`ffmpeg -y -i ${input} -vf ${"pad=iw:iw:0:(oh-ih)/2:black,scale=1400:1400:flags=lanczos"} -q:v 2 ${output}`.quiet();
+      await exec([
+        "ffmpeg",
+        "-y",
+        "-i",
+        input,
+        "-vf",
+        "pad=iw:iw:0:(oh-ih)/2:black,scale=1400:1400:flags=lanczos",
+        "-q:v",
+        "2",
+        output,
+      ]);
     },
     processChannelArtwork: async (rawPath, outputPath) => {
-      await $`ffmpeg -y -i ${rawPath} -vf ${"scale=1400:1400:flags=lanczos"} -q:v 2 ${outputPath}`.quiet();
+      await exec([
+        "ffmpeg",
+        "-y",
+        "-i",
+        rawPath,
+        "-vf",
+        "scale=1400:1400:flags=lanczos",
+        "-q:v",
+        "2",
+        outputPath,
+      ]);
     },
     embedChapters: async (audioPath, chapters, outputPath) => {
       const buf = Buffer.from(await Bun.file(audioPath).arrayBuffer());
