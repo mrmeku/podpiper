@@ -9,7 +9,6 @@ export interface ExecState {
   ready: Node[];
   enqueued: Set<string>;
   inflight: number;
-  groupInflight: Map<string, number>;
 }
 
 function buildDependents(nodes: Iterable<Node>): Map<string, Node[]> {
@@ -35,7 +34,6 @@ export function createExecState(nodes: Iterable<Node>): ExecState {
     ready: leaves,
     enqueued: new Set(leaves.map((n) => n.name)),
     inflight: 0,
-    groupInflight: new Map(),
   };
 }
 
@@ -43,27 +41,13 @@ export function createExecState(nodes: Iterable<Node>): ExecState {
 
 export function tryTakeNext(
   state: ExecState,
-  maxParallelism?: number,
-  concurrencyLimits?: Record<string, number>,
+  filter?: (node: Node) => boolean,
 ): Node | null {
   if (state.ready.length === 0) return null;
-  if (maxParallelism != null && state.inflight >= maxParallelism) return null;
-  const idx = concurrencyLimits
-    ? state.ready.findIndex((node) => {
-        const group = node.concurrencyGroup;
-        if (!group) return true;
-        const limit = concurrencyLimits[group];
-        if (limit == null) return true;
-        return (state.groupInflight.get(group) ?? 0) < limit;
-      })
-    : 0;
+  const idx = filter ? state.ready.findIndex(filter) : 0;
   if (idx === -1) return null;
   const node = state.ready.splice(idx, 1)[0]!;
   state.inflight++;
-  const group = node.concurrencyGroup;
-  if (group) {
-    state.groupInflight.set(group, (state.groupInflight.get(group) ?? 0) + 1);
-  }
   return node;
 }
 
@@ -88,12 +72,6 @@ export function send(state: ExecState, action: ExecAction): void {
       return;
     case "complete": {
       state.inflight--;
-      const group = action.node.concurrencyGroup;
-      if (group) {
-        const count = state.groupInflight.get(group)!;
-        if (count <= 1) state.groupInflight.delete(group);
-        else state.groupInflight.set(group, count - 1);
-      }
       const children = (state.dependents.get(action.node.name) ?? []).filter(
         (child) =>
           !state.enqueued.has(child.name) && child.deps.every((d) => state.execResults.has(d)),

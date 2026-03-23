@@ -1,5 +1,3 @@
-import type { ExecAction } from "./exec-state";
-
 /** Minimum contract for parameters passed to `addNode`. `kind` groups nodes for display/counting. */
 export interface BaseParams {
   kind: string;
@@ -79,15 +77,6 @@ export interface Cache {
   put(key: string, entry: CacheEntry): Promise<void>;
 }
 
-export interface ExecuteOptions {
-  maxParallelism?: number;
-  /** Per-group concurrency limits. Keys are group names, values are max inflight for that group. */
-  concurrencyLimits?: Record<string, number>;
-  /** Observer callback — receives every ExecAction dispatched during execution. */
-  onAction?: (action: ExecAction) => void;
-  /** Skip cache lookups — every node re-executes from scratch. */
-  force?: boolean;
-}
 
 /** Output of `graph.analyze()` — structural info, no cache prediction. */
 export interface AnalysisResult {

@@ -3,7 +3,6 @@ import { readJson } from "@/typed-path";
 import type { Episode, UploadEntry } from "@/types";
 import {
   execute,
-  localRunner,
   type ExecResult,
   type ExecuteOptions,
   type ExecutionContext,
@@ -29,7 +28,7 @@ export async function sync(
   opts?: ExecuteOptions,
 ): Promise<SyncResult> {
   const { entryRefs, artworkRef } = refs;
-  const results = await execute(graph, executionCtx, localRunner, opts);
+  const results = await execute(graph, executionCtx, opts);
   const resultsByName = new Map(results.map((r) => [r.name, r]));
   const uploads: UploadEntry[] = [];
   const episodes: Episode[] = [];

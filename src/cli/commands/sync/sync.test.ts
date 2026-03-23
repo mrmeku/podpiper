@@ -19,7 +19,7 @@ function buildAndSync(
   config: Config,
   ports: ReturnType<typeof createTestPorts>["ports"],
   cache: Cache,
-  opts?: { maxParallelism?: number; force?: boolean },
+  opts?: { force?: boolean },
 ) {
   const { graph, refs } = buildPipelineGraph(videos, ports, config);
   const executionCtx: ExecutionContext = {

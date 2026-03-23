@@ -1,11 +1,13 @@
+import type { ExecAction } from "./exec-state";
 import { localRunner } from "./graph";
 import { computeHash, hashOutputFiles, validateNoCycles, verifyOutputs } from "./helpers";
+import type { RunNode, Scheduler } from "./orchestrate";
 import { orchestrate } from "./orchestrate";
+import { unboundedScheduler } from "./schedulers";
 import type {
   Cache,
   DagFs,
   ExecResult,
-  ExecuteOptions,
   NodeRunner,
   Outputs,
   ProcessNodeResult,
@@ -88,20 +90,26 @@ export async function processNode(
   }
 }
 
+export interface ExecuteOptions {
+  runner?: NodeRunner;
+  force?: boolean;
+  onAction?: (action: ExecAction) => void;
+  scheduler?: Scheduler;
+}
+
 export async function execute(
   graph: Graph,
   ctx: ExecutionContext,
-  runner: NodeRunner = localRunner,
   opts?: ExecuteOptions,
 ): Promise<ExecResult[]> {
   const nodes = graph.getNodes();
   validateNoCycles(nodes);
-  return orchestrate(
-    nodes.values(),
-    (desc, depContentHashes, depOutputs) => {
-      const node = nodes.get(desc.name)!;
-      return processNode(node, depContentHashes, depOutputs, ctx, { runner, force: opts?.force ?? false });
-    },
-    opts,
-  );
+  const runner = opts?.runner ?? localRunner;
+  const force = opts?.force ?? false;
+  const run: RunNode = (desc, depContentHashes, depOutputs) => {
+    const node = nodes.get(desc.name)!;
+    return processNode(node, depContentHashes, depOutputs, ctx, { runner, force });
+  };
+  const scheduler = opts?.scheduler ?? unboundedScheduler();
+  return orchestrate(nodes.values(), run, scheduler, opts?.onAction);
 }

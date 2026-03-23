@@ -11,7 +11,7 @@ import {
   proxyActivities,
   type ActivityOptions,
 } from "@temporalio/workflow";
-import { orchestrate, type Node, type Outputs, type RunNode } from "@podpiper/dagraph";
+import { orchestrate, unboundedScheduler, type Node, type Outputs, type RunNode } from "@podpiper/dagraph";
 
 import type { Activities } from "./activities";
 import { TEMPORAL_TASK_CONFIG, TASK_QUEUES } from "./task-config";
@@ -28,24 +28,9 @@ export interface ChannelWorkflowInput {
 }
 
 function activityOptions(kind: string): ActivityOptions {
-  const cfg = TEMPORAL_TASK_CONFIG[kind as NodeKind];
-  if (!cfg) {
-    return {
-      taskQueue: TASK_QUEUES.default,
-      startToCloseTimeout: "5m",
-    };
-  }
-  return {
-    taskQueue: cfg.taskQueue,
-    startToCloseTimeout: cfg.startToCloseTimeout,
-    ...(cfg.scheduleToCloseTimeout && { scheduleToCloseTimeout: cfg.scheduleToCloseTimeout }),
-    ...(cfg.retry && {
-      retry: {
-        ...(cfg.retry.maximumAttempts != null && { maximumAttempts: cfg.retry.maximumAttempts }),
-        ...(cfg.retry.backoffCoefficient != null && { backoffCoefficient: cfg.retry.backoffCoefficient }),
-        ...(cfg.retry.maximumInterval != null && { maximumInterval: cfg.retry.maximumInterval }),
-      },
-    }),
+  return TEMPORAL_TASK_CONFIG[kind as NodeKind] ?? {
+    taskQueue: TASK_QUEUES.default,
+    startToCloseTimeout: "5m",
   };
 }
 
@@ -61,7 +46,7 @@ export async function videoWorkflow(input: VideoWorkflowInput): Promise<Outputs 
       depOutputs,
     });
   };
-  const results = await orchestrate(input.descriptors, run);
+  const results = await orchestrate(input.descriptors, run, unboundedScheduler());
   const last = input.descriptors.at(-1);
   if (!last) return undefined;
   const result = results.find((r) => r.name === last.name);

@@ -6,8 +6,9 @@ import { defineAction } from "./define-action";
 import type { ExecAction } from "./exec-state";
 import { execute } from "./execute";
 import type { ExecutionContext } from "./execute";
-import { Graph, localRunner } from "./graph";
+import { Graph } from "./graph";
 import { validateNoCycles } from "./helpers";
+import { throttledScheduler } from "./schedulers";
 import type { BaseParams, DagFs, ExecResult, NodeRunner, RunnableNode } from "./types";
 
 function createMemoryDagFs(): DagFs {
@@ -312,7 +313,7 @@ describe("Graph", () => {
       },
     });
 
-    await execute(g, ctx(cache, fs), localRunner, { maxParallelism: 1 });
+    await execute(g, ctx(cache, fs), { scheduler: throttledScheduler({ maxParallelism: 1 }) });
     expect(log).toEqual(["first_root", "child", "second_root"]);
   });
 
@@ -402,7 +403,7 @@ describe("Graph", () => {
       return write(fs, `${node.name}.txt`, `result:${node.name}`);
     };
 
-    const results = await execute(g, ctx(cache, fs), mockRunner);
+    const results = await execute(g, ctx(cache, fs), { runner: mockRunner });
     expect(calls).toEqual(["root", "child"]);
     const child = results.find((r) => r.name === "child")!;
     expect(child.status).toBe("done");
@@ -533,7 +534,7 @@ describe("Graph", () => {
       });
     }
 
-    const results = await execute(g, ctx(cache, fs), localRunner, { maxParallelism: 2 });
+    const results = await execute(g, ctx(cache, fs), { scheduler: throttledScheduler({ maxParallelism: 2 }) });
     expect(peak).toBe(2);
     expect(results.filter((r) => r.status === "done").length).toBe(6);
   });
@@ -675,8 +676,8 @@ describe("Graph", () => {
       });
 
       const actions: ExecAction[] = [];
-      await execute(g, ctx(cache, fs), localRunner, {
-        maxParallelism: 1,
+      await execute(g, ctx(cache, fs), {
+        scheduler: throttledScheduler({ maxParallelism: 1 }),
         onAction: (a) => actions.push(a),
       });
 
@@ -721,7 +722,7 @@ describe("Graph", () => {
       await execute(makeGraph(), ctx(cache, fs));
 
       const actions: ExecAction[] = [];
-      await execute(makeGraph(), ctx(cache, fs), localRunner, {
+      await execute(makeGraph(), ctx(cache, fs), {
         onAction: (a) => actions.push(a),
       });
 
@@ -745,7 +746,7 @@ describe("Graph", () => {
       });
 
       const actions: ExecAction[] = [];
-      await execute(g, ctx(cache, fs), localRunner, { onAction: (a) => actions.push(a) });
+      await execute(g, ctx(cache, fs), { onAction: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
       expect(types).toEqual(["start:bad", "fail:bad", "complete:bad"]);
@@ -781,7 +782,7 @@ describe("Graph", () => {
       });
 
       const actions: ExecAction[] = [];
-      await execute(g, ctx(cache, fs), localRunner, { onAction: (a) => actions.push(a) });
+      await execute(g, ctx(cache, fs), { onAction: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
       expect(types).toEqual(["start:a", "fail:a", "complete:a", "dep-failed:b", "complete:b"]);
@@ -906,7 +907,7 @@ describe("Graph", () => {
 
     bShouldFail = false;
     const actions: ExecAction[] = [];
-    const results2 = await execute(makeGraph(), ctx(cache, fs), localRunner, {
+    const results2 = await execute(makeGraph(), ctx(cache, fs), {
       onAction: (a) => actions.push(a),
     });
     const byName2 = Object.fromEntries(results2.map((r) => [r.name, r.status]));
@@ -942,9 +943,8 @@ describe("Graph", () => {
         });
       }
 
-      const results = await execute(g, ctx(cache, fs), localRunner, {
-        maxParallelism: 4,
-        concurrencyLimits: { heavy: 2 },
+      const results = await execute(g, ctx(cache, fs), {
+        scheduler: throttledScheduler({ maxParallelism: 4, concurrencyLimits: { heavy: 2 } }),
       });
       expect(peak).toBe(2);
       expect(results.filter((r) => r.status === "done").length).toBe(6);
@@ -994,9 +994,8 @@ describe("Graph", () => {
         });
       }
 
-      const results = await execute(g, ctx(cache, fs), localRunner, {
-        maxParallelism: 6,
-        concurrencyLimits: { heavy: 1 },
+      const results = await execute(g, ctx(cache, fs), {
+        scheduler: throttledScheduler({ maxParallelism: 6, concurrencyLimits: { heavy: 1 } }),
       });
       expect(groupPeak).toBe(1);
       expect(totalPeak).toBeGreaterThan(1);
@@ -1074,9 +1073,8 @@ describe("Graph", () => {
         });
       }
 
-      const results = await execute(g, ctx(cache, fs), localRunner, {
-        maxParallelism: 8,
-        concurrencyLimits: { group_a: 1, group_b: 2 },
+      const results = await execute(g, ctx(cache, fs), {
+        scheduler: throttledScheduler({ maxParallelism: 8, concurrencyLimits: { group_a: 1, group_b: 2 } }),
       });
       expect(aPeak).toBe(1);
       expect(bPeak).toBe(2);

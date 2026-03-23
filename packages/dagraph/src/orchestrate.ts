@@ -1,5 +1,6 @@
 import * as execState from "./exec-state";
-import type { ExecResult, ExecuteOptions, Node, Outputs, ProcessNodeResult } from "./types";
+import type { ExecAction } from "./exec-state";
+import type { ExecResult, Node, Outputs, ProcessNodeResult } from "./types";
 
 export type RunNode = (
   node: Node,
@@ -7,48 +8,63 @@ export type RunNode = (
   depOutputs: Record<string, Outputs>,
 ) => Promise<ProcessNodeResult>;
 
+export interface SchedulerContext {
+  take(filter?: (node: Node) => boolean): Node | null;
+  run(node: Node): Promise<void>;
+  hasWork(): boolean;
+  workAvailable(): Promise<void>;
+}
+
+export type Scheduler = (ctx: SchedulerContext) => Promise<void>;
+
 export async function orchestrate(
   nodes: Iterable<Node>,
   run: RunNode,
-  opts?: Pick<ExecuteOptions, "maxParallelism" | "concurrencyLimits" | "onAction">,
+  schedule: Scheduler,
+  onAction?: (action: ExecAction) => void,
 ): Promise<ExecResult[]> {
-  const { maxParallelism, concurrencyLimits, onAction } = opts ?? {};
   const state = execState.createExecState(nodes);
-  const dispatch = (action: execState.ExecAction) => {
+  let resumeLoop: () => void = () => {};
+
+  const dispatch = (action: ExecAction) => {
     execState.send(state, action);
     onAction?.(action);
   };
 
-  let resumeLoop: () => void = () => {};
-  while (execState.hasWork(state)) {
-    let desc: Node | null;
-    while ((desc = execState.tryTakeNext(state, maxParallelism, concurrencyLimits))) {
-      const captured = desc;
-      const failed = execState.failedDep(captured, state);
+  const done = (node: Node, result: ProcessNodeResult) => {
+    for (const action of execState.resultToActions(node, result)) dispatch(action);
+    dispatch({ type: "complete", node });
+    resumeLoop();
+  };
+
+  const ctx: SchedulerContext = {
+    take(filter) {
+      return execState.tryTakeNext(state, filter);
+    },
+    run(node) {
+      const failed = execState.failedDep(node, state);
       if (failed) {
-        dispatch({ type: "dep-failed", node: captured, error: new Error(`dependency ${failed} failed`) });
-        dispatch({ type: "complete", node: captured });
-        resumeLoop();
-        continue;
+        done(node, { name: node.name, actionKey: "", status: "dep-failed", error: `dependency ${failed} failed` });
+        return Promise.resolve();
       }
-      const depContentHashes = new Map(captured.deps.map((d) => [d, state.contentHashes.get(d)!]));
-      const depOutputs = execState.inputsFor(captured, state);
-      run(captured, depContentHashes, depOutputs)
+      const depContentHashes = new Map(node.deps.map((d) => [d, state.contentHashes.get(d)!]));
+      const depOutputs = execState.inputsFor(node, state);
+      return run(node, depContentHashes, depOutputs)
         .catch((e): ProcessNodeResult => ({
-          name: captured.name,
-          actionKey: "",
-          status: "fail",
-          error: e instanceof Error ? e.message : String(e),
-          elapsed: 0,
+          name: node.name, actionKey: "", status: "fail",
+          error: e instanceof Error ? e.message : String(e), elapsed: 0,
         }))
-        .then((result) => {
-          for (const action of execState.resultToActions(captured, result)) dispatch(action);
-          dispatch({ type: "complete", node: captured });
-          resumeLoop();
-        });
-    }
-    if (state.inflight === 0) continue;
-    await new Promise<void>((r) => { resumeLoop = r; });
-  }
+        .then((result) => { done(node, result); });
+    },
+    hasWork() {
+      return execState.hasWork(state);
+    },
+    workAvailable() {
+      if (state.inflight === 0) return Promise.resolve();
+      return new Promise<void>((r) => { resumeLoop = r; });
+    },
+  };
+
+  await schedule(ctx);
   return [...state.execResults.values()];
 }

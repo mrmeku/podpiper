@@ -6,7 +6,7 @@ import { sync } from "@/pipeline/execute";
 import { buildPipelineGraph } from "@/pipeline/graph-builder";
 import { publish } from "@/pipeline/publish";
 import { createRealPorts } from "@/ports/real";
-import { FsCache, TieredCache } from "@podpiper/dagraph";
+import { FsCache, TieredCache, throttledScheduler } from "@podpiper/dagraph";
 import { createProgressRenderer, renderAnalysisSummary, renderFinalSummary } from "./render";
 
 export function registerSync(program: Command) {
@@ -71,8 +71,10 @@ export function registerSync(program: Command) {
         const executionCtx = { cache, fs: ports.fs, casBaseDir };
         const progress = createProgressRenderer(analysis, opts.parallel);
         const syncResult = await sync(graph, refs, ports.fs, executionCtx, {
-          maxParallelism: opts.parallel,
-          concurrencyLimits: opts.concurrency,
+          scheduler: throttledScheduler({
+            maxParallelism: opts.parallel,
+            concurrencyLimits: opts.concurrency,
+          }),
           onAction: progress.onAction,
           force: opts.force || false,
         });
