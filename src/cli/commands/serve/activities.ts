@@ -109,6 +109,7 @@ export function createActivities(ports: Ports, configResolver: ConfigResolver = 
       const { config } = defaultResolve(ports, configResolver, input.channelName);
       const actionFn = channelAvatar.createAction(ports);
       const outputDir = `${config.outputDir}/temporal/channel_avatar`;
+      await ports.fs.ensureDir(outputDir);
       return actionFn(
         { kind: ChannelNodeKind.ChannelAvatar, channelUrl: config.channelUrl },
         {},
@@ -120,6 +121,7 @@ export function createActivities(ports: Ports, configResolver: ConfigResolver = 
       const { config } = defaultResolve(ports, configResolver, input.channelName);
       const actionFn = artwork.createAction(ports);
       const outputDir = `${config.outputDir}/temporal/artwork`;
+      await ports.fs.ensureDir(outputDir);
       return actionFn(
         {
           kind: ChannelNodeKind.Artwork,
