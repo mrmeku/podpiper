@@ -1,6 +1,10 @@
 import type { SchedulerContext, Scheduler } from "./orchestrate";
-import type { Node } from "./types";
+import type { Node } from "./graph";
 
+/**
+ * Core scheduling loop: repeatedly take ready nodes, run them, and wait for in-flight work to
+ * complete. Hooks allow filtering (for concurrency limits) and bookkeeping (for counters).
+ */
 function schedulingLoop(hooks?: {
   filter?: (node: Node) => boolean;
   onStart?: (node: Node) => void;
@@ -19,6 +23,7 @@ function schedulingLoop(hooks?: {
   };
 }
 
+/** Scheduler with no parallelism limits — runs all ready nodes immediately. */
 export function unboundedScheduler(): Scheduler {
   return schedulingLoop();
 }
@@ -28,6 +33,10 @@ export interface ThrottledSchedulerOptions {
   concurrencyLimits?: Record<string, number>;
 }
 
+/**
+ * Scheduler with global and per-group concurrency limits. Nodes with a concurrencyGroup are
+ * subject to the corresponding limit (e.g. { whisper: 1 } to serialize CPU-heavy transcription).
+ */
 export function throttledScheduler(opts?: ThrottledSchedulerOptions): Scheduler {
   const { maxParallelism, concurrencyLimits } = opts ?? {};
   if (maxParallelism == null && concurrencyLimits == null) return unboundedScheduler();

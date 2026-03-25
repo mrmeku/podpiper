@@ -75,7 +75,7 @@ export function registerSync(program: Command) {
             maxParallelism: opts.parallel,
             concurrencyLimits: opts.concurrency,
           }),
-          onAction: progress.onAction,
+          onEvent: progress.onEvent,
           force: opts.force || false,
         });
         progress.finish();

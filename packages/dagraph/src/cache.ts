@@ -1,5 +1,28 @@
-import type { Cache, CacheEntry, DagFs } from "./types";
+import type { Outputs } from "./graph";
 
+/** What gets stored per action key in the cache. */
+export interface CacheEntry {
+  /** The file paths the action produced. */
+  outputs: Outputs;
+  /** SHA256 of actual file contents at those paths. */
+  contentHash: string;
+}
+
+/** Minimal filesystem contract the DAG executor needs. */
+export interface DagFs {
+  readText(path: string): Promise<string>;
+  writeText(path: string, content: string): Promise<void>;
+  hashFile(path: string): Promise<string>;
+  ensureDir(path: string): Promise<void>;
+}
+
+/** Content-addressed cache used by the executor to skip unchanged nodes. */
+export interface Cache {
+  get(key: string): Promise<CacheEntry | undefined>;
+  put(key: string, entry: CacheEntry): Promise<void>;
+}
+
+/** Filesystem-backed cache. Stores manifests as JSON at {baseDir}/{actionKey}/manifest.json. */
 export class FsCache implements Cache {
   constructor(
     private baseDir: string,
@@ -18,6 +41,7 @@ export class FsCache implements Cache {
   }
 }
 
+/** In-memory cache for testing. Entries are lost when the process exits. */
 export class MemCache implements Cache {
   private entries = new Map<string, CacheEntry>();
   async get(key: string): Promise<CacheEntry | undefined> {
@@ -28,6 +52,10 @@ export class MemCache implements Cache {
   }
 }
 
+/**
+ * Two-level cache (local + remote). Reads check local first, then remote (populating local on
+ * remote hit). Writes go to both. Typical setup: FsCache local + R2Cache remote.
+ */
 export class TieredCache implements Cache {
   public local: Cache;
   public remote: Cache;

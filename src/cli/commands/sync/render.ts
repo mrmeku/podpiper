@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { MultiBar, type SingleBar } from "cli-progress";
 import pc from "picocolors";
 
-import type { AnalysisResult, ExecAction, ExecResult } from "@podpiper/dagraph";
+import type { AnalysisResult, ExecEvent, ExecResult } from "@podpiper/dagraph";
 
-type ProgressRenderer = { onAction: (action: ExecAction) => void; finish: () => void };
+type ProgressRenderer = { onEvent: (event: ExecEvent) => void; finish: () => void };
 
 export function renderAnalysisSummary(analysis: AnalysisResult): void {
   const { total, byKind } = analysis;
@@ -23,7 +23,7 @@ export function createProgressRenderer(
   maxParallelism?: number,
 ): ProgressRenderer {
   const kinds = [...analysis.byKind.entries()].filter(([, c]) => c > 0);
-  if (kinds.length === 0) return { onAction: () => {}, finish: () => {} };
+  if (kinds.length === 0) return { onEvent: () => {}, finish: () => {} };
 
   const label = maxParallelism ? ` (parallelism: ${maxParallelism})` : "";
   console.log(`Executing${label}...`);
@@ -83,10 +83,10 @@ function createBarRenderer(kinds: [string, number][]): ProgressRenderer {
   }
 
   return {
-    onAction(action) {
-      const k = action.node.kind;
+    onEvent(event) {
+      const k = event.node.kind;
       if (!bars.has(k)) return;
-      switch (action.type) {
+      switch (event.type) {
         case "start":
           inflight.set(k, (inflight.get(k) ?? 0) + 1);
           break;
@@ -100,8 +100,8 @@ function createBarRenderer(kinds: [string, number][]): ProgressRenderer {
         case "fail": {
           inflight.set(k, Math.max(0, (inflight.get(k) ?? 0) - 1));
           failed.set(k, (failed.get(k) ?? 0) + 1);
-          const msg = action.error instanceof Error ? action.error.message : String(action.error);
-          multibar.log(`  ${pc.red(`FAIL ${action.node.name}: ${msg}`)}\n`);
+          const msg = event.error instanceof Error ? event.error.message : String(event.error);
+          multibar.log(`  ${pc.red(`FAIL ${event.node.name}: ${msg}`)}\n`);
           break;
         }
         case "dep-failed":
@@ -120,14 +120,14 @@ function createBarRenderer(kinds: [string, number][]): ProgressRenderer {
 
 function createTextRenderer(): ProgressRenderer {
   return {
-    onAction(action) {
-      if (action.type === "done") {
-        console.log(`  done ${action.node.name} (${action.elapsed}ms)`);
-      } else if (action.type === "cached") {
-        console.log(`  cached ${action.node.name}`);
-      } else if (action.type === "fail") {
-        const msg = action.error instanceof Error ? action.error.message : String(action.error);
-        console.log(pc.red(`  FAIL ${action.node.name}: ${msg}`));
+    onEvent(event) {
+      if (event.type === "done") {
+        console.log(`  done ${event.node.name} (${event.elapsed}ms)`);
+      } else if (event.type === "cached") {
+        console.log(`  cached ${event.node.name}`);
+      } else if (event.type === "fail") {
+        const msg = event.error instanceof Error ? event.error.message : String(event.error);
+        console.log(pc.red(`  FAIL ${event.node.name}: ${msg}`));
       }
     },
     finish() {},

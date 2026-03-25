@@ -1,15 +1,8 @@
 import { sha256 } from "js-sha256";
-import type { CacheEntry, Outputs } from "./types";
+import type { Outputs } from "./graph";
+import type { CacheEntry } from "./cache";
 
-export function jsonParse<T = unknown>(raw: string, label: string): T {
-  try {
-    return JSON.parse(raw) as T;
-  } catch (e) {
-    const preview = raw.length > 200 ? raw.slice(0, 200) + "…" : raw;
-    throw new Error(`JSON parse failed (${label}): ${(e as Error).message}\nRaw value: ${preview}`);
-  }
-}
-
+/** Flatten an Outputs value (string, array, or record) into a flat list of file paths. */
 export function collectPaths(outputs: Outputs): string[] {
   if (typeof outputs === "string") return [outputs];
   if (Array.isArray(outputs)) return outputs;
@@ -18,7 +11,11 @@ export function collectPaths(outputs: Outputs): string[] {
 
 export type HashFileFn = (path: string) => Promise<string>;
 
-export function computeHash(
+/**
+ * Compute the action key for a node: SHA256(name + config + sorted dep content hashes). This is
+ * the cache key — identical inputs always produce the same key.
+ */
+export function computeActionKey(
   node: { name: string; config: string; deps: string[] },
   depHashes: Map<string, string>,
 ): string {
@@ -35,6 +32,10 @@ export function computeHash(
   return h.hex();
 }
 
+/**
+ * Compute a content hash over a node's output files. Used after execution to detect whether
+ * outputs actually changed (early cutoff) and to store in the cache for downstream dep hashing.
+ */
 export async function hashOutputFiles(
   outputs: Outputs,
   hashFile: HashFileFn,
@@ -46,6 +47,10 @@ export async function hashOutputFiles(
   return h.hex();
 }
 
+/**
+ * Check that a cache entry's output files still exist and match their recorded content hash.
+ * Returns false if any file is missing or corrupted. Called before accepting a cache hit.
+ */
 export async function verifyOutputs(entry: CacheEntry, hashFile: HashFileFn): Promise<boolean> {
   try {
     const currentHash = await hashOutputFiles(entry.outputs, hashFile);
@@ -53,25 +58,4 @@ export async function verifyOutputs(entry: CacheEntry, hashFile: HashFileFn): Pr
   } catch {
     return false;
   }
-}
-
-export function validateNoCycles(nodes: ReadonlyMap<string, { deps: string[] }>): string[] {
-  const visited = new Set<string>();
-  const visiting = new Set<string>();
-  const order: string[] = [];
-
-  const visit = (name: string): void => {
-    if (visited.has(name)) return;
-    if (visiting.has(name)) throw new Error(`cycle detected at ${name}`);
-    visiting.add(name);
-    const node = nodes.get(name);
-    if (!node) throw new Error(`unknown node: ${name}`);
-    for (const dep of node.deps) visit(dep);
-    visiting.delete(name);
-    visited.add(name);
-    order.push(name);
-  };
-
-  for (const name of nodes.keys()) visit(name);
-  return order;
 }

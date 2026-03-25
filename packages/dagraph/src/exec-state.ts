@@ -1,16 +1,9 @@
-import type { ExecResult, Node, Outputs, ProcessNodeResult } from "./types";
+import type { Node, Outputs } from "./graph";
+import type { ExecEvent, ExecResult, ProcessNodeResult } from "./types";
 
-export interface ExecState {
-  dependents: Map<string, Node[]>;
-  results: Map<string, Outputs>;
-  contentHashes: Map<string, string>;
-  execResults: Map<string, ExecResult>;
-  failed: Set<string>;
-  ready: Node[];
-  enqueued: Set<string>;
-  inflight: number;
-}
+export type { ExecEvent, ExecResult, ProcessNodeResult } from "./types";
 
+/** Build the reverse adjacency list: for each node, which nodes depend on it. */
 function buildDependents(nodes: Iterable<Node>): Map<string, Node[]> {
   const acc = new Map<string, Node[]>();
   for (const node of nodes) {
@@ -22,148 +15,153 @@ function buildDependents(nodes: Iterable<Node>): Map<string, Node[]> {
   return acc;
 }
 
-export function createExecState(nodes: Iterable<Node>): ExecState {
-  const allNodes = Array.from(nodes);
-  const leaves = allNodes.filter((n) => n.deps.length === 0);
-  return {
-    dependents: buildDependents(allNodes),
-    results: new Map(),
-    contentHashes: new Map(),
-    execResults: new Map(),
-    failed: new Set(),
-    ready: leaves,
-    enqueued: new Set(leaves.map((n) => n.name)),
-    inflight: 0,
-  };
-}
+/**
+ * State machine that tracks which nodes are ready, in-flight, completed, or failed. Manages the
+ * ready queue and dependency fan-out: when a node completes, its dependents become ready if all
+ * their other deps are also done. Used internally by orchestrate().
+ */
+export class ExecState {
+  private dependents: Map<string, Node[]>;
+  private outputs = new Map<string, Outputs>();
+  private contentHashes = new Map<string, string>();
+  private execResults = new Map<string, ExecResult>();
+  private failed = new Set<string>();
+  private ready: Node[];
+  private enqueued: Set<string>;
+  inflight = 0;
 
-// --- actions ---
+  constructor(nodes: Iterable<Node>) {
+    const allNodes = Array.from(nodes);
+    const leaves = allNodes.filter((n) => n.deps.length === 0);
+    this.dependents = buildDependents(allNodes);
+    this.ready = leaves;
+    this.enqueued = new Set(leaves.map((n) => n.name));
+  }
 
-export function tryTakeNext(
-  state: ExecState,
-  filter?: (node: Node) => boolean,
-): Node | null {
-  if (state.ready.length === 0) return null;
-  const idx = filter ? state.ready.findIndex(filter) : 0;
-  if (idx === -1) return null;
-  const node = state.ready.splice(idx, 1)[0]!;
-  state.inflight++;
-  return node;
-}
+  /**
+   * Pop the next ready node (optionally matching a filter). Returns null if no node is available.
+   * The scheduler calls this in a loop to pull work.
+   */
+  tryTakeNext(filter?: (node: Node) => boolean): Node | null {
+    if (this.ready.length === 0) return null;
+    const idx = filter ? this.ready.findIndex(filter) : 0;
+    if (idx === -1) return null;
+    const node = this.ready.splice(idx, 1)[0]!;
+    this.inflight++;
+    return node;
+  }
 
-export type ExecAction =
-  | { type: "start"; node: Node }
-  | { type: "complete"; node: Node }
-  | { type: "cached"; node: Node; actionKey: string; outputs: Outputs; contentHash: string }
-  | {
-      type: "done";
-      node: Node;
-      actionKey: string;
-      outputs: Outputs;
-      contentHash: string;
-      elapsed: number;
-    }
-  | { type: "fail"; node: Node; error: unknown; elapsed: number }
-  | { type: "dep-failed"; node: Node; error: unknown };
-
-export function send(state: ExecState, action: ExecAction): void {
-  switch (action.type) {
-    case "start":
-      return;
-    case "complete": {
-      state.inflight--;
-      const children = (state.dependents.get(action.node.name) ?? []).filter(
-        (child) =>
-          !state.enqueued.has(child.name) && child.deps.every((d) => state.execResults.has(d)),
-      );
-      state.ready.unshift(...children);
-      for (const c of children) state.enqueued.add(c.name);
-      return;
-    }
-    case "cached": {
-      const { node, actionKey, outputs, contentHash } = action;
-      state.results.set(node.name, outputs);
-      state.contentHashes.set(node.name, contentHash);
-      state.execResults.set(node.name, {
-        name: node.name,
-        actionKey,
-        status: "cached",
-        outputs,
-        contentHash,
-      });
-      return;
-    }
-    case "done": {
-      const { node, actionKey, outputs, contentHash } = action;
-      state.results.set(node.name, outputs);
-      state.contentHashes.set(node.name, contentHash);
-      state.execResults.set(node.name, {
-        name: node.name,
-        actionKey,
-        status: "done",
-        outputs,
-        contentHash,
-      });
-      return;
-    }
-    case "fail": {
-      const { node } = action;
-      const error = action.error instanceof Error ? action.error : new Error(String(action.error));
-      state.failed.add(node.name);
-      state.execResults.set(node.name, {
-        name: node.name,
-        actionKey: "",
-        status: "fail",
-        error,
-      });
-      return;
-    }
-    case "dep-failed": {
-      const { node } = action;
-      const error = action.error instanceof Error ? action.error : new Error(String(action.error));
-      state.failed.add(node.name);
-      state.execResults.set(node.name, {
-        name: node.name,
-        actionKey: "",
-        status: "dep-failed",
-        error,
-      });
-      return;
+  /**
+   * Apply a state transition. Updates internal tracking (outputs, hashes, results, failed set)
+   * and on "settled" promotes newly-ready dependents to the ready queue.
+   */
+  send(event: ExecEvent): void {
+    switch (event.type) {
+      case "start":
+        return;
+      case "settled": {
+        this.inflight--;
+        const children = (this.dependents.get(event.node.name) ?? []).filter(
+          (child) =>
+            !this.enqueued.has(child.name) && child.deps.every((d) => this.execResults.has(d)),
+        );
+        this.ready.unshift(...children);
+        for (const c of children) this.enqueued.add(c.name);
+        return;
+      }
+      case "cached": {
+        const { node, actionKey, outputs, contentHash } = event;
+        this.outputs.set(node.name, outputs);
+        this.contentHashes.set(node.name, contentHash);
+        this.execResults.set(node.name, {
+          name: node.name,
+          actionKey,
+          status: "cached",
+          outputs,
+          contentHash,
+        });
+        return;
+      }
+      case "done": {
+        const { node, actionKey, outputs, contentHash } = event;
+        this.outputs.set(node.name, outputs);
+        this.contentHashes.set(node.name, contentHash);
+        this.execResults.set(node.name, {
+          name: node.name,
+          actionKey,
+          status: "done",
+          outputs,
+          contentHash,
+        });
+        return;
+      }
+      case "fail": {
+        const { node } = event;
+        const error = event.error instanceof Error ? event.error : new Error(String(event.error));
+        this.failed.add(node.name);
+        this.execResults.set(node.name, {
+          name: node.name,
+          actionKey: "",
+          status: "fail",
+          error,
+        });
+        return;
+      }
+      case "dep-failed": {
+        const { node } = event;
+        const error = event.error instanceof Error ? event.error : new Error(String(event.error));
+        this.failed.add(node.name);
+        this.execResults.set(node.name, {
+          name: node.name,
+          actionKey: "",
+          status: "dep-failed",
+          error,
+        });
+        return;
+      }
     }
   }
-}
 
-// --- conversions ---
-
-export function resultToActions(node: Node, result: ProcessNodeResult): ExecAction[] {
-  switch (result.status) {
-    case "cached":
-      return [{ type: "cached", node, actionKey: result.actionKey, outputs: result.outputs, contentHash: result.contentHash }];
-    case "done":
-      return [
-        { type: "start", node },
-        { type: "done", node, actionKey: result.actionKey, outputs: result.outputs, contentHash: result.contentHash, elapsed: result.elapsed },
-      ];
-    case "fail":
-      return [
-        { type: "start", node },
-        { type: "fail", node, error: new Error(result.error), elapsed: result.elapsed },
-      ];
-    case "dep-failed":
-      return [{ type: "dep-failed", node, error: new Error(result.error) }];
+  get hasWork(): boolean {
+    return this.ready.length > 0 || this.inflight > 0;
   }
-}
 
-// --- selectors ---
+  inputsFor(node: Node): Record<string, Outputs> {
+    return Object.fromEntries(node.deps.map((d) => [d, this.outputs.get(d)!]));
+  }
 
-export function hasWork(state: ExecState): boolean {
-  return state.ready.length > 0 || state.inflight > 0;
-}
+  failedDep(node: Node): string | undefined {
+    return node.deps.find((d) => this.failed.has(d));
+  }
 
-export function inputsFor(node: Node, state: ExecState): Record<string, Outputs> {
-  return Object.fromEntries(node.deps.map((d) => [d, state.results.get(d)!]));
-}
+  getContentHash(name: string): string | undefined {
+    return this.contentHashes.get(name);
+  }
 
-export function failedDep(node: Node, state: ExecState): string | undefined {
-  return node.deps.find((d) => state.failed.has(d));
+  get results(): ReadonlyMap<string, ExecResult> {
+    return this.execResults;
+  }
+
+  /**
+   * Convert a ProcessNodeResult into the ExecEvent sequence that should be dispatched. A "done"
+   * result emits start + done; "cached" emits just cached; failures emit start + fail or dep-failed.
+   */
+  static resultToEvents(node: Node, result: ProcessNodeResult): ExecEvent[] {
+    switch (result.status) {
+      case "cached":
+        return [{ type: "cached", node, actionKey: result.actionKey, outputs: result.outputs, contentHash: result.contentHash }];
+      case "done":
+        return [
+          { type: "start", node },
+          { type: "done", node, actionKey: result.actionKey, outputs: result.outputs, contentHash: result.contentHash, elapsed: result.elapsed },
+        ];
+      case "fail":
+        return [
+          { type: "start", node },
+          { type: "fail", node, error: new Error(result.error), elapsed: result.elapsed },
+        ];
+      case "dep-failed":
+        return [{ type: "dep-failed", node, error: new Error(result.error) }];
+    }
+  }
 }

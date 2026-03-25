@@ -1,15 +1,14 @@
 import type { Ports } from "@/ports/types";
 import {
   defineAction,
-  type ActionDef,
-  type ActionSpec,
+  type Action,
   type BaseParams,
   type Outputs,
 } from "@podpiper/dagraph";
 
 export function defineActionWithPorts<P extends BaseParams, R extends Outputs, C = string>(
-  spec: ActionSpec<Ports, P, R, C>,
-): ActionDef<Ports, P, R> {
+  spec: Parameters<typeof defineAction<Ports, P, R, C>>[0],
+): Action<Ports, P, R> {
   return defineAction(spec);
 }
 

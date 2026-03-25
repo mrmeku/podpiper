@@ -1,13 +1,20 @@
-import * as execState from "./exec-state";
-import type { ExecAction } from "./exec-state";
-import type { ExecResult, Node, Outputs, ProcessNodeResult } from "./types";
+import { ExecState, type ExecEvent, type ExecResult, type ProcessNodeResult } from "./exec-state";
+import type { Node, Outputs } from "./graph";
 
+/**
+ * Callback that executes a single node given its dep hashes and outputs. The orchestrator calls
+ * this for each ready node — the implementation decides *how* to run it (local, remote, etc.).
+ */
 export type RunNode = (
   node: Node,
   depContentHashes: Map<string, string>,
   depOutputs: Record<string, Outputs>,
 ) => Promise<ProcessNodeResult>;
 
+/**
+ * Interface the scheduler uses to interact with the orchestrator. Provides pull-based node
+ * acquisition (take), async execution (run), and backpressure (workAvailable).
+ */
 export interface SchedulerContext {
   take(filter?: (node: Node) => boolean): Node | null;
   run(node: Node): Promise<void>;
@@ -15,40 +22,50 @@ export interface SchedulerContext {
   workAvailable(): Promise<void>;
 }
 
+/**
+ * Pluggable execution strategy that controls parallelism and ordering. The scheduler pulls
+ * ready nodes via ctx.take() and launches them via ctx.run().
+ */
 export type Scheduler = (ctx: SchedulerContext) => Promise<void>;
 
+/**
+ * Coordinate DAG execution with a pluggable scheduler. Bridges the state machine (ExecState)
+ * and the scheduler by wiring up node completion callbacks that advance the state and resume
+ * the scheduling loop. Most callers should use execute() instead — orchestrate is the lower-level
+ * primitive for custom runner setups (e.g. Temporal activities).
+ */
 export async function orchestrate(
   nodes: Iterable<Node>,
   run: RunNode,
   schedule: Scheduler,
-  onAction?: (action: ExecAction) => void,
+  onEvent?: (event: ExecEvent) => void,
 ): Promise<ExecResult[]> {
-  const state = execState.createExecState(nodes);
+  const state = new ExecState(nodes);
   let resumeLoop: () => void = () => {};
 
-  const dispatch = (action: ExecAction) => {
-    execState.send(state, action);
-    onAction?.(action);
+  const emit = (event: ExecEvent) => {
+    state.send(event);
+    onEvent?.(event);
   };
 
   const done = (node: Node, result: ProcessNodeResult) => {
-    for (const action of execState.resultToActions(node, result)) dispatch(action);
-    dispatch({ type: "complete", node });
+    for (const event of ExecState.resultToEvents(node, result)) emit(event);
+    emit({ type: "settled", node });
     resumeLoop();
   };
 
   const ctx: SchedulerContext = {
     take(filter) {
-      return execState.tryTakeNext(state, filter);
+      return state.tryTakeNext(filter);
     },
     run(node) {
-      const failed = execState.failedDep(node, state);
+      const failed = state.failedDep(node);
       if (failed) {
         done(node, { name: node.name, actionKey: "", status: "dep-failed", error: `dependency ${failed} failed` });
         return Promise.resolve();
       }
-      const depContentHashes = new Map(node.deps.map((d) => [d, state.contentHashes.get(d)!]));
-      const depOutputs = execState.inputsFor(node, state);
+      const depContentHashes = new Map(node.deps.map((d) => [d, state.getContentHash(d)!]));
+      const depOutputs = state.inputsFor(node);
       return run(node, depContentHashes, depOutputs)
         .catch((e): ProcessNodeResult => ({
           name: node.name, actionKey: "", status: "fail",
@@ -57,7 +74,7 @@ export async function orchestrate(
         .then((result) => { done(node, result); });
     },
     hasWork() {
-      return execState.hasWork(state);
+      return state.hasWork;
     },
     workAvailable() {
       if (state.inflight === 0) return Promise.resolve();
@@ -66,5 +83,5 @@ export async function orchestrate(
   };
 
   await schedule(ctx);
-  return [...state.execResults.values()];
+  return [...state.results.values()];
 }

@@ -15,7 +15,7 @@ export interface FileSystem {
 }
 
 export interface YouTubeDownloader {
-  fetchVideoList: (config: Pick<Config, "channelUrl" | "playlistOffset">) => Promise<VideoInfo[]>;
+  fetchVideoList: (config: Pick<Config, "channelUrl" | "playlistOffset" | "startDate">) => Promise<VideoInfo[]>;
   fetchVideoTitles: (videoIds: string[]) => Promise<Record<string, string>>;
   downloadAudio: (outputDir: string, videoId: string) => Promise<void>;
   downloadChannelArtwork: (outputDir: string, channelUrl: string) => Promise<void>;

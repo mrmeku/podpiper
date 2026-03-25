@@ -32,7 +32,11 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
         : [];
       const args = ["--flat-playlist", ...playlistItems, "--print", PRINT_FMT, config.channelUrl];
       const output = await exec(ytdlpArgs(args));
-      return parseVideoList(output);
+      const videos = parseVideoList(output);
+      if (config.startDate) {
+        return videos.filter((v) => v.uploadDate >= config.startDate!);
+      }
+      return videos;
     },
     fetchVideoTitles: async (videoIds) => {
       if (videoIds.length === 0) return {};

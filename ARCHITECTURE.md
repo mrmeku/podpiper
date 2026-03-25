@@ -108,8 +108,6 @@ The scheduler is a state machine (`packages/dag/src/exec-state.ts`) driven by a 
 
 Front-of-queue insertion keeps related work together. Video A's download finishes, its thumbnail starts immediately instead of waiting behind queued downloads from other videos.
 
-Execution goes through a pluggable `NodeRunner`. The default `localRunner` calls `node.action(inputs)` directly.
-
 ## Defining Actions
 
 Each action is a `defineAction` const:
@@ -189,7 +187,7 @@ channel_avatar ──▶ artwork
 After execution, the caller reads results from file paths:
 
 ```typescript
-const results = await graph.execute(localRunner, opts);
+const results = await execute(graph, ctx, opts);
 for (const ref of entryRefs) {
   const r = resultsByName.get(ref.name);
   const paths = r.outputs as RssEntryResult;

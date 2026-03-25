@@ -8,7 +8,7 @@ import { createActivities } from "./activities";
 import { webpackConfigHook, WORKFLOW_BUNDLER_IGNORE_MODULES } from "./bundler-config";
 import { TASK_QUEUES } from "./task-config";
 
-const DEFAULT_SCHEDULE = "0 */6 * * *"; // every 6 hours
+const DEFAULT_SCHEDULE = "0 * * * *"; // every hour
 
 export function registerServe(program: Command) {
   program

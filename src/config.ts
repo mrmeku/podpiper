@@ -76,6 +76,21 @@ CHANNEL-SPECIFIC RULES:
       copyright: "Asianometry",
     },
   },
+  hgmodernism: {
+    channelUrl: "https://www.youtube.com/@HGModernism/videos",
+    startDate: "20260101",
+    storage: {
+      bucket: "hgmodernism",
+      publicUrl: "https://hgmodernism.cast.mrmeku.com",
+    },
+    podcast: {
+      title: "HGModernism",
+      author: "HGModernism",
+      description: "Audio from HGModernism's YouTube channel",
+      category: "Education",
+      copyright: "HGModernism",
+    },
+  },
 };
 
 export function getConfig(name: string): Config {

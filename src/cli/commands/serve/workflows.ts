@@ -17,6 +17,14 @@ import type { Activities } from "./activities";
 import { TEMPORAL_TASK_CONFIG, TASK_QUEUES } from "./task-config";
 import type { NodeKind, VideoNodeKind } from "@/pipeline/actions/define-action";
 
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+}
+
 export interface VideoWorkflowInput {
   channelName: string;
   video: { videoId: string; uploadDate: string; title: string };
@@ -74,7 +82,7 @@ export async function channelWorkflow(input: ChannelWorkflowInput): Promise<void
     Promise.all(
       videos.map(({ video, descriptors }) =>
         executeChild<typeof videoWorkflow>("videoWorkflow", {
-          workflowId: `${input.channelName}-video-${video.id}`,
+          workflowId: `${input.channelName}-${slugify(video.title)}-${video.id}`,
           taskQueue: TASK_QUEUES.workflows,
           args: [
             {

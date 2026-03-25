@@ -25,7 +25,7 @@ function addVideoSubgraph(
   ports: Ports,
   config: Config,
 ): NodeRefOf<rssEntry> {
-  const scope = graph.scope(video.id);
+  const scope = graph.subgraph(video.id);
   const downloadRef = download.addNode(scope, ports, {
     kind: NodeKind.Download,
     videoId: video.id,

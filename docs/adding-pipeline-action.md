@@ -16,4 +16,4 @@
 
 **Per-video vs channel-level:** Per-video actions use `toVideoActionName` → `"kind:videoId"`. Channel-level actions (like `channel_avatar`, `artwork`) use `(p) => p.kind` → static singleton name.
 
-**Factory pattern for configurable actions:** `chapters()` and `summary()` are factory functions that accept a prompt and return an `ActionDef`. The prompt is baked into the config object, so changing it invalidates the cache. Follow this pattern for any action whose behavior varies by channel config.
+**Factory pattern for configurable actions:** `chapters()` and `summary()` are factory functions that accept a prompt and return an `Action`. The prompt is baked into the config object, so changing it invalidates the cache. Follow this pattern for any action whose behavior varies by channel config.

@@ -54,7 +54,7 @@ The project uses a **DAG-based pipeline** with four phases:
 
 1. **Discovery** — `yt-dlp --flat-playlist` fetches the channel's video list
 2. **Analysis** — `graph.analyze()` walks the DAG, computes Merkle hashes, checks caches, and returns per-node details and per-kind cached/dirty counts before any work starts
-3. **DAG execution** — a readiness-loop scheduler dispatches nodes as soon as their dependencies complete, with pluggable `NodeRunner` and live progress events
+3. **DAG execution** — a readiness-loop scheduler dispatches nodes as soon as their dependencies complete, with live progress events
 4. **Publish** — uploads new files to Cloudflare R2, merges episodes into existing feed
 
 ## Output Structure

@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test";
 
 import { createHash } from "node:crypto";
+import type { DagFs } from "./cache";
 import { MemCache, TieredCache } from "./cache";
 import { defineAction } from "./define-action";
-import type { ExecAction } from "./exec-state";
-import { execute } from "./execute";
+import type { ExecResult } from "./exec-state";
 import type { ExecutionContext } from "./execute";
-import { Graph } from "./graph";
-import { validateNoCycles } from "./helpers";
+import { execute } from "./execute";
+import { Graph, validateNoCycles, type BaseParams, type RunnableNode } from "./graph";
 import { throttledScheduler } from "./schedulers";
-import type { BaseParams, DagFs, ExecResult, NodeRunner, RunnableNode } from "./types";
+import type { ExecEvent } from "./types";
 
 function createMemoryDagFs(): DagFs {
   const files = new Map<string, string>();
@@ -56,7 +56,7 @@ const p = (kind: string, deps?: Record<string, string>): BaseParams =>
     : { kind };
 
 function addItemNodes(g: Graph, id: string, fs: DagFs): void {
-  const sg = g.scope(id);
+  const sg = g.subgraph(id);
   const n = (kind: string) => `${id}:${kind}`;
   sg.add({
     name: "fetch",
@@ -375,43 +375,6 @@ describe("Graph", () => {
     expect(exec).toBe(0);
   });
 
-  test("mock runner: executor calls runner instead of node.action", async () => {
-    const fs = createMemoryDagFs();
-    const cache = new MemCache();
-    const g = new Graph();
-    const calls: string[] = [];
-
-    g.add({
-      name: "root",
-      kind: "root",
-      deps: [],
-      config: "cfg",
-      params: p("root"),
-      action: async () => "should not be called",
-    });
-    g.add({
-      name: "child",
-      kind: "child",
-      deps: ["root"],
-      config: "cfg",
-      params: p("child", { root: "root" }),
-      action: async () => "should not be called",
-    });
-
-    const mockRunner: NodeRunner = async (node, _inputs, _outputDir) => {
-      calls.push(node.name);
-      return write(fs, `${node.name}.txt`, `result:${node.name}`);
-    };
-
-    const results = await execute(g, ctx(cache, fs), { runner: mockRunner });
-    expect(calls).toEqual(["root", "child"]);
-    const child = results.find((r) => r.name === "child")!;
-    expect(child.status).toBe("done");
-    if (child.status === "done") {
-      expect(child.outputs).toContain("child.txt");
-    }
-  });
-
   test("failure in one branch does not affect independent branches", async () => {
     const fs = createMemoryDagFs();
     const cache = new MemCache();
@@ -534,7 +497,9 @@ describe("Graph", () => {
       });
     }
 
-    const results = await execute(g, ctx(cache, fs), { scheduler: throttledScheduler({ maxParallelism: 2 }) });
+    const results = await execute(g, ctx(cache, fs), {
+      scheduler: throttledScheduler({ maxParallelism: 2 }),
+    });
     expect(peak).toBe(2);
     expect(results.filter((r) => r.status === "done").length).toBe(6);
   });
@@ -675,21 +640,14 @@ describe("Graph", () => {
         action: async () => write(fs, "b.txt", "b"),
       });
 
-      const actions: ExecAction[] = [];
+      const actions: ExecEvent[] = [];
       await execute(g, ctx(cache, fs), {
         scheduler: throttledScheduler({ maxParallelism: 1 }),
-        onAction: (a) => actions.push(a),
+        onEvent: (a) => actions.push(a),
       });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
-      expect(types).toEqual([
-        "start:a",
-        "done:a",
-        "complete:a",
-        "start:b",
-        "done:b",
-        "complete:b",
-      ]);
+      expect(types).toEqual(["start:a", "done:a", "settled:a", "start:b", "done:b", "settled:b"]);
       for (const a of actions) {
         if (a.type === "done") expect(a.elapsed).toBeGreaterThanOrEqual(0);
       }
@@ -721,13 +679,13 @@ describe("Graph", () => {
 
       await execute(makeGraph(), ctx(cache, fs));
 
-      const actions: ExecAction[] = [];
+      const actions: ExecEvent[] = [];
       await execute(makeGraph(), ctx(cache, fs), {
-        onAction: (a) => actions.push(a),
+        onEvent: (a) => actions.push(a),
       });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
-      expect(types).toEqual(["cached:a", "complete:a", "cached:b", "complete:b"]);
+      expect(types).toEqual(["cached:a", "settled:a", "cached:b", "settled:b"]);
     });
 
     test("emits start+failure on error with elapsed", async () => {
@@ -745,11 +703,11 @@ describe("Graph", () => {
         },
       });
 
-      const actions: ExecAction[] = [];
-      await execute(g, ctx(cache, fs), { onAction: (a) => actions.push(a) });
+      const actions: ExecEvent[] = [];
+      await execute(g, ctx(cache, fs), { onEvent: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
-      expect(types).toEqual(["start:bad", "fail:bad", "complete:bad"]);
+      expect(types).toEqual(["start:bad", "fail:bad", "settled:bad"]);
       const fail = actions.find((a) => a.type === "fail")!;
       if (fail.type === "fail") {
         expect(fail.error).toBeInstanceOf(Error);
@@ -781,11 +739,11 @@ describe("Graph", () => {
         action: async () => "b",
       });
 
-      const actions: ExecAction[] = [];
-      await execute(g, ctx(cache, fs), { onAction: (a) => actions.push(a) });
+      const actions: ExecEvent[] = [];
+      await execute(g, ctx(cache, fs), { onEvent: (a) => actions.push(a) });
 
       const types = actions.map((a) => `${a.type}:${a.node.name}`);
-      expect(types).toEqual(["start:a", "fail:a", "complete:a", "dep-failed:b", "complete:b"]);
+      expect(types).toEqual(["start:a", "fail:a", "settled:a", "dep-failed:b", "settled:b"]);
       const depFail = actions.find((a) => a.type === "dep-failed")!;
       if (depFail.type === "dep-failed") {
         expect(depFail.error).toBeInstanceOf(Error);
@@ -803,7 +761,12 @@ describe("Graph", () => {
         return new Bun.CryptoHasher("sha256").update(data).digest("hex");
       };
       const cache = new MemCache();
-      const dagFs = { readText: async () => "", writeText: async () => {}, hashFile, ensureDir: async () => {} };
+      const dagFs = {
+        readText: async () => "",
+        writeText: async () => {},
+        hashFile,
+        ensureDir: async () => {},
+      };
       const executionCtx: ExecutionContext = { cache, fs: dagFs, casBaseDir: "/cas" };
       const makeGraph = () => {
         const g = new Graph();
@@ -906,9 +869,9 @@ describe("Graph", () => {
     expect(byName1).toEqual({ a: "done", b: "fail", c: "dep-failed", d: "dep-failed" });
 
     bShouldFail = false;
-    const actions: ExecAction[] = [];
+    const actions: ExecEvent[] = [];
     const results2 = await execute(makeGraph(), ctx(cache, fs), {
-      onAction: (a) => actions.push(a),
+      onEvent: (a) => actions.push(a),
     });
     const byName2 = Object.fromEntries(results2.map((r) => [r.name, r.status]));
     expect(byName2).toEqual({ a: "cached", b: "done", c: "done", d: "done" });
@@ -1074,7 +1037,10 @@ describe("Graph", () => {
       }
 
       const results = await execute(g, ctx(cache, fs), {
-        scheduler: throttledScheduler({ maxParallelism: 8, concurrencyLimits: { group_a: 1, group_b: 2 } }),
+        scheduler: throttledScheduler({
+          maxParallelism: 8,
+          concurrencyLimits: { group_a: 1, group_b: 2 },
+        }),
       });
       expect(aPeak).toBe(1);
       expect(bPeak).toBe(2);

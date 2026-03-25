@@ -161,6 +161,7 @@ export interface Config {
   podcast: PodcastConfig;
   summaryPrompt?: string;
   chapterPrompt?: string;
+  startDate?: string;
   playlistOffset?: number;
   skipTranscribe?: boolean;
 }
