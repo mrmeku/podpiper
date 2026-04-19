@@ -1,0 +1,4 @@
+cloudflare_api_token  = "your-cloudflare-api-token"
+cloudflare_account_id = "your-cloudflare-account-id"
+google_client_id      = "your-google-client-id.apps.googleusercontent.com"
+google_client_secret  = "your-google-client-secret"
