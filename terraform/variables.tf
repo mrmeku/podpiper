@@ -9,6 +9,11 @@ variable "cloudflare_account_id" {
   type        = string
 }
 
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for mrmeku.com"
+  type        = string
+}
+
 variable "google_client_id" {
   description = "Google OAuth 2.0 Client ID (created manually in Google Cloud Console)"
   type        = string
@@ -23,7 +28,7 @@ variable "google_client_secret" {
 variable "tunnel_hostname" {
   description = "Public hostname for the Temporal UI"
   type        = string
-  default     = "temporal.mrmeku.com"
+  default     = "podpiper.mrmeku.com"
 }
 
 variable "allowed_emails" {

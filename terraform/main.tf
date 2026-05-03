@@ -29,6 +29,15 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "podpiper" {
   }
 }
 
+resource "cloudflare_dns_record" "podpiper" {
+  zone_id = var.cloudflare_zone_id
+  name    = var.tunnel_hostname
+  type    = "CNAME"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.podpiper.id}.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+}
+
 resource "cloudflare_zero_trust_access_identity_provider" "google" {
   account_id = var.cloudflare_account_id
   name       = "Google"

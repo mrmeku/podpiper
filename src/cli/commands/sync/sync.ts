@@ -26,7 +26,7 @@ export function registerSync(program: Command) {
       },
       { whisper: 1 } as Record<string, number>,
     )
-    .option("-c, --cookies", "Use browser cookies for yt-dlp")
+    .option("-c, --cookies <path>", "Path to Netscape-format cookie file for yt-dlp")
     .option("-f, --force", "Skip DAG cache and re-execute all pipeline nodes")
     .option("-d, --dry-run", "Show plan and exit without executing")
     .action(
@@ -36,7 +36,7 @@ export function registerSync(program: Command) {
           limit?: number;
           parallel: number;
           concurrency: Record<string, number>;
-          cookies?: boolean;
+          cookies?: string;
           force?: boolean;
           dryRun?: boolean;
         },

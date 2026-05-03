@@ -9,10 +9,10 @@ import { createRealYtdlp } from "./ytdlp";
 const CLAUDE_MODEL = "sonnet";
 const WHISPER_MODEL_PATH = `${process.env.HOME}/.whisper-models/ggml-large-v3-turbo.bin`;
 
-export function createRealPorts(opts?: { force?: boolean; cookies?: boolean }): Ports {
+export function createRealPorts(opts?: { force?: boolean; cookies?: string }): Ports {
   return {
     fs: createRealFs(),
-    ytdlp: createRealYtdlp({ force: Boolean(opts?.force), cookies: Boolean(opts?.cookies) }),
+    ytdlp: createRealYtdlp({ force: Boolean(opts?.force), ...(opts?.cookies ? { cookies: opts.cookies } : {}) }),
     ffmpeg: createRealFfmpeg(),
     whisper: createRealWhisper(WHISPER_MODEL_PATH),
     claude: createRealLlm(CLAUDE_MODEL),

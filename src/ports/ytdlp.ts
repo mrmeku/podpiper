@@ -18,9 +18,14 @@ export function parseVideoList(output: string): VideoInfo[] {
     });
 }
 
-export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): YouTubeDownloader {
+export function createRealYtdlp(opts?: { force?: boolean; cookies?: string }): YouTubeDownloader {
   const baseArgs: string[] = [
-    ...(opts?.cookies ? ["--cookies-from-browser", "chrome"] : []),
+    "--impersonate", "chrome",
+    "--extractor-args", "youtube:player_client=web",
+    "--sleep-requests", "1",
+    "--throttled-rate", "100K",
+    "--retry-sleep", "http:exp=1:30",
+    ...(opts?.cookies ? ["--cookies", opts.cookies] : []),
     ...(opts?.force ? ["--force-overwrites"] : []),
   ];
   const ytdlpArgs = (args: string[]) => ["yt-dlp", ...baseArgs, ...args];
@@ -66,6 +71,12 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
         "--write-thumbnail",
         "--convert-thumbnails",
         "jpg",
+        "--sleep-interval",
+        "3",
+        "--max-sleep-interval",
+        "8",
+        "--downloader-args",
+        "ffmpeg_i:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
         "--output",
         `${outputDir}/audio.%(ext)s`,
         url,
@@ -74,8 +85,7 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: boolean }): 
       if (result.exitCode !== 0) {
         const stderr = result.stderr.toString().trim();
         if (!opts?.cookies && stderr.includes("Sign in to confirm your age")) {
-          await exec(["yt-dlp", "--cookies-from-browser", "chrome", ...baseArgs, ...dlArgs]);
-          return;
+          throw new Error("Age-restricted video requires cookies. Re-run with --cookies <path>.");
         }
         throw new Error(stderr || `yt-dlp exited with code ${result.exitCode}`);
       }
