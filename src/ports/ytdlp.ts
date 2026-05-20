@@ -64,7 +64,7 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: string }): Y
         "--audio-format",
         "mp3",
         "--audio-quality",
-        "0",
+        "192K",
         "--embed-thumbnail",
         "--embed-chapters",
         "--write-info-json",

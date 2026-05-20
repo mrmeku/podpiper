@@ -14,9 +14,10 @@ export async function publish(
   fs: FileSystem,
   storage: ObjectStore,
   now: () => Date,
+  opts: { force?: boolean } = {},
 ): Promise<void> {
   for (const u of result.uploads) {
-    if (await storage.fileExists(config.storage.bucket, u.key)) continue;
+    if (!opts.force && (await storage.fileExists(config.storage.bucket, u.key))) continue;
     const data = await fs.readBinary(u.localPath);
     await storage.uploadFile(data, u.key, config.storage.bucket, u.cacheControl);
   }
