@@ -1,5 +1,6 @@
 import { TASK_QUEUES } from "@/cli/commands/serve/task-config";
 import { channels } from "@/config";
+import { TEMPORAL_GRPC_ADDR, TEMPORAL_UI_URL } from "@/infra";
 import { Client, Connection } from "@temporalio/client";
 import type { Command } from "commander";
 
@@ -7,7 +8,7 @@ export function registerTrigger(program: Command) {
   program
     .command("trigger <channel>")
     .description("Trigger a channel sync workflow via Temporal")
-    .option("--address <addr>", "Temporal server address", "localhost:7233")
+    .option("--address <addr>", "Temporal server address", TEMPORAL_GRPC_ADDR)
     .action(async (channel: string, opts: { address: string }) => {
       if (!channels[channel]) {
         console.error(`Unknown channel: ${channel}`);
@@ -26,6 +27,6 @@ export function registerTrigger(program: Command) {
       });
 
       console.log(`Started workflow ${workflowId}`);
-      console.log(`View: http://localhost:8233/namespaces/default/workflows/${workflowId}`);
+      console.log(`View: ${TEMPORAL_UI_URL}/namespaces/default/workflows/${workflowId}`);
     });
 }

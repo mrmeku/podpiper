@@ -1,0 +1,6 @@
+{
+  "temporal": {
+    "grpcPort": 7233,
+    "uiPort": 8233
+  }
+}

@@ -3,6 +3,7 @@ import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
 
 import { channels } from "@/config";
+import { TEMPORAL_GRPC_ADDR } from "@/infra";
 import { createRealPorts } from "@/ports/real";
 import { createActivities } from "./activities";
 import { webpackConfigHook, WORKFLOW_BUNDLER_IGNORE_MODULES } from "./bundler-config";
@@ -14,7 +15,7 @@ export function registerServe(program: Command) {
   program
     .command("serve")
     .description("Run as a Temporal worker with scheduled syncs")
-    .option("--address <addr>", "Temporal server address", "localhost:7233")
+    .option("--address <addr>", "Temporal server address", TEMPORAL_GRPC_ADDR)
     .action(async (opts: { address: string }) => {
       const nativeConnection = await NativeConnection.connect({ address: opts.address });
       const clientConnection = await Connection.connect({ address: opts.address });

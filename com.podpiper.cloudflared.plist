@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.podpiper.serve</string>
+	<string>com.podpiper.cloudflared</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Users/mrmeku/podpiper/scripts/serve.sh</string>
+		<string>/Users/mrmeku/podpiper/scripts/cloudflared.sh</string>
 	</array>
 	<key>WorkingDirectory</key>
 	<string>/Users/mrmeku/podpiper</string>
@@ -17,8 +17,8 @@
 	<key>ThrottleInterval</key>
 	<integer>10</integer>
 	<key>StandardOutPath</key>
-	<string>/Users/mrmeku/podpiper/logs/serve.stdout.log</string>
+	<string>/Users/mrmeku/podpiper/logs/cloudflared.stdout.log</string>
 	<key>StandardErrorPath</key>
-	<string>/Users/mrmeku/podpiper/logs/serve.stderr.log</string>
+	<string>/Users/mrmeku/podpiper/logs/cloudflared.stderr.log</string>
 </dict>
 </plist>

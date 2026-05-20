@@ -11,6 +11,9 @@ const cmds = [
   { cmd: "whisper-cli", brew: "whisper-cpp" },
   { cmd: "claude", install: "curl -fsSL https://claude.ai/install.sh | sh" },
   { cmd: "op", brew: "1password-cli" },
+  { cmd: "temporal", brew: "temporal" },
+  { cmd: "cloudflared", brew: "cloudflared" },
+  { cmd: "jq", brew: "jq" },
 ] as const;
 
 type YtdlpPkg = { label: string; spec: string; check: (python: string) => boolean };

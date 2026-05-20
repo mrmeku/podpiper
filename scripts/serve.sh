@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-
 cd "$(dirname "$0")/.."
+set -a; source .env; set +a
 
-set -a
-source .env
-set +a
-
-docker compose -f docker-compose.temporal.yml up -d
-
-TEMPORAL_HOST="${TEMPORAL_ADDRESS:-localhost:7233}"
+GRPC_PORT=$(jq -r '.temporal.grpcPort' infra.json)
+TEMPORAL_HOST="localhost:${GRPC_PORT}"
 echo "Waiting for Temporal at $TEMPORAL_HOST..."
-until nc -z "${TEMPORAL_HOST%%:*}" "${TEMPORAL_HOST##*:}" 2>/dev/null; do
+start=$SECONDS
+until nc -z localhost "$GRPC_PORT" 2>/dev/null; do
+  (( SECONDS - start > 120 )) && { echo "Temporal not reachable after 120s; exiting for launchd retry"; exit 1; }
   sleep 2
 done
 echo "Temporal is ready."

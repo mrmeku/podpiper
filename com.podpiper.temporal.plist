@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.podpiper.serve</string>
+	<string>com.podpiper.temporal</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Users/mrmeku/podpiper/scripts/serve.sh</string>
+		<string>/Users/mrmeku/podpiper/scripts/temporal-server.sh</string>
 	</array>
 	<key>WorkingDirectory</key>
 	<string>/Users/mrmeku/podpiper</string>
@@ -17,8 +17,8 @@
 	<key>ThrottleInterval</key>
 	<integer>10</integer>
 	<key>StandardOutPath</key>
-	<string>/Users/mrmeku/podpiper/logs/serve.stdout.log</string>
+	<string>/Users/mrmeku/podpiper/logs/temporal.stdout.log</string>
 	<key>StandardErrorPath</key>
-	<string>/Users/mrmeku/podpiper/logs/serve.stderr.log</string>
+	<string>/Users/mrmeku/podpiper/logs/temporal.stderr.log</string>
 </dict>
 </plist>

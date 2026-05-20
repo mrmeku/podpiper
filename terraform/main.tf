@@ -2,6 +2,10 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
+locals {
+  infra = jsondecode(file("${path.module}/../infra.json"))
+}
+
 resource "random_id" "tunnel_secret" {
   byte_length = 32
 }
@@ -20,7 +24,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "podpiper" {
     ingress = [
       {
         hostname = var.tunnel_hostname
-        service  = "http://temporal-ui:8080"
+        service  = "http://localhost:${local.infra.temporal.uiPort}"
       },
       {
         service = "http_status:404"
