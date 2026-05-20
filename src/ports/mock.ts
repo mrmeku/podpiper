@@ -45,6 +45,12 @@ export function createMockPorts(
       embedChapters: async (_audio, _chapters, output) => {
         await fs.writeText(output, "fake-embedded-audio");
       },
+      probeDuration: async (audioPath) => {
+        const infoPath = audioPath.replace(/\.mp3$/, ".info.json");
+        if (!(await fs.exists(infoPath))) return 0;
+        const info = await fs.readJson<{ duration?: number }>(infoPath);
+        return info.duration ?? 0;
+      },
       ...overrides?.ffmpeg,
     },
     whisper: {

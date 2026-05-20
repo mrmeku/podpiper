@@ -59,5 +59,19 @@ export function createRealFfmpeg(): MediaProcessor {
       if (result instanceof Error) throw result;
       await Bun.write(outputPath, result);
     },
+    probeDuration: async (audioPath) => {
+      const out = await exec([
+        "ffprobe",
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        audioPath,
+      ]);
+      const seconds = parseFloat(out.trim());
+      if (!Number.isFinite(seconds)) {
+        throw new Error(`ffprobe returned non-numeric duration for ${audioPath}: ${out}`);
+      }
+      return seconds;
+    },
   };
 }

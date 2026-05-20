@@ -25,6 +25,8 @@ export function createRealYtdlp(opts?: { force?: boolean; cookies?: string }): Y
     "--sleep-requests", "1",
     "--throttled-rate", "100K",
     "--retry-sleep", "http:exp=1:30",
+    "--no-continue",
+    "--no-part",
     ...(opts?.cookies ? ["--cookies", opts.cookies] : []),
     ...(opts?.force ? ["--force-overwrites"] : []),
   ];

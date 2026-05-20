@@ -25,7 +25,12 @@ export function createStubPorts(): Ports {
       downloadAudio: noop,
       downloadChannelArtwork: noop,
     },
-    ffmpeg: { squareThumbnail: noop, processChannelArtwork: noop, embedChapters: noop },
+    ffmpeg: {
+      squareThumbnail: noop,
+      processChannelArtwork: noop,
+      embedChapters: noop,
+      probeDuration: async () => 0,
+    },
     whisper: { transcribe: async () => ({ srt: "", json: jsonPath<WhisperJson>("") }) },
     claude: { call: async () => "" },
     storage: {

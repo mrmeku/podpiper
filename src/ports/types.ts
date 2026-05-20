@@ -25,6 +25,7 @@ export interface MediaProcessor {
   squareThumbnail: (input: string, output: string) => Promise<void>;
   processChannelArtwork: (rawPath: string, outputPath: string) => Promise<void>;
   embedChapters: (audioPath: string, chapters: Chapter[], outputPath: string) => Promise<void>;
+  probeDuration: (audioPath: string) => Promise<number>;
 }
 
 export type TranscribeResult = {

@@ -8,6 +8,7 @@ const WHISPER_MODEL_URL =
 const cmds = [
   { cmd: "yt-dlp", brew: "yt-dlp" },
   { cmd: "ffmpeg", brew: "ffmpeg" },
+  { cmd: "ffprobe", brew: "ffmpeg" },
   { cmd: "whisper-cli", brew: "whisper-cpp" },
   { cmd: "claude", install: "curl -fsSL https://claude.ai/install.sh | sh" },
   { cmd: "op", brew: "1password-cli" },
